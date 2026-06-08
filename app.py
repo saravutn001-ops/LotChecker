@@ -44,12 +44,30 @@ th { background:#eee; }
 hr { margin:20px 0; }
 .small { color:#666; font-size:14px; }
 .download { display:block; text-align:center; background:#222; color:white; padding:14px; border-radius:10px; margin-top:15px; text-decoration:none; font-size:20px; }
+.step-page { display:none; }
+.step-page.active { display:block; }
+.step-tabs { display:flex; gap:8px; margin:15px 0; }
+.step-tabs button { font-size:16px; padding:10px; background:#e9ecef; color:#333; border-radius:8px; }
+.step-tabs button.active { background:#0066cc; color:white; }
+.nav-row { display:flex; gap:10px; margin-top:18px; }
+.nav-row button { flex:1; }
+.btn-secondary { background:#6c757d !important; }
+.btn-success { background:#198754 !important; }
+
 </style>
 </head>
 <body>
 
 <div class="box">
 <h1>Lot Checker</h1>
+
+<div class="step-tabs">
+    <button id="tab1" onclick="goPage(1)">1 ตั้งค่า</button>
+    <button id="tab2" onclick="goPage(2)">2 รูปภาพ</button>
+    <button id="tab3" onclick="goPage(3)">3 ผลตรวจ</button>
+</div>
+
+<div id="page1" class="step-page active">
 
 <label>ประเภทการตรวจ</label>
 <select id="checkType" onchange="changeCheckType()">
@@ -198,8 +216,12 @@ hr { margin:20px 0; }
 
 <div id="autoExpInfo" class="info"></div>
 
-<hr>
+<div class="nav-row">
+    <button onclick="goPage(2)">ถัดไป: รูปภาพ</button>
+</div>
+</div>
 
+<div id="page2" class="step-page">
 <h3>อัปโหลดรูป</h3>
 <input type="file" id="fileInput" accept="image/*">
 
@@ -215,14 +237,34 @@ hr { margin:20px 0; }
 <h3>รูปตัวอย่าง</h3>
 <img id="preview" style="display:none;">
 
-<button onclick="sendCheck()">ตรวจสอบล็อต</button>
+<div class="nav-row">
+    <button class="btn-secondary" onclick="goPage(1)">ย้อนกลับ</button>
+    <button class="btn-success" onclick="sendCheck()">ตรวจสอบล็อต</button>
+</div>
+</div>
 
+<div id="page3" class="step-page">
+<div class="nav-row">
+    <button class="btn-secondary" onclick="goPage(1)">ตั้งค่า</button>
+    <button class="btn-secondary" onclick="goPage(2)">รูปภาพ</button>
+</div>
 <div id="result"></div>
 <div id="detail"></div>
+</div>
 </div>
 
 <script>
 let imageData = "";
+
+function goPage(page) {
+    for (let i = 1; i <= 3; i++) {
+        const pageEl = document.getElementById("page" + i);
+        const tabEl = document.getElementById("tab" + i);
+        if (pageEl) pageEl.classList.toggle("active", i === page);
+        if (tabEl) tabEl.classList.toggle("active", i === page);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 const PREFIX_SHIPPING_MAP = {
     "KC": "",
@@ -515,6 +557,7 @@ async function sendCheck() {
         payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonPrefix").value : "";
     }
 
+    goPage(3);
     resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
     detailDiv.innerHTML = "";
 
@@ -561,7 +604,7 @@ async function sendCheck() {
     }
 }
 
-window.onload = function() { setTodayDefault(); updateShippingMarkByPrefix(); changeCheckType(); };
+window.onload = function() { setTodayDefault(); updateShippingMarkByPrefix(); changeCheckType(); goPage(1); };
 </script>
 </body>
 </html>
