@@ -490,10 +490,10 @@ def stamp_image(image_base64, summary, product_type, market_type, mode, details,
 
     if summary == "PASS":
         title = "LOT CHECK PASS"
-        thai = "ตรวจสอบ Lot ถูกต้องแล้ว"
+        thai = "LOT VERIFIED"
     else:
         title = "LOT CHECK NG"
-        thai = "ตรวจพบ Lot ไม่ถูกต้อง"
+        thai = "LOT VERIFICATION FAILED"
 
     lines = [
         title,
