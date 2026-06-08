@@ -566,8 +566,8 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     elif check_type_en == "กล่อง":
         check_type_en = "CARTON"
 
-    x = max(20, int(w * 0.035))
-    y = max(20, int(h * 0.035))
+    x = 30
+    y = h - 180
 
     draw_text_with_shadow(draw, (x, y), title, title_font, color)
     y += int(title_font.size * 1.25)
