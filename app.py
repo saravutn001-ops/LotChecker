@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-client = OpenAI(api_key="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")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")
 HTML = """
 <!DOCTYPE html>
 <html lang="th">
