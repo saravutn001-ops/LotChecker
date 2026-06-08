@@ -482,7 +482,7 @@ def stamp_image(image_base64, summary, product_type, market_type, mode, checked_
         color = (255, 0, 0)
 
     x = 30
-    y = 1000
+    y = 500
 
     # ไม่มีกรอบ / ไม่มีพื้นหลัง ใช้เงาดำให้อ่านง่าย
     draw_text_with_shadow(draw, (x, y), title, title_font, color)
