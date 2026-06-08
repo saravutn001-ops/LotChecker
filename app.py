@@ -57,23 +57,24 @@ hr { margin:20px 0; }
     <option value="carton">ตรวจล็อตกล่อง</option>
 </select>
 
-<label>ประเภทไลน์</label>
-<select id="mode" onchange="changeMode()">
-    <option value="sachet">Sachet</option>
-    <option value="linapack">Linapack</option>
-</select>
+<div id="pouchHeader">
+    <label>ประเภทไลน์</label>
+    <select id="mode" onchange="changeMode()">
+        <option value="sachet">Sachet</option>
+        <option value="linapack">Linapack</option>
+    </select>
 
-<label>ประเภทผลิตภัณฑ์</label>
-<select id="productType" onchange="changeProduct()">
-    <option value="EPC">EPC</option>
-    <option value="EPW">EPW</option>
-</select>
+    <label>ประเภทผลิตภัณฑ์</label>
+    <select id="productType" onchange="changeProduct()">
+        <option value="EPC">EPC</option>
+        <option value="EPW">EPW</option>
+    </select>
+</div>
 
 <label>ประเภทงาน</label>
 <select id="marketType" onchange="changeProduct()">
     <option value="TH">งานไทย</option>
     <option value="EXPORT">งานต่างประเทศ</option>
-    <option value="LAOS">งานลาว</option>
 </select>
 
 <label>วันที่ผลิต (MFG)</label>
@@ -115,30 +116,28 @@ hr { margin:20px 0; }
 </div>
 
 <div id="cartonSection" style="display:none;">
-    <label>เลขลำดับกล่อง / Running No.</label>
-    <input id="cartonRunNo" value="00001" maxlength="5" placeholder="เช่น 00001">
-
     <div id="cartonTHBox">
-        <label>รหัสงานขายในประเทศ</label>
-        <input id="cartonSalesCode" value="00" maxlength="2" placeholder="งานไทยใช้ 00">
+        <p class="small">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
+        <p class="small">เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก / รหัสงานไทยต้องเป็น 00 / เลขอาคารต้องเป็น 1-6</p>
 
         <label>เลขอาคาร</label>
         <select id="buildingNo">
             <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
-
-        <p class="small">กล่องงานไทย: 00001 00 080626 3</p>
     </div>
 
     <div id="cartonExportBox" style="display:none;">
-        <label>รหัสลูกค้า / ประเทศบนกล่อง</label>
-        <input id="cartonCustomerCode" value="" placeholder="เช่น KC, VN, VT, TS, AC, MM">
+        <label>Shipping Mark</label>
+        <input id="shippingMark" value="" placeholder="เช่น IPO VN, VN-MT, TS, หรือเว้นว่างถ้าไม่มี">
+
+        <label>รหัสตัวอักษรหลังเลขลำดับกล่อง</label>
+        <input id="cartonAlphaCode" value="" placeholder="เช่น KC, VN, VT, TS, AC, MM">
 
         <label>EXP สำหรับ Pattern ที่มี EXP</label>
         <input id="cartonExp" value="" placeholder="เช่น 080927">
 
-        <p class="small">กล่องต่างประเทศ: ระบบจะตรวจแบบยืดหยุ่นตาม D48 เช่น มี Run No., รหัสลูกค้า, วันที่ผลิต, EXP ถ้ามี และตัวท้าย K</p>
+        <p class="small">กล่องต่างประเทศ: มีหลายรูปแบบตาม D48 เช่น Shipping Mark + Running No. + รหัสตัวอักษร + MFG + EXP/K</p>
     </div>
 </div>
 
@@ -212,6 +211,7 @@ function updateMFGFromDate() {
 }
 
 function autoExp() {
+    const checkType = document.getElementById("checkType").value;
     const product = document.getElementById("productType").value;
     const market = document.getElementById("marketType").value;
     const mfg = document.getElementById("mfg").value.trim();
@@ -228,29 +228,31 @@ function autoExp() {
     const date = parseDDMMYY(mfg);
     if (!date) return;
 
+    if (checkType === "carton") {
+        if (market === "TH") {
+            cartonExp.value = "";
+            info.innerHTML = "กล่องงานไทย: ตรวจ Running No. 5 หลัก + 00 + MFG + อาคาร 1-6";
+        } else {
+            info.innerHTML = "กล่องงานต่างประเทศ: ตรวจ Shipping Mark / Running No. / รหัสตัวอักษร / MFG / EXP ตาม Pattern";
+        }
+        return;
+    }
+
     if (product === "EPC") {
         if (market === "TH") {
             const exp = formatDDMMYY(addMonths(date, 15));
-            sachetExp.value = exp; linapackExp.value = exp; cartonExp.value = exp;
+            sachetExp.value = exp; linapackExp.value = exp;
             info.innerHTML = "EPC งานไทย: EXP = MFG + 1 ปี 3 เดือน → " + exp;
-        } else if (market === "LAOS") {
-            const exp = formatDDMMYY(addMonths(date, 24));
-            sachetExp.value = exp; linapackExp.value = exp; cartonExp.value = exp;
-            info.innerHTML = "EPC งานลาว: EXP = MFG + 2 ปี → " + exp;
         } else {
-            sachetExp.value = ""; linapackExp.value = ""; cartonExp.value = "";
+            sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPC งานต่างประเทศ: ไม่มีวันหมดอายุ";
         }
     } else {
         if (market === "TH") {
-            sachetExp.value = ""; linapackExp.value = ""; cartonExp.value = "";
+            sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPW งานไทย: มีวันผสม / ไม่มี EXP";
-        } else if (market === "LAOS") {
-            const exp = formatDDMMYY(addMonths(date, 24));
-            sachetExp.value = exp; linapackExp.value = exp; cartonExp.value = exp;
-            info.innerHTML = "EPW งานลาว: EXP = MFG + 2 ปี → " + exp;
         } else {
-            sachetExp.value = ""; linapackExp.value = ""; cartonExp.value = "";
+            sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPW งานต่างประเทศ: ไม่มีวันผสม และไม่มี EXP";
         }
     }
@@ -258,6 +260,7 @@ function autoExp() {
 
 function changeCheckType() {
     const checkType = document.getElementById("checkType").value;
+    document.getElementById("pouchHeader").style.display = checkType === "pouch" ? "block" : "none";
     document.getElementById("pouchSection").style.display = checkType === "pouch" ? "block" : "none";
     document.getElementById("cartonSection").style.display = checkType === "carton" ? "block" : "none";
     changeProduct();
@@ -271,10 +274,10 @@ function changeMode() {
 }
 
 function changeProduct() {
+    const checkType = document.getElementById("checkType").value;
     const product = document.getElementById("productType").value;
     const market = document.getElementById("marketType").value;
     const mode = document.getElementById("mode").value;
-    const checkType = document.getElementById("checkType").value;
 
     const mixCodeBox = document.getElementById("mixCodeBox");
     const cartonTHBox = document.getElementById("cartonTHBox");
@@ -294,23 +297,19 @@ function changeProduct() {
 
     if (checkType === "carton") {
         cartonTHBox.style.display = market === "TH" ? "block" : "none";
-        cartonExportBox.style.display = market === "TH" ? "none" : "block";
+        cartonExportBox.style.display = market === "EXPORT" ? "block" : "none";
     }
 
-    if (mode === "linapack") {
+    if (checkType === "pouch" && mode === "linapack") {
         if (product === "EPW" && market === "TH") {
             mixCodeBox.style.display = "block";
             hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40";
-        } else if (product === "EPW" && market === "LAOS") {
-            mixCodeBox.style.display = "none";
-            hint.innerHTML = "EPW ลาว: ตรวจ MFG + เวลา + EXP เช่น MFG 080626 09:40 / EXP 080628";
         } else if (product === "EPW" && market === "EXPORT") {
             mixCodeBox.style.display = "none";
             hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เวลา ไม่มีวันผสม และไม่มี EXP";
         } else {
             mixCodeBox.style.display = "none";
             if (market === "TH") hint.innerHTML = "EPC ไทย: ตรวจ MFG + LP1-9 + เวลา + EXP";
-            else if (market === "LAOS") hint.innerHTML = "EPC ลาว: ตรวจ MFG + LP1-9 + เวลา + EXP 2 ปี";
             else hint.innerHTML = "EPC ต่างประเทศ: ตรวจ MFG + LP1-9 + เวลา ไม่มี EXP";
         }
     }
@@ -395,13 +394,12 @@ async function sendCheck() {
             payload.mixCode = document.getElementById("mixCode").value;
         }
     } else {
-        payload.line = document.getElementById("lpMachine").value;
+        payload.line = "";
         payload.exp = marketType === "TH" ? "" : document.getElementById("cartonExp").value;
         payload.mixCode = "";
-        payload.cartonRunNo = document.getElementById("cartonRunNo").value;
-        payload.cartonSalesCode = document.getElementById("cartonSalesCode").value;
-        payload.buildingNo = document.getElementById("buildingNo").value;
-        payload.cartonCustomerCode = document.getElementById("cartonCustomerCode").value;
+        payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : "";
+        payload.shippingMark = marketType === "EXPORT" ? document.getElementById("shippingMark").value : "";
+        payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonAlphaCode").value : "";
     }
 
     resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
@@ -427,8 +425,6 @@ async function sendCheck() {
 
         let html = `<p><b>เวลา:</b> ${data.time}</p>`;
         html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
-        html += `<p><b>ประเภทไลน์:</b> ${data.mode}</p>`;
-        html += `<p><b>ประเภทผลิตภัณฑ์:</b> ${data.productType}</p>`;
         html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
 
@@ -505,13 +501,9 @@ def calculate_exp(product_type, market_type, mfg):
     if product_type == "EPC":
         if market_type == "TH":
             return format_ddmmyy(add_months(dt, 15))
-        if market_type == "LAOS":
-            return format_ddmmyy(add_months(dt, 24))
         return ""
 
     if product_type == "EPW":
-        if market_type == "LAOS":
-            return format_ddmmyy(add_months(dt, 24))
         return ""
 
     return ""
@@ -522,15 +514,13 @@ def no_exp_required(product_type, market_type):
         return market_type == "EXPORT"
 
     if product_type == "EPW":
-        return market_type in ["TH", "EXPORT"]
+        return True
 
     return False
 
 
 def get_font(size):
     candidates = [
-        "fonts/NotoSansThai-Regular.ttf",
-        "fonts/THSarabunNew.ttf",
         "arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
@@ -561,7 +551,6 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     title_font = get_font(max(30, int(w * 0.045)))
     body_font = get_font(max(20, int(w * 0.028)))
 
-    # Use English only to prevent Thai text from showing as square boxes on Render
     if summary == "PASS":
         title = "LOT CHECK PASS"
         line2 = "LOT VERIFIED"
@@ -571,7 +560,6 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         line2 = "LOT VERIFICATION FAILED"
         color = (255, 0, 0)
 
-    # Convert Thai check type words to English for stamped image
     check_type_en = str(check_type)
     if check_type_en == "ซอง":
         check_type_en = "POUCH"
@@ -597,50 +585,54 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
 
 def read_lot_with_ai(image_base64, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp,
-                     mix_code, carton_run_no, carton_sales_code, building_no, carton_customer_code):
+                     mix_code, building_no, shipping_mark, carton_alpha_code):
     skip_exp = no_exp_required(product_type, market_type)
 
     if check_type == "carton":
         if market_type == "TH":
-            expected = f"{carton_run_no} {carton_sales_code} {expected_mfg} {building_no}"
             prompt = f"""
 Read ONLY the printed carton lot/batch number from the image.
 
 This is Thailand carton format.
 
 Expected format:
-{expected}
+NNNNN 00 {expected_mfg} {building_no}
 
-Meaning:
-- {carton_run_no} = carton running number, exactly 5 digits
-- {carton_sales_code} = Thailand sales code, must be 00
-- {expected_mfg} = MFG date DDMMYY
-- {building_no} = building number, must be 1-6
+Rules:
+- NNNNN must be any 5 digits. Do not compare it with an expected value.
+- The second field must be exactly 00.
+- MFG date must be exactly {expected_mfg}.
+- Building number must be exactly {building_no} and must be 1-6.
+- Do not silently correct mistakes.
+- Beware Dot Matrix OCR: 0 may look like 8, but return exactly what you see.
 
 Return JSON only:
 {{"lines":["carton lot exactly as seen"]}}
-
-Do not silently correct mistakes.
 """
         else:
-            exp_line = f"EXP {expected_exp}" if expected_exp else "NO EXP REQUIRED"
-            customer_rule = f"Customer code should be {carton_customer_code} if visible." if carton_customer_code else "Customer code may vary by D48 pattern."
+            shipping_rule = f"Shipping mark must be visible and match: {shipping_mark}" if shipping_mark else "Shipping mark may be blank or vary."
+            alpha_rule = f"The alphabet code after running number must match: {carton_alpha_code}" if carton_alpha_code else "Alphabet code after running number may vary by D48 pattern."
             prompt = f"""
 Read ONLY the printed carton batch/lot code from the image.
 
-This is Export/Laos carton format based on D48 table.
-The carton format can vary by customer/country. Common parts may include:
-- carton running number, usually 5 characters/digits such as ZZZZZ or 00001
-- customer/country code such as KC, VN, VT, TS, AC, MM, etc.
-- MFG date DDMMYY = {expected_mfg}
-- EXP date if required = {expected_exp if expected_exp else "not required"}
-- ending category code K, if printed
+This is Export carton format based on D48 table.
 
-{customer_rule}
+Common format parts:
+- Shipping mark before carton running number, if printed.
+- Running number must be 5 characters/digits.
+- The field after running number is alphabet code, not 00.
+- MFG date DDMMYY must be {expected_mfg}.
+- EXP date may be {expected_exp if expected_exp else "not required"}.
+- Some patterns end with category code K.
+
+{shipping_rule}
+{alpha_rule}
 
 Return JSON only:
 {{
   "lines": ["carton batch/lot exactly as seen"],
+  "has_shipping_mark": true,
+  "has_alpha_code": true,
   "has_mfg": true,
   "has_exp": true,
   "has_k": true
@@ -648,9 +640,9 @@ Return JSON only:
 
 Rules:
 - Do not silently correct mistakes.
+- If shipping mark is not required or not specified, set has_shipping_mark to true.
+- If alphabet code is not specified, set has_alpha_code to true.
 - If no EXP is printed and EXP is not required, set has_exp to true.
-- If EXP is required but missing, set has_exp to false.
-- If K is not printed but the pattern clearly does not require it, set has_k to true.
 """
     elif mode == "sachet":
         if skip_exp:
@@ -694,23 +686,8 @@ This is Linapack EPW Thailand format. EXP is NOT required.
 Expected:
 MFG {expected_mfg} {mix_code} TT:TT
 
-Example:
-MFG {expected_mfg} {mix_code} 09:40
-
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
-"""
-        elif product_type == "EPW" and market_type == "LAOS":
-            prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPW Laos format. No Mix Code.
-
-Expected:
-MFG {expected_mfg} TT:TT
-EXP {expected_exp}
-
-Return JSON only:
-{{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
         elif product_type == "EPW" and market_type == "EXPORT":
             prompt = f"""
@@ -738,7 +715,7 @@ Return JSON only:
             else:
                 prompt = f"""
 Read ONLY printed lot code from the image.
-This is Linapack EPC format.
+This is Linapack EPC Thailand format.
 
 Expected:
 MFG {expected_mfg} {expected_line} TT:TT
@@ -861,22 +838,29 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
     return overall, details
 
 
-def check_carton(lines, market_type, expected_mfg, expected_exp, carton_run_no, carton_sales_code, building_no, carton_customer_code, ai_json):
+def parse_th_carton_fields(text):
+    text = normalize(text)
+    parts = text.split()
+    if len(parts) < 4:
+        return "", "", "", ""
+    return parts[0], parts[1], parts[2], parts[3]
+
+
+def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, shipping_mark, carton_alpha_code, ai_json):
     details = []
     overall = True
     lines = [normalize(x) for x in lines]
     all_text = " ".join(lines)
+    actual = lines[0] if lines else ""
 
     if market_type == "TH":
-        expected = f"{carton_run_no} {carton_sales_code} {expected_mfg} {building_no}"
-        actual = lines[0] if lines else ""
+        run_no, sales_code, mfg_code, building_code = parse_th_carton_fields(actual)
 
         checks = [
-            ("เลขลำดับกล่อง", carton_run_no in actual, actual, carton_run_no),
-            ("รหัสงานขายไทย", carton_sales_code in actual, actual, carton_sales_code),
-            ("วันที่ผลิต", expected_mfg in actual, actual, expected_mfg),
-            ("เลขอาคาร", re.search(rf"\b{re.escape(building_no)}\b", actual) is not None, actual, building_no),
-            ("รูปแบบรวม", actual == expected, actual, expected),
+            ("Running No. 5 digits", bool(re.fullmatch(r"\d{5}", run_no)), run_no, "ตัวเลข 5 หลัก เช่น 00004"),
+            ("Thailand sales code", sales_code == "00", sales_code, "00"),
+            ("MFG date", mfg_code == expected_mfg, mfg_code, expected_mfg),
+            ("Building No.", building_code == building_no and building_code in ["1", "2", "3", "4", "5", "6"], building_code, building_no),
         ]
 
         for item, ok, actual_value, expected_value in checks:
@@ -889,33 +873,47 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, carton_run_no, 
                 "expected": expected_value
             })
 
+        # Do not auto-correct 0/8. Show warning as NG if not exact.
+        if "8" in run_no or sales_code == "08":
+            details.append({
+                "item": "OCR Warning",
+                "status": "WARN",
+                "actual": actual,
+                "expected": "Dot Matrix may confuse 0 and 8. Do not auto-correct."
+            })
+
         return overall, details
 
+    has_shipping_mark = bool(ai_json.get("has_shipping_mark", False))
+    has_alpha_code = bool(ai_json.get("has_alpha_code", False))
     has_mfg = bool(ai_json.get("has_mfg", False)) or (expected_mfg in all_text)
     has_exp = bool(ai_json.get("has_exp", False))
     has_k = bool(ai_json.get("has_k", False)) or re.search(r"\bK\b", all_text) is not None
+
+    if shipping_mark:
+        has_shipping_mark = shipping_mark.upper() in all_text
+    else:
+        has_shipping_mark = True
+
+    if carton_alpha_code:
+        has_alpha_code = carton_alpha_code.upper() in all_text
+    else:
+        has_alpha_code = re.search(r"\b[A-Z]{1,4}\b", all_text) is not None
 
     if expected_exp:
         has_exp = has_exp or (expected_exp in all_text)
     else:
         has_exp = True
 
-    if carton_run_no:
-        run_ok = carton_run_no in all_text
-    else:
-        run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
-
-    if carton_customer_code:
-        customer_ok = carton_customer_code.upper() in all_text
-    else:
-        customer_ok = True
+    run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
 
     checks = [
-        ("Running No. กล่อง", run_ok, all_text, carton_run_no or "5 ตัวอักษร/ตัวเลข"),
-        ("รหัสลูกค้า/ประเทศ", customer_ok, all_text, carton_customer_code or "ไม่ระบุ"),
-        ("วันที่ผลิต", has_mfg, all_text, expected_mfg),
+        ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
+        ("Running No.", run_ok, all_text, "5 ตัวอักษร/ตัวเลข"),
+        ("Alpha code after Running No.", has_alpha_code, all_text, carton_alpha_code or "ตัวอักษรตาม D48"),
+        ("MFG date", has_mfg, all_text, expected_mfg),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
-        ("ตัวท้าย K / Pattern D48", has_k, all_text, "K หรือ Pattern ที่ไม่บังคับ K"),
+        ("K / D48 pattern", has_k, all_text, "K หรือ Pattern ที่ไม่บังคับ K"),
     ]
 
     for item, ok, actual_value, expected_value in checks:
@@ -956,10 +954,9 @@ def check():
         mix_code = data.get("mixCode", "").strip().upper()
         image_data = data.get("image", "")
 
-        carton_run_no = data.get("cartonRunNo", "").strip().upper()
-        carton_sales_code = data.get("cartonSalesCode", "00").strip().upper()
         building_no = data.get("buildingNo", "").strip()
-        carton_customer_code = data.get("cartonCustomerCode", "").strip().upper()
+        shipping_mark = data.get("shippingMark", "").strip().upper()
+        carton_alpha_code = data.get("cartonAlphaCode", "").strip().upper()
 
         if not expected_mfg:
             return jsonify({"error": "กรุณาเลือกวันที่ผลิต"}), 400
@@ -980,10 +977,6 @@ def check():
             return jsonify({"error": "กรุณากรอก EXP หรือเลือกประเภทงานที่ไม่ต้องมี EXP"}), 400
 
         if check_type == "carton" and market_type == "TH":
-            if not re.fullmatch(r"\d{5}", carton_run_no):
-                return jsonify({"error": "เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก เช่น 00001"}), 400
-            if carton_sales_code != "00":
-                return jsonify({"error": "งานไทย รหัสงานขายต้องเป็น 00"}), 400
             if building_no not in ["1", "2", "3", "4", "5", "6"]:
                 return jsonify({"error": "เลขอาคารต้องเป็น 1-6"}), 400
 
@@ -999,10 +992,9 @@ def check():
             expected_line,
             expected_exp,
             mix_code,
-            carton_run_no,
-            carton_sales_code,
             building_no,
-            carton_customer_code
+            shipping_mark,
+            carton_alpha_code
         )
 
         result_json = json.loads(clean_json_text(raw_ai))
@@ -1014,14 +1006,13 @@ def check():
                 market_type,
                 expected_mfg,
                 expected_exp,
-                carton_run_no,
-                carton_sales_code,
                 building_no,
-                carton_customer_code,
+                shipping_mark,
+                carton_alpha_code,
                 result_json
             )
             mode_name = "Carton"
-            check_type_name = "กล่อง"
+            check_type_name = "CARTON"
         elif mode == "sachet":
             overall, details = check_pouch_sachet(
                 lines,
@@ -1032,7 +1023,7 @@ def check():
                 expected_exp
             )
             mode_name = "Sachet"
-            check_type_name = "ซอง"
+            check_type_name = "POUCH"
         else:
             ai_time = result_json.get("time", "")
             overall, details = check_pouch_linapack(
@@ -1046,7 +1037,7 @@ def check():
                 ai_time
             )
             mode_name = "Linapack"
-            check_type_name = "ซอง"
+            check_type_name = "POUCH"
 
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
