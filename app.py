@@ -585,9 +585,29 @@ async function sendCheck() {
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
 
         if (data.stampedImageUrl) {
-            html += `<a class="download" href="${data.stampedImageUrl}" target="_blank">เปิด / ดาวน์โหลดรูปที่แสตมป์ผลแล้ว</a>`;
-            html += `<img src="${data.stampedImageUrl}">`;
-        }
+
+    html += `
+    <div style="display:flex;gap:10px;margin-top:15px;">
+
+        <a class="download"
+           href="${data.stampedImageUrl}"
+           target="_blank"
+           style="flex:1;">
+           เปิดรูป
+        </a>
+
+        <a class="download"
+           href="${data.stampedImageUrl}"
+           download="Lot_Check_Result.jpg"
+           style="flex:1;background:#28a745;">
+           ดาวน์โหลดรูป
+        </a>
+
+    </div>
+
+    <img src="${data.stampedImageUrl}" style="margin-top:15px;">
+    `;
+}
 
         html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
 
