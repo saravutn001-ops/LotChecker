@@ -27,32 +27,238 @@ HTML = """
 <meta charset="UTF-8">
 <title>Lot Checker</title>
 <style>
-body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px; }
-.box { max-width:920px; margin:auto; background:white; padding:20px; border-radius:16px; box-shadow:0 4px 12px #0002; }
-h1 { text-align:center; }
-label { font-weight:bold; margin-top:10px; display:block; }
-input, select, button { width:100%; font-size:20px; padding:12px; margin-top:8px; box-sizing:border-box; }
-button { background:#0066cc; color:white; border:0; border-radius:10px; font-weight:bold; }
-video, img { width:100%; margin-top:15px; border-radius:12px; border:1px solid #ccc; }
-.pass { background:#d7ffd7; color:green; font-size:42px; text-align:center; padding:20px; border-radius:12px; margin-top:15px; font-weight:bold; }
-.ng { background:#ffd7d7; color:red; font-size:42px; text-align:center; padding:20px; border-radius:12px; margin-top:15px; font-weight:bold; }
-.warn { background:#fff3cd; color:#8a5a00; padding:12px; border-radius:10px; margin-top:10px; }
-.info { background:#e7f1ff; color:#004085; padding:12px; border-radius:10px; margin-top:10px; }
-table { width:100%; margin-top:15px; border-collapse:collapse; }
-th, td { border:1px solid #ccc; padding:8px; font-size:15px; }
-th { background:#eee; }
-hr { margin:20px 0; }
-.small { color:#666; font-size:14px; }
-.download { display:block; text-align:center; background:#222; color:white; padding:14px; border-radius:10px; margin-top:15px; text-decoration:none; font-size:20px; }
+
+:root {
+    --primary:#0b63ce;
+    --primary-dark:#084c9e;
+    --bg:#eef3f8;
+    --card:#ffffff;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --border:#d7dee8;
+    --success:#16a34a;
+    --danger:#dc2626;
+}
+* { box-sizing:border-box; }
+body {
+    font-family: Arial, sans-serif;
+    background:
+        radial-gradient(circle at top left, #d7eaff 0, transparent 32%),
+        linear-gradient(180deg, #f7fbff 0%, var(--bg) 100%);
+    margin:0;
+    padding:14px;
+    color:var(--text);
+}
+.box {
+    max-width:960px;
+    margin:auto;
+    background:rgba(255,255,255,0.97);
+    padding:18px;
+    border-radius:24px;
+    box-shadow:0 18px 50px rgba(15, 23, 42, 0.14);
+    border:1px solid rgba(255,255,255,0.8);
+}
+h1 {
+    text-align:center;
+    margin:6px 0 4px;
+    font-size:34px;
+    letter-spacing:0.5px;
+}
+h1::after {
+    content:"AI Lot Verification";
+    display:block;
+    font-size:14px;
+    color:var(--muted);
+    font-weight:normal;
+    margin-top:4px;
+}
+h3 { font-size:22px; margin:10px 0 8px; }
+label {
+    font-weight:bold;
+    margin-top:14px;
+    display:block;
+    color:#374151;
+}
+input, select {
+    width:100%;
+    font-size:20px;
+    padding:13px 14px;
+    margin-top:7px;
+    border:1px solid var(--border);
+    border-radius:14px;
+    background:#fbfdff;
+    color:var(--text);
+    outline:none;
+}
+input:focus, select:focus {
+    border-color:var(--primary);
+    box-shadow:0 0 0 4px rgba(11,99,206,0.12);
+}
+input[readonly], input:disabled {
+    background:#f3f6fa;
+    color:#4b5563;
+}
+button {
+    width:100%;
+    font-size:20px;
+    padding:14px;
+    margin-top:8px;
+    border:0;
+    border-radius:14px;
+    font-weight:bold;
+    background:linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color:white;
+    box-shadow:0 10px 22px rgba(11,99,206,0.25);
+}
+button:active { transform:translateY(1px); }
+video, img {
+    width:100%;
+    margin-top:14px;
+    border-radius:18px;
+    border:1px solid var(--border);
+    background:#0f172a;
+}
+.pass {
+    background:linear-gradient(135deg, #dcfce7, #bbf7d0);
+    color:#087f36;
+    font-size:46px;
+    text-align:center;
+    padding:24px;
+    border-radius:20px;
+    margin-top:16px;
+    font-weight:bold;
+    border:1px solid #86efac;
+}
+.ng {
+    background:linear-gradient(135deg, #fee2e2, #fecaca);
+    color:#b91c1c;
+    font-size:46px;
+    text-align:center;
+    padding:24px;
+    border-radius:20px;
+    margin-top:16px;
+    font-weight:bold;
+    border:1px solid #fca5a5;
+}
+.warn {
+    background:#fff7ed;
+    color:#9a3412;
+    padding:14px;
+    border-radius:14px;
+    margin-top:12px;
+    border:1px solid #fed7aa;
+}
+.info {
+    background:#eff6ff;
+    color:#1d4ed8;
+    padding:14px;
+    border-radius:14px;
+    margin-top:14px;
+    border:1px solid #bfdbfe;
+}
+table {
+    width:100%;
+    margin-top:16px;
+    border-collapse:separate;
+    border-spacing:0;
+    overflow:hidden;
+    border-radius:16px;
+    border:1px solid var(--border);
+    background:white;
+}
+th, td {
+    border-bottom:1px solid var(--border);
+    padding:10px;
+    font-size:15px;
+    vertical-align:top;
+}
+th { background:#f1f5f9; text-align:left; }
+tr:last-child td { border-bottom:0; }
+hr { margin:22px 0; border:0; border-top:1px solid var(--border); }
+.small { color:var(--muted); font-size:14px; line-height:1.45; }
+.download {
+    display:block;
+    text-align:center;
+    background:#111827;
+    color:white;
+    padding:15px;
+    border-radius:14px;
+    margin-top:15px;
+    text-decoration:none;
+    font-size:20px;
+    font-weight:bold;
+}
 .step-page { display:none; }
-.step-page.active { display:block; }
-.step-tabs { display:flex; gap:8px; margin:15px 0; }
-.step-tabs button { font-size:16px; padding:10px; background:#e9ecef; color:#333; border-radius:8px; }
-.step-tabs button.active { background:#0066cc; color:white; }
-.nav-row { display:flex; gap:10px; margin-top:18px; }
-.nav-row button { flex:1; }
-.btn-secondary { background:#6c757d !important; }
-.btn-success { background:#198754 !important; }
+.step-page.active { display:block; animation:fadeIn .18s ease-in; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+.step-tabs {
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:8px;
+    margin:18px 0;
+    padding:6px;
+    background:#edf2f7;
+    border-radius:18px;
+}
+.step-tabs button {
+    font-size:15px;
+    padding:12px 8px;
+    background:transparent;
+    color:#475569;
+    border-radius:14px;
+    box-shadow:none;
+    margin:0;
+}
+.step-tabs button.active {
+    background:white;
+    color:var(--primary);
+    box-shadow:0 8px 18px rgba(15,23,42,0.10);
+}
+.nav-row {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:18px;
+}
+.nav-row button { margin-top:0; }
+.btn-secondary {
+    background:#64748b !important;
+    box-shadow:0 10px 22px rgba(100,116,139,0.20) !important;
+}
+.btn-success {
+    background:linear-gradient(135deg, #16a34a, #15803d) !important;
+    box-shadow:0 10px 22px rgba(22,163,74,0.25) !important;
+}
+#pouchSection, #cartonSection, #pouchHeader, #sachetBox, #linapackBox, #cartonTHBox, #cartonExportBox {
+    background:#f8fafc;
+    padding:14px;
+    border-radius:18px;
+    border:1px solid #e2e8f0;
+    margin-top:12px;
+}
+#preview {
+    max-height:520px;
+    object-fit:contain;
+    background:#111827;
+}
+pre {
+    white-space:pre-wrap;
+    background:#0f172a;
+    color:#d1e7ff;
+    padding:14px;
+    border-radius:14px;
+    overflow:auto;
+}
+@media (max-width:640px) {
+    body { padding:8px; }
+    .box { padding:14px; border-radius:18px; }
+    h1 { font-size:28px; }
+    input, select, button { font-size:18px; }
+    .pass, .ng { font-size:38px; }
+    .step-tabs button { font-size:13px; padding:10px 4px; }
+    .nav-row { grid-template-columns:1fr; }
+    th, td { font-size:13px; padding:8px; }
+}
 
 </style>
 </head>
@@ -585,29 +791,14 @@ async function sendCheck() {
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
 
         if (data.stampedImageUrl) {
-
-    html += `
-    <div style="display:flex;gap:10px;margin-top:15px;">
-
-        <a class="download"
-           href="${data.stampedImageUrl}"
-           target="_blank"
-           style="flex:1;">
-           เปิดรูป
-        </a>
-
-        <a class="download"
-           href="${data.stampedImageUrl}"
-           download="Lot_Check_Result.jpg"
-           style="flex:1;background:#28a745;">
-           ดาวน์โหลดรูป
-        </a>
-
-    </div>
-
-    <img src="${data.stampedImageUrl}" style="margin-top:15px;">
-    `;
-}
+            html += `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px;">
+                <a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a>
+                <a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a>
+            </div>
+            `;
+            html += `<img src="${data.stampedImageUrl}">`;
+        }
 
         html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
 
