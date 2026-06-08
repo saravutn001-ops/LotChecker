@@ -299,7 +299,7 @@ pre {
 <select id="marketType" onchange="changeProduct()">
     <option value="TH">งานไทย</option>
     <option value="EXPORT">งานต่างประเทศ</option>
-    <option value="LAOS">งานต่างประเทศ ลาว</option>
+    <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
 </select>
 
 <label>วันที่ผลิต (MFG)</label>
@@ -628,9 +628,21 @@ function autoExp() {
 
 function changeCheckType() {
     const checkType = document.getElementById("checkType").value;
+    const marketType = document.getElementById("marketType");
+    const laosOption = document.getElementById("marketLaosOption");
+
     document.getElementById("pouchHeader").style.display = checkType === "pouch" ? "block" : "none";
     document.getElementById("pouchSection").style.display = checkType === "pouch" ? "block" : "none";
     document.getElementById("cartonSection").style.display = checkType === "carton" ? "block" : "none";
+
+    // Carton lot does not separate Laos. Laos is treated as normal Export for carton mode.
+    if (checkType === "carton") {
+        if (laosOption) laosOption.style.display = "none";
+        if (marketType.value === "LAOS") marketType.value = "EXPORT";
+    } else {
+        if (laosOption) laosOption.style.display = "block";
+    }
+
     changeProduct();
 }
 
@@ -1428,6 +1440,10 @@ def check():
             building_suffix = ""
         shipping_mark = data.get("shippingMark", "").strip().upper()
         carton_alpha_code = data.get("cartonAlphaCode", "").strip().upper()
+
+        # Carton lot does not separate Laos. Treat Laos as normal Export for carton mode.
+        if check_type == "carton" and market_type == "LAOS":
+            market_type = "EXPORT"
 
         if not expected_mfg:
             return jsonify({"error": "กรุณาเลือกวันที่ผลิต"}), 400
