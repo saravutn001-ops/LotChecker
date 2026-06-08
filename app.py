@@ -862,12 +862,20 @@ def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_
     for i in range(1, 7):
         actual = lines[i - 1] if i <= len(lines) else ""
 
+        # Safety rule:
+        # Pouch lot must contain the printed word MFG.
+        # If this product/market requires EXP, it must also contain the printed word EXP.
+        has_mfg_word = "MFG" in actual
+        has_exp_word = "EXP" in actual
+
         if skip_exp:
             expected = f"MFG {expected_mfg} {expected_line} {i}"
-            status = "PASS" if expected in actual else "NG"
+            status = "PASS" if (expected in actual and has_mfg_word) else "NG"
+            expected_show = expected + " / ต้องมีคำว่า MFG / ไม่ตรวจ EXP"
         else:
             expected = f"MFG {expected_mfg} {expected_line} {i} EXP {expected_exp}"
-            status = "PASS" if actual == expected else "NG"
+            status = "PASS" if (actual == expected and has_mfg_word and has_exp_word) else "NG"
+            expected_show = expected + " / ต้องมีคำว่า MFG และ EXP"
 
         if status == "NG":
             overall = False
@@ -876,11 +884,10 @@ def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_
             "item": f"แถว {i}",
             "status": status,
             "actual": actual,
-            "expected": expected if not skip_exp else expected + " / ไม่ตรวจ EXP"
+            "expected": expected_show
         })
 
     return overall, details
-
 
 def extract_time(text):
     match = re.search(r"\b([0-2][0-9]:[0-5][0-9])\b", text)
