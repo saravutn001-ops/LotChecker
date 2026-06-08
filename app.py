@@ -474,15 +474,15 @@ def stamp_image(image_base64, summary, product_type, market_type, mode, checked_
 
     if summary == "PASS":
         title = "LOT CHECK PASS"
-        line2 = "ตรวจสอบ Lot ถูกต้องแล้ว"
+        line2 = "LOT VERIFIED"
         color = (0, 180, 0)
     else:
         title = "LOT CHECK NG"
-        line2 = "ตรวจพบ Lot ไม่ถูกต้อง"
+        line2 = "LOT VERIFICATION FAILED"
         color = (255, 0, 0)
 
     x = 30
-    y = 30
+    y = -30
 
     # ไม่มีกรอบ / ไม่มีพื้นหลัง ใช้เงาดำให้อ่านง่าย
     draw_text_with_shadow(draw, (x, y), title, title_font, color)
