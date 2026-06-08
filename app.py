@@ -1819,7 +1819,6 @@ def check():
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
 
-        ng_reasons = build_ng_reasons(details) if summary == "NG" else []
 
         stamped_filename = stamp_image(
             image_data,
@@ -1828,9 +1827,7 @@ def check():
             product_type,
             market_type,
             mode_name,
-            checked_time,
-            None,
-            ng_reasons
+            checked_time
         )
 
         return jsonify({
@@ -1844,8 +1841,6 @@ def check():
             "details": details,
             "time": checked_time,
             "stampedImageUrl": f"/stamped/{stamped_filename}",
-            "ngReasons": ng_reasons,
-            "ngReasons": ng_reasons
         })
 
     except Exception as e:
