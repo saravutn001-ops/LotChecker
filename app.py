@@ -938,32 +938,217 @@ def draw_text_with_shadow(draw, position, text, font, fill, shadow=(0, 0, 0)):
 
 
 
-def draw_ai_red_boxes(image, boxes, summary):
+def get_red_boxes_with_ai(image_base64, details, lines):
     """
-    Draw red boxes on NG image from AI normalized coordinates.
-    AI coordinates must be 0-1000 scale:
-    x1,y1,x2,y2
+    Ask GPT Vision to locate the printed lot area that caused NG.
+    Returns boxes in normalized coordinates 0-1000.
     """
-    if summary != "NG":
-        return image
+    try:
+        ng_items = []
+        for d in details:
+            if str(d.get("status", "")).upper() == "NG":
+                ng_items.append({
+                    "item": d.get("item", ""),
+                    "actual": d.get("actual", ""),
+                    "expected": d.get("expected", "")
+                })
 
+        if not ng_items:
+            return []
+
+        prompt = f"""
+You are locating defective printed LOT text on a product photo.
+
+The verification result is NG.
+NG details:
+{json.dumps(ng_items, ensure_ascii=False)}
+
+AI read these lot lines:
+{json.dumps(lines, ensure_ascii=False)}
+
+Task:
+Return bounding boxes around the actual printed LOT / MFG / EXP / batch text area on the image that caused the NG.
+
+Important:
+- If MFG or EXP words are missing, draw the box around the printed date/lot lines where MFG/EXP should have appeared.
+- Do NOT box logo, barcode, QR code, product name, marketing text, machine, floor, or background.
+- For pouch images, the lot text is usually printed near the top edge of the pouch.
+- For carton images, the lot text is usually dot-matrix printed on the carton surface.
+- If multiple printed lot lines are involved, return one box around the whole lot text area.
+- Coordinates must be normalized 0-1000 relative to the full original image.
+
+Return JSON only:
+{{
+  "boxes": [
+    {{"label":"LOT NG", "x1":0, "y1":0, "x2":1000, "y2":1000}}
+  ]
+}}
+"""
+
+        response = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": f"data:image/jpeg;base64,{image_base64}"},
+                    ],
+                }
+            ],
+        )
+
+        result_text = clean_json_text(response.output_text)
+        data = json.loads(result_text)
+        boxes = data.get("boxes", [])
+        if not isinstance(boxes, list):
+            return []
+
+        cleaned = []
+        for b in boxes:
+            if not isinstance(b, dict):
+                continue
+            try:
+                x1 = float(b.get("x1", 0))
+                y1 = float(b.get("y1", 0))
+                x2 = float(b.get("x2", 0))
+                y2 = float(b.get("y2", 0))
+            except Exception:
+                continue
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            # clamp
+            x1 = max(0, min(1000, x1))
+            y1 = max(0, min(1000, y1))
+            x2 = max(0, min(1000, x2))
+            y2 = max(0, min(1000, y2))
+
+            cleaned.append({
+                "label": str(b.get("label", "LOT NG")),
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+            })
+
+        return cleaned
+
+    except Exception:
+        return []
+
+
+def find_dark_lot_area_fallback(image):
+    """
+    Fallback when AI does not return a usable box.
+    It tries to find a small dark dot-matrix / printed text area in the upper-middle part.
+    This is not perfect, but prevents NG image from having no red box.
+    """
+    try:
+        gray = image.convert("L")
+        w, h = gray.size
+        pix = gray.load()
+
+        # Search central/upper area where lot code usually appears.
+        # Avoid very top machine/background and lower product logo area.
+        y_start = int(h * 0.18)
+        y_end = int(h * 0.62)
+        x_start = int(w * 0.05)
+        x_end = int(w * 0.95)
+
+        # Make coarse grid and find rows/cols with dark pixel density.
+        rows = []
+        for y in range(y_start, y_end, 3):
+            cnt = 0
+            total = 0
+            for x in range(x_start, x_end, 4):
+                total += 1
+                if pix[x, y] < 95:
+                    cnt += 1
+            density = cnt / max(total, 1)
+            if 0.01 <= density <= 0.28:
+                rows.append(y)
+
+        if not rows:
+            return []
+
+        # Group nearby rows
+        groups = []
+        current = [rows[0]]
+        for y in rows[1:]:
+            if y - current[-1] <= 9:
+                current.append(y)
+            else:
+                groups.append(current)
+                current = [y]
+        groups.append(current)
+
+        candidates = []
+        for g in groups:
+            gy1 = max(y_start, min(g) - 12)
+            gy2 = min(y_end, max(g) + 12)
+            if gy2 - gy1 < 14:
+                continue
+
+            xs = []
+            for y in range(gy1, gy2, 2):
+                for x in range(x_start, x_end, 3):
+                    if pix[x, y] < 95:
+                        xs.append(x)
+
+            if not xs:
+                continue
+
+            gx1 = max(0, min(xs) - 20)
+            gx2 = min(w - 1, max(xs) + 20)
+            width = gx2 - gx1
+            height = gy2 - gy1
+
+            # Prefer compact text-like region, not giant logo/background.
+            if width < w * 0.08 or width > w * 0.65:
+                continue
+            if height > h * 0.16:
+                continue
+
+            score = (width * height)
+            candidates.append((score, gx1, gy1, gx2, gy2))
+
+        if not candidates:
+            return []
+
+        # choose upper compact candidate
+        candidates.sort(key=lambda t: (t[2], t[0]))
+        _, x1, y1, x2, y2 = candidates[0]
+
+        return [{
+            "label": "LOT NG",
+            "x1": x1 * 1000 / w,
+            "y1": y1 * 1000 / h,
+            "x2": x2 * 1000 / w,
+            "y2": y2 * 1000 / h,
+        }]
+    except Exception:
+        return []
+
+
+def draw_red_boxes_on_image(image, boxes):
+    """
+    Draw red rectangles on image using normalized coordinates 0-1000.
+    """
     if not boxes:
         return image
-
-    # Draw red boxes first when NG
-    image = draw_ai_red_boxes(image, red_boxes or [], summary)
 
     draw = ImageDraw.Draw(image)
     w, h = image.size
 
-    for box in boxes:
+    for b in boxes:
         try:
-            x1 = int(float(box.get("x1", 0)) * w / 1000)
-            y1 = int(float(box.get("y1", 0)) * h / 1000)
-            x2 = int(float(box.get("x2", 0)) * w / 1000)
-            y2 = int(float(box.get("y2", 0)) * h / 1000)
+            x1 = int(float(b.get("x1", 0)) * w / 1000)
+            y1 = int(float(b.get("y1", 0)) * h / 1000)
+            x2 = int(float(b.get("x2", 0)) * w / 1000)
+            y2 = int(float(b.get("y2", 0)) * h / 1000)
 
-            # Keep inside image
             x1 = max(0, min(w - 1, x1))
             y1 = max(0, min(h - 1, y1))
             x2 = max(0, min(w - 1, x2))
@@ -972,32 +1157,26 @@ def draw_ai_red_boxes(image, boxes, summary):
             if x2 <= x1 or y2 <= y1:
                 continue
 
-            padding = max(8, int(w * 0.008))
-            x1 = max(0, x1 - padding)
-            y1 = max(0, y1 - padding)
-            x2 = min(w - 1, x2 + padding)
-            y2 = min(h - 1, y2 + padding)
+            pad = max(8, int(w * 0.008))
+            x1 = max(0, x1 - pad)
+            y1 = max(0, y1 - pad)
+            x2 = min(w - 1, x2 + pad)
+            y2 = min(h - 1, y2 + pad)
 
-            # thick red rectangle
             thickness = max(5, int(w * 0.006))
             for i in range(thickness):
-                draw.rectangle(
-                    [x1 - i, y1 - i, x2 + i, y2 + i],
-                    outline=(255, 0, 0)
-                )
+                draw.rectangle([x1 - i, y1 - i, x2 + i, y2 + i], outline=(255, 0, 0))
 
-            label = str(box.get("label", "NG")).strip() or "NG"
+            label = str(b.get("label", "LOT NG")).strip() or "LOT NG"
             font = get_font(max(22, int(w * 0.025)))
-            label_text = f"NG: {label}"
-
-            # label background
+            text = f"NG: {label}"
             try:
-                bbox = draw.textbbox((x1, max(0, y1 - font.size - 10)), label_text, font=font)
-                bg_y1 = max(0, y1 - font.size - 14)
-                bg_y2 = bg_y1 + (bbox[3] - bbox[1]) + 8
-                bg_x2 = min(w - 1, x1 + (bbox[2] - bbox[0]) + 14)
-                draw.rectangle([x1, bg_y1, bg_x2, bg_y2], fill=(255, 0, 0))
-                draw.text((x1 + 6, bg_y1 + 4), label_text, font=font, fill=(255, 255, 255))
+                tb = draw.textbbox((0, 0), text, font=font)
+                tw = tb[2] - tb[0]
+                th = tb[3] - tb[1]
+                ly1 = max(0, y1 - th - 12)
+                draw.rectangle([x1, ly1, min(w - 1, x1 + tw + 14), ly1 + th + 10], fill=(255, 0, 0))
+                draw.text((x1 + 7, ly1 + 5), text, font=font, fill=(255, 255, 255))
             except Exception:
                 pass
 
@@ -1013,6 +1192,11 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
     image_bytes = base64.b64decode(image_base64)
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+    if summary == "NG":
+        if not red_boxes:
+            red_boxes = find_dark_lot_area_fallback(image)
+        image = draw_red_boxes_on_image(image, red_boxes or [])
 
     draw = ImageDraw.Draw(image)
     w, h = image.size
@@ -1211,25 +1395,6 @@ Return JSON only:
 {{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 
 Important: If the image does not show the words MFG or EXP, do not add them yourself. Return exactly what is printed.
-"""
-
-    # Ask AI to also return bounding boxes for the printed lot lines.
-    # Coordinates must be normalized 0-1000 for original image size.
-    prompt += """
-
-IMPORTANT BOUNDING BOX REQUIREMENT:
-Return JSON only.
-In addition to the normal fields, include:
-"boxes": [
-  {"text":"exact printed lot line text", "label":"LOT", "x1":0, "y1":0, "x2":1000, "y2":1000}
-]
-
-Bounding box rules:
-- x1,y1,x2,y2 must be normalized coordinates from 0 to 1000.
-- Draw boxes around the printed lot/date/batch text area only.
-- If multiple lot lines exist, return one box per line.
-- Do not box product artwork, barcode, QR code, or Thai marketing text.
-- If unsure, return the box around the whole visible printed lot code area.
 """
 
     response = client.responses.create(
@@ -1501,49 +1666,6 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     return overall, details
 
 
-
-def choose_ng_boxes(result_json, overall):
-    """
-    Use AI returned boxes to highlight the detected lot text area when NG.
-    This avoids requiring Tesseract/OpenCV on Render.
-    """
-    if overall:
-        return []
-
-    boxes = result_json.get("boxes", [])
-    if not isinstance(boxes, list):
-        return []
-
-    cleaned = []
-    for b in boxes:
-        if not isinstance(b, dict):
-            continue
-        try:
-            x1 = float(b.get("x1", 0))
-            y1 = float(b.get("y1", 0))
-            x2 = float(b.get("x2", 0))
-            y2 = float(b.get("y2", 0))
-        except Exception:
-            continue
-
-        # accept only plausible normalized boxes
-        if x2 <= x1 or y2 <= y1:
-            continue
-        if x1 < 0 or y1 < 0 or x2 > 1000 or y2 > 1000:
-            continue
-
-        cleaned.append({
-            "text": str(b.get("text", "")),
-            "label": str(b.get("label", "LOT NG")),
-            "x1": x1,
-            "y1": y1,
-            "x2": x2,
-            "y2": y2,
-        })
-
-    return cleaned
-
-
 @app.route("/")
 def index():
     return HTML
@@ -1668,7 +1790,9 @@ def check():
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
 
-        red_boxes = choose_ng_boxes(result_json, overall)
+        red_boxes = []
+        if summary == "NG":
+            red_boxes = get_red_boxes_with_ai(image_base64, details, lines)
 
         stamped_filename = stamp_image(
             image_data,
