@@ -814,11 +814,7 @@ async function sendCheck() {
         html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
         html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
-        if (data.summary === "NG" && data.ngReasons && data.ngReasons.length > 0) {
-            html += `<div class="warn"><b>NG REASONS:</b><br>${data.ngReasons.map(r => "- " + r).join("<br>")}</div>`;
-        }
-
-        if (data.stampedImageUrl) {
+if (data.stampedImageUrl) {
             html += `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px;">
                 <a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a>
@@ -1208,64 +1204,8 @@ def draw_red_boxes_on_image(image, boxes):
 
 
 
-def build_ng_reasons(details):
-    """
-    Convert NG detail rows into short English reasons for stamping on the image.
-    English is used to avoid Thai font square boxes on Render.
-    """
-    reasons = []
-    seen = set()
 
-    for d in details or []:
-        status = str(d.get("status", "")).upper()
-        if status != "NG":
-            continue
-
-        item = str(d.get("item", "")).upper()
-        actual = str(d.get("actual", "")).upper()
-        expected = str(d.get("expected", "")).upper()
-
-        reason = None
-
-        if "MFG WORD" in item or ("ต้องมีคำว่า MFG" in expected):
-            reason = "Missing MFG"
-        elif "EXP WORD" in item or ("ต้องมีคำว่า EXP" in expected):
-            reason = "Missing EXP"
-        elif "MFG" in item and ("MFG" in expected):
-            if "LP" in expected:
-                reason = "Wrong MFG / LP Machine"
-            elif "MIX" in item or "MIX" in expected:
-                reason = "Wrong Mix Code"
-            else:
-                reason = "Wrong MFG Date"
-        elif "EXP" in item:
-            reason = "Wrong EXP Date"
-        elif "เวลา" in item or "TIME" in item or "TT:TT" in expected:
-            reason = "Wrong Time"
-        elif "LINE" in item or "LP" in item:
-            reason = "Wrong LP Machine"
-        elif "MIX" in item:
-            reason = "Wrong Mix Code"
-        elif "RUNNING" in item:
-            reason = "Wrong Running No."
-        elif "BUILDING" in item:
-            reason = "Wrong Building No."
-        elif "SHIPPING" in item:
-            reason = "Wrong Shipping Mark"
-        elif "ALPHA" in item or "PREFIX" in item:
-            reason = "Wrong Prefix"
-        else:
-            clean_item = str(d.get("item", "Lot")).strip()
-            reason = f"Wrong {clean_item}" if clean_item else "Wrong Lot"
-
-        if reason and reason not in seen:
-            seen.add(reason)
-            reasons.append(reason)
-
-    return reasons[:6]
-
-
-def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time, red_boxes=None, ng_reasons=None):
+def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time):
     if "," in image_base64:
         image_base64 = image_base64.split(",", 1)[1]
 
@@ -1309,18 +1249,6 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     draw_text_with_shadow(draw, (x, y), f"By Lot Checker | {checked_time}", body_font, (255, 255, 255))
     y += int(body_font.size * 1.25)
     draw_text_with_shadow(draw, (x, y), f"{check_type_en} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
-
-    # Show NG reasons directly on stamped image.
-    if summary == "NG" and ng_reasons:
-        reason_font = get_font(max(20, int(w * 0.026)))
-        yy = y + int(body_font.size * 1.45)
-
-        draw_text_with_shadow(draw, (x, yy), "NG REASONS:", reason_font, (255, 255, 0))
-        yy += int(reason_font.size * 1.2)
-
-        for reason in ng_reasons[:6]:
-            draw_text_with_shadow(draw, (x, yy), f"- {reason}", reason_font, (255, 255, 0))
-            yy += int(reason_font.size * 1.15)
 
 
     filename = f"{summary}_{now_thai().strftime('%Y%m%d_%H%M%S')}.jpg"
