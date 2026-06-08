@@ -715,7 +715,7 @@ Read ONLY the printed carton lot/batch number from the image.
 This is Thailand carton format.
 
 Expected format:
-NNNNN 00 {expected_mfg} {building_no}{building_suffix}
+NNNNN 00 {expected_mfg} {building_no} {building_suffix}
 
 Rules:
 - NNNNN must be any 5 digits. Do not compare it with an expected value.
@@ -743,7 +743,7 @@ Common format parts:
 - Running number must be 5 characters/digits.
 - The field after running number is alphabet code, not 00.
 - MFG date DDMMYY must be {expected_mfg}.
-- Building/category number must be {building_no}{building_suffix} if visible in the carton code. Suffix after building number must be exactly "{building_suffix}" if provided.
+- Building/category number must be {building_no} {building_suffix} if visible in the carton code. Suffix must be separated by a space. Suffix after building number must be exactly "{building_suffix}" if provided.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
 - Do not check K. The last number is Building No. 1-6, not K.
 - Special rule: Prefix OL uses Shipping Mark "IMPORTER:ORGANIC LINE CO., LTD" and it can be printed directly attached to the date without a space. Other prefixes normally have spacing.
@@ -1083,9 +1083,9 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
 
     if building_suffix:
-            expected_building_full = f"{building_no} {building_suffix}".upper()
-        else:
-            expected_building_full = building_no
+        expected_building_full = f"{building_no} {building_suffix}".upper()
+    else:
+        expected_building_full = building_no
     building_ok = True
     if building_no:
         if building_suffix:
