@@ -134,18 +134,18 @@ hr { margin:20px 0; }
             <option value="VN">VN → IPO VN</option>
             <option value="VT">VT → VN-MT</option>
             <option value="KK">KK → AKK</option>
-            <option value="CT">CT → CDT</option>
+            <option value="CT">CT → SHIPPING MARK: CDT</option>
             <option value="TS">TS → TS</option>
             <option value="AC">AC → AKC</option>
             <option value="SM">SM → SOMCHAICHALUEN</option>
             <option value="AX">AX → AKX</option>
-            <option value="MM">MM → I.P. ONE-MYANMAR</option>
+            <option value="MM">MM → IP ONE-MYANMAR</option>
             <option value="ML">ML → ML</option>
             <option value="KT">KT → KT</option>
             <option value="MW">MW → MWD</option>
             <option value="MK">MK → MK</option>
             <option value="MY">MY → MDY</option>
-            <option value="TG">TG → TG</option>
+            <option value="TG">TG → TG1</option>
             <option value="MN">MN → MNJM</option>
             <option value="MA">MA → MLA</option>
             <option value="LM">LM → MT/LM+VY</option>
@@ -155,7 +155,7 @@ hr { margin:20px 0; }
             <option value="BU">BU → BUL</option>
             <option value="UK">UK → U,K,T-7</option>
             <option value="DB">DB → DBL INDUSTRIES PLC</option>
-            <option value="OL">OL → IMPORTER:ORGANIC LINE CO.,LTD</option>
+            <option value="OD">OD → IMPORTER: ORGANIC LINE CO.,LTD</option>
             <option value="MI">MI → ZZZZZ</option>
             <option value="WD">WD → WEDAR</option>
             <option value="CZ">CZ → ZZZZZ</option>
@@ -734,7 +734,7 @@ Common format parts:
 - MFG date DDMMYY must be {expected_mfg}.
 - Building/category number must be {building_no} if visible in the carton code.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
-- Some patterns end with category code K.
+- Do not check K. The last number is Building No. 1-6, not K.
 - Special rule: Prefix OL uses Shipping Mark "IMPORTER:ORGANIC LINE CO., LTD" and it can be printed directly attached to the date without a space. Other prefixes normally have spacing.
 
 {shipping_rule}
@@ -1000,7 +1000,6 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, sh
     has_alpha_code = bool(ai_json.get("has_alpha_code", False))
     has_mfg = bool(ai_json.get("has_mfg", False)) or (expected_mfg in all_text)
     has_exp = bool(ai_json.get("has_exp", False))
-    has_k = bool(ai_json.get("has_k", False)) or re.search(r"\bK\b", all_text) is not None
 
     if shipping_mark:
         # For OL, shipping mark may be attached to the date without a space.
@@ -1020,19 +1019,24 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, sh
     else:
         has_exp = True
 
-    run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
+    # OL pattern has no separate Running No. Example:
+    # IMPORTER:ORGANIC LINE CO., LTD OL250526 1
+    if carton_alpha_code == "OL":
+        run_ok = True
+    else:
+        run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
+
     building_ok = True
     if building_no:
         building_ok = re.search(rf"\b{re.escape(building_no)}\b", all_text) is not None
 
     checks = [
         ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
-        ("Running No.", run_ok, all_text, "5 ตัวอักษร/ตัวเลข"),
+        ("Running No.", run_ok, all_text, "OL ไม่ต้องมี Running No." if carton_alpha_code == "OL" else "5 ตัวอักษร/ตัวเลข"),
         ("Alpha code after Running No.", has_alpha_code, all_text, carton_alpha_code or "ตัวอักษรตาม D48"),
         ("MFG date", has_mfg, all_text, expected_mfg),
         ("Building No.", building_ok, all_text, building_no or "1-6"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
-        ("K / D48 pattern", has_k, all_text, "K หรือ Pattern ที่ไม่บังคับ K"),
     ]
 
     for item, ok, actual_value, expected_value in checks:
