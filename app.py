@@ -299,6 +299,7 @@ pre {
 <select id="marketType" onchange="changeProduct()">
     <option value="TH">งานไทย</option>
     <option value="EXPORT">งานต่างประเทศ</option>
+    <option value="LAOS">งานต่างประเทศ ลาว</option>
 </select>
 
 <label>วันที่ผลิต (MFG)</label>
@@ -602,6 +603,10 @@ function autoExp() {
             const exp = formatDDMMYY(addMonths(date, 15));
             sachetExp.value = exp; linapackExp.value = exp;
             info.innerHTML = "EPC งานไทย: EXP = MFG + 1 ปี 3 เดือน → " + exp;
+        } else if (market === "LAOS") {
+            const exp = formatDDMMYY(addMonths(date, 24));
+            sachetExp.value = exp; linapackExp.value = exp;
+            info.innerHTML = "EPC งานต่างประเทศ ลาว: EXP = MFG + 2 ปี → " + exp;
         } else {
             sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPC งานต่างประเทศ: ไม่มีวันหมดอายุ";
@@ -610,6 +615,10 @@ function autoExp() {
         if (market === "TH") {
             sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPW งานไทย: มีวันผสม / ไม่มี EXP";
+        } else if (market === "LAOS") {
+            const exp = formatDDMMYY(addMonths(date, 24));
+            sachetExp.value = exp; linapackExp.value = exp;
+            info.innerHTML = "EPW งานต่างประเทศ ลาว: EXP = MFG + 2 ปี → " + exp;
         } else {
             sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPW งานต่างประเทศ: ไม่มีวันผสม และไม่มี EXP";
@@ -656,20 +665,24 @@ function changeProduct() {
 
     if (checkType === "carton") {
         cartonTHBox.style.display = market === "TH" ? "block" : "none";
-        cartonExportBox.style.display = market === "EXPORT" ? "block" : "none";
-        if (market === "EXPORT") updateShippingMarkByPrefix();
+        cartonExportBox.style.display = (market === "EXPORT" || market === "LAOS") ? "block" : "none";
+        if (market === "EXPORT" || market === "LAOS") updateShippingMarkByPrefix();
     }
 
     if (checkType === "pouch" && mode === "linapack") {
         if (product === "EPW" && market === "TH") {
             mixCodeBox.style.display = "block";
             hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40";
+        } else if (product === "EPW" && market === "LAOS") {
+            mixCodeBox.style.display = "none";
+            hint.innerHTML = "EPW งานต่างประเทศ ลาว: ตรวจ MFG + เวลา + EXP 2 ปี";
         } else if (product === "EPW" && market === "EXPORT") {
             mixCodeBox.style.display = "none";
             hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เวลา ไม่มีวันผสม และไม่มี EXP";
         } else {
             mixCodeBox.style.display = "none";
             if (market === "TH") hint.innerHTML = "EPC ไทย: ตรวจ MFG + LP1-9 + เวลา + EXP";
+            else if (market === "LAOS") hint.innerHTML = "EPC งานต่างประเทศ ลาว: ตรวจ MFG + LP1-9 + เวลา + EXP 2 ปี";
             else hint.innerHTML = "EPC ต่างประเทศ: ตรวจ MFG + LP1-9 + เวลา ไม่มี EXP";
         }
     }
@@ -759,8 +772,8 @@ async function sendCheck() {
         payload.mixCode = "";
         payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : document.getElementById("buildingNoExport").value;
         payload.buildingSuffix = marketType === "TH" ? document.getElementById("buildingSuffixTH").value : document.getElementById("buildingSuffixExport").value;
-        payload.shippingMark = marketType === "EXPORT" ? document.getElementById("shippingMark").value : "";
-        payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonPrefix").value : "";
+        payload.shippingMark = (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("shippingMark").value : "";
+        payload.cartonAlphaCode = (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("cartonPrefix").value : "";
     }
 
     goPage(3);
@@ -868,9 +881,13 @@ def calculate_exp(product_type, market_type, mfg):
     if product_type == "EPC":
         if market_type == "TH":
             return format_ddmmyy(add_months(dt, 15))
+        if market_type == "LAOS":
+            return format_ddmmyy(add_months(dt, 24))
         return ""
 
     if product_type == "EPW":
+        if market_type == "LAOS":
+            return format_ddmmyy(add_months(dt, 24))
         return ""
 
     return ""
@@ -881,7 +898,7 @@ def no_exp_required(product_type, market_type):
         return market_type == "EXPORT"
 
     if product_type == "EPW":
-        return True
+        return market_type in ["TH", "EXPORT"]
 
     return False
 
