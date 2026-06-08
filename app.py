@@ -343,17 +343,17 @@ pre {
 <div id="cartonSection" style="display:none;">
     <div id="cartonTHBox">
         <p class="small">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
-        <p class="small">เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก / รหัสงานไทยต้องเป็น 00 / เลขอาคารต้องเป็น 1-6</p>
+        <p class="small">เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก / รหัสงานไทยต้องเป็น 00 / เลขอาคารเลือกได้ 1-6 หรือ ไม่มี</p>
 
         <label>เลขอาคาร</label>
         <select id="buildingNo">
-            <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+            <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
 
         <label>Suffix หลังเลขอาคาร</label>
         <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR">
-        <p class="small">ถ้ามีการเติมท้ายเลขอาคาร เช่น 3N หรือ 3QR ให้กรอก N หรือ QR</p>
+        <p class="small">ถ้าเลือกเลขอาคารและมีการเติมท้ายเลขอาคาร เช่น 3N หรือ 3QR ให้กรอก N หรือ QR</p>
     </div>
 
     <div id="cartonExportBox" style="display:none;">
@@ -406,7 +406,7 @@ pre {
 
         <label>เลขอาคาร</label>
         <select id="buildingNoExport">
-            <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+            <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
 
@@ -992,8 +992,9 @@ Rules:
 - NNNNN must be any 5 digits. Do not compare it with an expected value.
 - The second field must be exactly 00.
 - MFG date must be exactly {expected_mfg}.
-- Building number must be exactly {building_no} and must be 1-6.
-- Suffix after building number must be exactly "{building_suffix}" if provided. If suffix is blank, there must be no suffix after building number.
+- Building number is optional. If building number is selected, it must be exactly {building_no} and must be 1-6.
+- If building number is blank/none, the carton code must not be judged NG because of missing building number.
+- Suffix after building number must be exactly "{building_suffix}" if provided. If building number is blank/none, ignore suffix.
 - Examples: 3 N means building 3 with suffix N. 3 QR means building 3 with suffix QR. Suffix must be separated by a space.
 - Do not silently correct mistakes.
 - Beware Dot Matrix OCR: 0 may look like 8, but return exactly what you see.
@@ -1014,7 +1015,7 @@ Common format parts:
 - Running number must be 5 characters/digits.
 - The field after running number is alphabet code, not 00.
 - MFG date DDMMYY must be {expected_mfg}.
-- Building/category number must be {building_no} {building_suffix} if visible in the carton code. Suffix must be separated by a space. Suffix after building number must be exactly "{building_suffix}" if provided.
+- Building/category number is optional. If selected, it must be {building_no} {building_suffix}. Suffix must be separated by a space. If building number is blank/none, ignore building and suffix. Suffix after building number must be exactly "{building_suffix}" if provided.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
 - Do not check K. The last number is Building No. 1-6, not K.
 - Special rule: Prefix OL uses Shipping Mark "IMPORTER:ORGANIC LINE CO., LTD" and it can be printed directly attached to the date without a space. Other prefixes normally have spacing.
@@ -1289,17 +1290,25 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     if market_type == "TH":
         run_no, sales_code, mfg_code, building_code = parse_th_carton_fields(actual)
 
-        if building_suffix:
-            expected_building_full = f"{building_no} {building_suffix}".upper()
+        if building_no:
+            if building_suffix:
+                expected_building_full = f"{building_no} {building_suffix}".upper()
+            else:
+                expected_building_full = building_no
+            building_code = building_code.upper()
+            building_ok = building_code == expected_building_full and building_no in ["1", "2", "3", "4", "5", "6"]
+            building_expected = expected_building_full
         else:
-            expected_building_full = building_no
-        building_code = building_code.upper()
+            expected_building_full = ""
+            building_ok = True
+            building_expected = "ไม่ตรวจเลขอาคาร"
+            building_code = building_code.upper() if building_code else ""
 
         checks = [
             ("Running No. 5 digits", bool(re.fullmatch(r"\d{5}", run_no)), run_no, "ตัวเลข 5 หลัก เช่น 00004"),
             ("Thailand sales code", sales_code == "00", sales_code, "00"),
             ("MFG date", mfg_code == expected_mfg, mfg_code, expected_mfg),
-            ("Building No. + Suffix", building_code == expected_building_full and building_no in ["1", "2", "3", "4", "5", "6"], building_code, expected_building_full),
+            ("Building No. + Suffix", building_ok, building_code, building_expected),
         ]
 
         for item, ok, actual_value, expected_value in checks:
@@ -1353,23 +1362,25 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     else:
         run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
 
-    if building_suffix:
-        expected_building_full = f"{building_no} {building_suffix}".upper()
-    else:
-        expected_building_full = building_no
-    building_ok = True
     if building_no:
+        if building_suffix:
+            expected_building_full = f"{building_no} {building_suffix}".upper()
+        else:
+            expected_building_full = building_no
         if building_suffix:
             building_ok = re.search(rf"\b{re.escape(expected_building_full)}\b", all_text) is not None
         else:
             building_ok = re.search(rf"\b{re.escape(building_no)}\b", all_text) is not None
+    else:
+        expected_building_full = ""
+        building_ok = True
 
     checks = [
         ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
         ("Running No.", run_ok, all_text, "OL ไม่ต้องมี Running No." if carton_alpha_code == "OL" else "5 ตัวอักษร/ตัวเลข"),
         ("Alpha code after Running No.", has_alpha_code, all_text, carton_alpha_code or "ตัวอักษรตาม D48"),
         ("MFG date", has_mfg, all_text, expected_mfg),
-        ("Building No. + Suffix", building_ok, all_text, expected_building_full or "1-6"),
+        ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
     ]
 
@@ -1413,6 +1424,8 @@ def check():
 
         building_no = data.get("buildingNo", "").strip()
         building_suffix = data.get("buildingSuffix", "").strip().upper()
+        if not building_no:
+            building_suffix = ""
         shipping_mark = data.get("shippingMark", "").strip().upper()
         carton_alpha_code = data.get("cartonAlphaCode", "").strip().upper()
 
