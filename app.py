@@ -19,6 +19,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 STAMP_DIR = "stamped_images"
 os.makedirs(STAMP_DIR, exist_ok=True)
 
+
 HTML = """
 <!DOCTYPE html>
 <html lang="th">
@@ -27,7 +28,7 @@ HTML = """
 <title>Lot Checker</title>
 <style>
 body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px; }
-.box { max-width:900px; margin:auto; background:white; padding:20px; border-radius:16px; box-shadow:0 4px 12px #0002; }
+.box { max-width:920px; margin:auto; background:white; padding:20px; border-radius:16px; box-shadow:0 4px 12px #0002; }
 h1 { text-align:center; }
 label { font-weight:bold; margin-top:10px; display:block; }
 input, select, button { width:100%; font-size:20px; padding:12px; margin-top:8px; box-sizing:border-box; }
@@ -48,7 +49,13 @@ hr { margin:20px 0; }
 <body>
 
 <div class="box">
-<h1>ตรวจสอบล็อตวันที่ผลิต</h1>
+<h1>Lot Checker</h1>
+
+<label>ประเภทการตรวจ</label>
+<select id="checkType" onchange="changeCheckType()">
+    <option value="pouch">ตรวจล็อตซอง</option>
+    <option value="carton">ตรวจล็อตกล่อง</option>
+</select>
 
 <label>ประเภทไลน์</label>
 <select id="mode" onchange="changeMode()">
@@ -73,57 +80,84 @@ hr { margin:20px 0; }
 <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
 
 <label>MFG ที่ใช้ตรวจ</label>
-<input id="mfg" value="" placeholder="ระบบสร้างจากวันที่ผลิต" readonly>
+<input id="mfg" value="" readonly>
 
-<div id="sachetBox">
-    <label>Sachet Code</label>
-    <input id="sachetLine" value="MS11" placeholder="เช่น MS11">
+<div id="pouchSection">
+    <div id="sachetBox">
+        <label>Sachet Code</label>
+        <input id="sachetLine" value="MS11" placeholder="เช่น MS11">
 
-    <label>EXP</label>
-    <input id="sachetExp" value="" placeholder="เช่น 080927">
+        <label>EXP</label>
+        <input id="sachetExp" value="" placeholder="เช่น 080927">
 
-    <p class="small">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
-</div>
-
-<div id="linapackBox" style="display:none;">
-    <label>เครื่อง Linapack</label>
-    <select id="lpMachine">
-        <option value="LP1">LP1</option>
-        <option value="LP2">LP2</option>
-        <option value="LP3">LP3</option>
-        <option value="LP4">LP4</option>
-        <option value="LP5">LP5</option>
-        <option value="LP6">LP6</option>
-        <option value="LP7" selected>LP7</option>
-        <option value="LP8">LP8</option>
-        <option value="LP9">LP9</option>
-    </select>
-
-    <div id="mixCodeBox">
-        <label>รหัสวันที่ผสม / Mix Code</label>
-        <input id="mixCode" value="08F" placeholder="เช่น 08F">
-        <p class="small">ใช้กับ EPW งานไทย เช่น MFG 080626 08F 09:40</p>
+        <p class="small">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
     </div>
 
-    <label>EXP</label>
-    <input id="linapackExp" value="" placeholder="เช่น 080927">
+    <div id="linapackBox" style="display:none;">
+        <label>เครื่อง Linapack</label>
+        <select id="lpMachine">
+            <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
+            <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
+            <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
+        </select>
 
-    <p id="linapackHint" class="small"></p>
+        <div id="mixCodeBox">
+            <label>รหัสวันที่ผสม / Mix Code</label>
+            <input id="mixCode" value="08F" placeholder="เช่น 08F">
+            <p class="small">ใช้กับ EPW งานไทย เช่น MFG 080626 08F 09:40</p>
+        </div>
+
+        <label>EXP</label>
+        <input id="linapackExp" value="" placeholder="เช่น 080927">
+
+        <p id="linapackHint" class="small"></p>
+    </div>
+</div>
+
+<div id="cartonSection" style="display:none;">
+    <label>เลขลำดับกล่อง / Running No.</label>
+    <input id="cartonRunNo" value="00001" maxlength="5" placeholder="เช่น 00001">
+
+    <div id="cartonTHBox">
+        <label>รหัสงานขายในประเทศ</label>
+        <input id="cartonSalesCode" value="00" maxlength="2" placeholder="งานไทยใช้ 00">
+
+        <label>เลขอาคาร</label>
+        <select id="buildingNo">
+            <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+        </select>
+
+        <p class="small">กล่องงานไทย: 00001 00 080626 3</p>
+    </div>
+
+    <div id="cartonExportBox" style="display:none;">
+        <label>รหัสลูกค้า / ประเทศบนกล่อง</label>
+        <input id="cartonCustomerCode" value="" placeholder="เช่น KC, VN, VT, TS, AC, MM">
+
+        <label>EXP สำหรับ Pattern ที่มี EXP</label>
+        <input id="cartonExp" value="" placeholder="เช่น 080927">
+
+        <p class="small">กล่องต่างประเทศ: ระบบจะตรวจแบบยืดหยุ่นตาม D48 เช่น มี Run No., รหัสลูกค้า, วันที่ผลิต, EXP ถ้ามี และตัวท้าย K</p>
+    </div>
 </div>
 
 <div id="autoExpInfo" class="info"></div>
 
 <hr>
+
 <h3>อัปโหลดรูป</h3>
 <input type="file" id="fileInput" accept="image/*">
 
 <hr>
+
 <h3>หรือถ่ายจากกล้อง</h3>
 <button onclick="startCamera()">เปิดกล้อง</button>
 <video id="video" autoplay playsinline></video>
 <button onclick="captureImage()">ถ่ายรูปจากกล้อง</button>
 
 <canvas id="canvas" style="display:none;"></canvas>
+
 <h3>รูปตัวอย่าง</h3>
 <img id="preview" style="display:none;">
 
@@ -184,6 +218,7 @@ function autoExp() {
     const info = document.getElementById("autoExpInfo");
     const sachetExp = document.getElementById("sachetExp");
     const linapackExp = document.getElementById("linapackExp");
+    const cartonExp = document.getElementById("cartonExp");
 
     if (!/^\\d{6}$/.test(mfg)) {
         info.innerHTML = "เลือกวันที่ผลิตจากปฏิทิน";
@@ -196,35 +231,36 @@ function autoExp() {
     if (product === "EPC") {
         if (market === "TH") {
             const exp = formatDDMMYY(addMonths(date, 15));
-            sachetExp.value = exp;
-            linapackExp.value = exp;
+            sachetExp.value = exp; linapackExp.value = exp; cartonExp.value = exp;
             info.innerHTML = "EPC งานไทย: EXP = MFG + 1 ปี 3 เดือน → " + exp;
         } else if (market === "LAOS") {
             const exp = formatDDMMYY(addMonths(date, 24));
-            sachetExp.value = exp;
-            linapackExp.value = exp;
+            sachetExp.value = exp; linapackExp.value = exp; cartonExp.value = exp;
             info.innerHTML = "EPC งานลาว: EXP = MFG + 2 ปี → " + exp;
         } else {
-            sachetExp.value = "";
-            linapackExp.value = "";
+            sachetExp.value = ""; linapackExp.value = ""; cartonExp.value = "";
             info.innerHTML = "EPC งานต่างประเทศ: ไม่มีวันหมดอายุ";
         }
     } else {
         if (market === "TH") {
-            sachetExp.value = "";
-            linapackExp.value = "";
+            sachetExp.value = ""; linapackExp.value = ""; cartonExp.value = "";
             info.innerHTML = "EPW งานไทย: มีวันผสม / ไม่มี EXP";
         } else if (market === "LAOS") {
             const exp = formatDDMMYY(addMonths(date, 24));
-            sachetExp.value = exp;
-            linapackExp.value = exp;
+            sachetExp.value = exp; linapackExp.value = exp; cartonExp.value = exp;
             info.innerHTML = "EPW งานลาว: EXP = MFG + 2 ปี → " + exp;
         } else {
-            sachetExp.value = "";
-            linapackExp.value = "";
+            sachetExp.value = ""; linapackExp.value = ""; cartonExp.value = "";
             info.innerHTML = "EPW งานต่างประเทศ: ไม่มีวันผสม และไม่มี EXP";
         }
     }
+}
+
+function changeCheckType() {
+    const checkType = document.getElementById("checkType").value;
+    document.getElementById("pouchSection").style.display = checkType === "pouch" ? "block" : "none";
+    document.getElementById("cartonSection").style.display = checkType === "carton" ? "block" : "none";
+    changeProduct();
 }
 
 function changeMode() {
@@ -238,15 +274,28 @@ function changeProduct() {
     const product = document.getElementById("productType").value;
     const market = document.getElementById("marketType").value;
     const mode = document.getElementById("mode").value;
+    const checkType = document.getElementById("checkType").value;
 
     const mixCodeBox = document.getElementById("mixCodeBox");
+    const cartonTHBox = document.getElementById("cartonTHBox");
+    const cartonExportBox = document.getElementById("cartonExportBox");
     const linapackExp = document.getElementById("linapackExp");
     const sachetExp = document.getElementById("sachetExp");
     const hint = document.getElementById("linapackHint");
 
-    const noExp = ((product === "EPC" && market === "EXPORT") || (product === "EPW" && market === "TH") || (product === "EPW" && market === "EXPORT"));
+    const noExp = (
+        (product === "EPC" && market === "EXPORT") ||
+        (product === "EPW" && market === "TH") ||
+        (product === "EPW" && market === "EXPORT")
+    );
+
     sachetExp.disabled = noExp;
     linapackExp.disabled = noExp;
+
+    if (checkType === "carton") {
+        cartonTHBox.style.display = market === "TH" ? "block" : "none";
+        cartonExportBox.style.display = market === "TH" ? "none" : "block";
+    }
 
     if (mode === "linapack") {
         if (product === "EPW" && market === "TH") {
@@ -321,27 +370,50 @@ async function sendCheck() {
         return;
     }
 
+    const checkType = document.getElementById("checkType").value;
     const mode = document.getElementById("mode").value;
     const productType = document.getElementById("productType").value;
     const marketType = document.getElementById("marketType").value;
 
-    let payload = { mode: mode, productType: productType, marketType: marketType, mfg: document.getElementById("mfg").value, image: imageData };
+    let payload = {
+        checkType: checkType,
+        mode: mode,
+        productType: productType,
+        marketType: marketType,
+        mfg: document.getElementById("mfg").value,
+        image: imageData
+    };
 
-    if (mode === "sachet") {
-        payload.line = document.getElementById("sachetLine").value;
-        payload.exp = document.getElementById("sachetExp").value;
-        payload.mixCode = "";
+    if (checkType === "pouch") {
+        if (mode === "sachet") {
+            payload.line = document.getElementById("sachetLine").value;
+            payload.exp = document.getElementById("sachetExp").value;
+            payload.mixCode = "";
+        } else {
+            payload.line = document.getElementById("lpMachine").value;
+            payload.exp = document.getElementById("linapackExp").value;
+            payload.mixCode = document.getElementById("mixCode").value;
+        }
     } else {
         payload.line = document.getElementById("lpMachine").value;
-        payload.exp = document.getElementById("linapackExp").value;
-        payload.mixCode = document.getElementById("mixCode").value;
+        payload.exp = marketType === "TH" ? "" : document.getElementById("cartonExp").value;
+        payload.mixCode = "";
+        payload.cartonRunNo = document.getElementById("cartonRunNo").value;
+        payload.cartonSalesCode = document.getElementById("cartonSalesCode").value;
+        payload.buildingNo = document.getElementById("buildingNo").value;
+        payload.cartonCustomerCode = document.getElementById("cartonCustomerCode").value;
     }
 
     resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
     detailDiv.innerHTML = "";
 
     try {
-        const res = await fetch("/check", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
+        const res = await fetch("/check", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
         const data = await res.json();
 
         if (data.error) {
@@ -349,9 +421,12 @@ async function sendCheck() {
             return;
         }
 
-        resultDiv.innerHTML = data.summary === "PASS" ? `<div class="pass">PASS ✅</div>` : `<div class="ng">NG ❌</div>`;
+        resultDiv.innerHTML = data.summary === "PASS"
+            ? `<div class="pass">PASS ✅</div>`
+            : `<div class="ng">NG ❌</div>`;
 
         let html = `<p><b>เวลา:</b> ${data.time}</p>`;
+        html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
         html += `<p><b>ประเภทไลน์:</b> ${data.mode}</p>`;
         html += `<p><b>ประเภทผลิตภัณฑ์:</b> ${data.productType}</p>`;
         html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
@@ -363,22 +438,29 @@ async function sendCheck() {
         }
 
         html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+
         data.details.forEach(row => {
             html += `<tr><td>${row.item}</td><td>${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
         });
+
         html += `</table>`;
         html += `<h3>AI อ่านได้ทั้งหมด</h3><pre>${JSON.stringify(data.lines, null, 2)}</pre>`;
         detailDiv.innerHTML = html;
+
     } catch (err) {
         resultDiv.innerHTML = `<div class="ng">ERROR</div><p>${err}</p>`;
     }
 }
 
-window.onload = function() { setTodayDefault(); changeProduct(); };
+window.onload = function() { setTodayDefault(); changeCheckType(); };
 </script>
 </body>
 </html>
 """
+
+
+def now_thai():
+    return datetime.utcnow() + timedelta(hours=7)
 
 
 def normalize(text):
@@ -388,7 +470,12 @@ def normalize(text):
 
 
 def clean_json_text(text):
-    return text.replace("```json", "").replace("```", "").strip()
+    text = text.replace("```json", "").replace("```", "").strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end >= start:
+        return text[start:end + 1]
+    return text
 
 
 def parse_ddmmyy(s):
@@ -433,8 +520,10 @@ def calculate_exp(product_type, market_type, mfg):
 def no_exp_required(product_type, market_type):
     if product_type == "EPC":
         return market_type == "EXPORT"
+
     if product_type == "EPW":
         return market_type in ["TH", "EXPORT"]
+
     return False
 
 
@@ -459,7 +548,7 @@ def draw_text_with_shadow(draw, position, text, font, fill, shadow=(0, 0, 0)):
     draw.text((x, y), text, font=font, fill=fill)
 
 
-def stamp_image(image_base64, summary, product_type, market_type, mode, checked_time):
+def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time):
     if "," in image_base64:
         image_base64 = image_base64.split(",", 1)[1]
 
@@ -474,35 +563,88 @@ def stamp_image(image_base64, summary, product_type, market_type, mode, checked_
 
     if summary == "PASS":
         title = "LOT CHECK PASS"
-        line2 = "LOT VERIFIED"
+        line2 = "ตรวจสอบ Lot ถูกต้องแล้ว"
         color = (0, 180, 0)
     else:
         title = "LOT CHECK NG"
-        line2 = "LOT VERIFICATION FAILED"
+        line2 = "ตรวจพบ Lot ไม่ถูกต้อง"
         color = (255, 0, 0)
 
-    x = 30
-    y = 500
+    x = max(20, int(w * 0.035))
+    y = max(20, int(h * 0.035))
 
-    # ไม่มีกรอบ / ไม่มีพื้นหลัง ใช้เงาดำให้อ่านง่าย
     draw_text_with_shadow(draw, (x, y), title, title_font, color)
     y += int(title_font.size * 1.25)
     draw_text_with_shadow(draw, (x, y), line2, body_font, color)
     y += int(body_font.size * 1.25)
     draw_text_with_shadow(draw, (x, y), f"By Lot Checker | {checked_time}", body_font, (255, 255, 255))
     y += int(body_font.size * 1.25)
-    draw_text_with_shadow(draw, (x, y), f"{mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
+    draw_text_with_shadow(draw, (x, y), f"{check_type} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
 
-    filename = f"{summary}_{(datetime.utcnow() + timedelta(hours=7)).strftime('%Y%m%d_%H%M%S')}.jpg"
+    filename = f"{summary}_{now_thai().strftime('%Y%m%d_%H%M%S')}.jpg"
     output_path = os.path.join(STAMP_DIR, filename)
     image.save(output_path, quality=95)
+
     return filename
 
 
-def read_lot_with_ai(image_base64, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code):
+def read_lot_with_ai(image_base64, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp,
+                     mix_code, carton_run_no, carton_sales_code, building_no, carton_customer_code):
     skip_exp = no_exp_required(product_type, market_type)
 
-    if mode == "sachet":
+    if check_type == "carton":
+        if market_type == "TH":
+            expected = f"{carton_run_no} {carton_sales_code} {expected_mfg} {building_no}"
+            prompt = f"""
+Read ONLY the printed carton lot/batch number from the image.
+
+This is Thailand carton format.
+
+Expected format:
+{expected}
+
+Meaning:
+- {carton_run_no} = carton running number, exactly 5 digits
+- {carton_sales_code} = Thailand sales code, must be 00
+- {expected_mfg} = MFG date DDMMYY
+- {building_no} = building number, must be 1-6
+
+Return JSON only:
+{{"lines":["carton lot exactly as seen"]}}
+
+Do not silently correct mistakes.
+"""
+        else:
+            exp_line = f"EXP {expected_exp}" if expected_exp else "NO EXP REQUIRED"
+            customer_rule = f"Customer code should be {carton_customer_code} if visible." if carton_customer_code else "Customer code may vary by D48 pattern."
+            prompt = f"""
+Read ONLY the printed carton batch/lot code from the image.
+
+This is Export/Laos carton format based on D48 table.
+The carton format can vary by customer/country. Common parts may include:
+- carton running number, usually 5 characters/digits such as ZZZZZ or 00001
+- customer/country code such as KC, VN, VT, TS, AC, MM, etc.
+- MFG date DDMMYY = {expected_mfg}
+- EXP date if required = {expected_exp if expected_exp else "not required"}
+- ending category code K, if printed
+
+{customer_rule}
+
+Return JSON only:
+{{
+  "lines": ["carton batch/lot exactly as seen"],
+  "has_mfg": true,
+  "has_exp": true,
+  "has_k": true
+}}
+
+Rules:
+- Do not silently correct mistakes.
+- If no EXP is printed and EXP is not required, set has_exp to true.
+- If EXP is required but missing, set has_exp to false.
+- If K is not printed but the pattern clearly does not require it, set has_k to true.
+"""
+    elif mode == "sachet":
         if skip_exp:
             prompt = f"""
 Read ONLY printed lot code lines from the image.
@@ -559,10 +701,6 @@ Expected:
 MFG {expected_mfg} TT:TT
 EXP {expected_exp}
 
-Example:
-MFG {expected_mfg} 09:40
-EXP {expected_exp}
-
 Return JSON only:
 {{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
@@ -573,9 +711,6 @@ This is Linapack EPW Export format. No Mix Code and no EXP.
 
 Expected:
 MFG {expected_mfg} TT:TT
-
-Example:
-MFG {expected_mfg} 09:40
 
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
@@ -589,9 +724,6 @@ This is Linapack EPC Export format. EXP is NOT required.
 Expected:
 MFG {expected_mfg} {expected_line} TT:TT
 
-Example:
-MFG {expected_mfg} {expected_line} 09:40
-
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
@@ -602,10 +734,6 @@ This is Linapack EPC format.
 
 Expected:
 MFG {expected_mfg} {expected_line} TT:TT
-EXP {expected_exp}
-
-Example:
-MFG {expected_mfg} {expected_line} 09:40
 EXP {expected_exp}
 
 Return JSON only:
@@ -624,10 +752,11 @@ Return JSON only:
             }
         ],
     )
+
     return response.output_text
 
 
-def check_sachet(lines, product_type, market_type, expected_mfg, expected_line, expected_exp):
+def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_line, expected_exp):
     details = []
     overall = True
     skip_exp = no_exp_required(product_type, market_type)
@@ -635,15 +764,24 @@ def check_sachet(lines, product_type, market_type, expected_mfg, expected_line, 
 
     for i in range(1, 7):
         actual = lines[i - 1] if i <= len(lines) else ""
+
         if skip_exp:
             expected = f"MFG {expected_mfg} {expected_line} {i}"
             status = "PASS" if expected in actual else "NG"
         else:
             expected = f"MFG {expected_mfg} {expected_line} {i} EXP {expected_exp}"
             status = "PASS" if actual == expected else "NG"
+
         if status == "NG":
             overall = False
-        details.append({"item": f"แถว {i}", "status": status, "actual": actual, "expected": expected if not skip_exp else expected + " / ไม่ตรวจ EXP"})
+
+        details.append({
+            "item": f"แถว {i}",
+            "status": status,
+            "actual": actual,
+            "expected": expected if not skip_exp else expected + " / ไม่ตรวจ EXP"
+        })
+
     return overall, details
 
 
@@ -652,12 +790,14 @@ def extract_time(text):
     return match.group(1) if match else ""
 
 
-def check_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time=""):
+def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time=""):
     details = []
     overall = True
     skip_exp = no_exp_required(product_type, market_type)
+
     lines = [normalize(x) for x in lines]
     all_text = " ".join(lines)
+
     mfg_line = lines[0] if len(lines) > 0 else ""
     exp_line = lines[1] if len(lines) > 1 else ""
 
@@ -677,18 +817,109 @@ def check_linapack(lines, product_type, market_type, expected_mfg, expected_line
 
     if not mfg_ok:
         overall = False
-    details.append({"item": "MFG / Line / Mix", "status": "PASS" if mfg_ok else "NG", "actual": mfg_line, "expected": expected_mfg_part + " TT:TT"})
+    details.append({
+        "item": "MFG / Line / Mix",
+        "status": "PASS" if mfg_ok else "NG",
+        "actual": mfg_line,
+        "expected": expected_mfg_part + " TT:TT"
+    })
 
     if not time_ok:
         overall = False
-    details.append({"item": "เวลา TT:TT", "status": "PASS" if time_ok else "NG", "actual": time_found, "expected": "รูปแบบ HH:MM เช่น 09:40"})
+    details.append({
+        "item": "เวลา TT:TT",
+        "status": "PASS" if time_ok else "NG",
+        "actual": time_found,
+        "expected": "รูปแบบ HH:MM เช่น 09:40"
+    })
 
     if skip_exp:
-        details.append({"item": "EXP", "status": "PASS", "actual": "ไม่ต้องมี EXP", "expected": "ไม่ตรวจวันหมดอายุ"})
+        details.append({
+            "item": "EXP",
+            "status": "PASS",
+            "actual": "ไม่ต้องมี EXP",
+            "expected": "ไม่ตรวจวันหมดอายุ"
+        })
     else:
         if not exp_ok:
             overall = False
-        details.append({"item": "EXP", "status": "PASS" if exp_ok else "NG", "actual": exp_line, "expected": expected_exp_part})
+        details.append({
+            "item": "EXP",
+            "status": "PASS" if exp_ok else "NG",
+            "actual": exp_line,
+            "expected": expected_exp_part
+        })
+
+    return overall, details
+
+
+def check_carton(lines, market_type, expected_mfg, expected_exp, carton_run_no, carton_sales_code, building_no, carton_customer_code, ai_json):
+    details = []
+    overall = True
+    lines = [normalize(x) for x in lines]
+    all_text = " ".join(lines)
+
+    if market_type == "TH":
+        expected = f"{carton_run_no} {carton_sales_code} {expected_mfg} {building_no}"
+        actual = lines[0] if lines else ""
+
+        checks = [
+            ("เลขลำดับกล่อง", carton_run_no in actual, actual, carton_run_no),
+            ("รหัสงานขายไทย", carton_sales_code in actual, actual, carton_sales_code),
+            ("วันที่ผลิต", expected_mfg in actual, actual, expected_mfg),
+            ("เลขอาคาร", re.search(rf"\b{re.escape(building_no)}\b", actual) is not None, actual, building_no),
+            ("รูปแบบรวม", actual == expected, actual, expected),
+        ]
+
+        for item, ok, actual_value, expected_value in checks:
+            if not ok:
+                overall = False
+            details.append({
+                "item": item,
+                "status": "PASS" if ok else "NG",
+                "actual": actual_value,
+                "expected": expected_value
+            })
+
+        return overall, details
+
+    has_mfg = bool(ai_json.get("has_mfg", False)) or (expected_mfg in all_text)
+    has_exp = bool(ai_json.get("has_exp", False))
+    has_k = bool(ai_json.get("has_k", False)) or re.search(r"\bK\b", all_text) is not None
+
+    if expected_exp:
+        has_exp = has_exp or (expected_exp in all_text)
+    else:
+        has_exp = True
+
+    if carton_run_no:
+        run_ok = carton_run_no in all_text
+    else:
+        run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
+
+    if carton_customer_code:
+        customer_ok = carton_customer_code.upper() in all_text
+    else:
+        customer_ok = True
+
+    checks = [
+        ("Running No. กล่อง", run_ok, all_text, carton_run_no or "5 ตัวอักษร/ตัวเลข"),
+        ("รหัสลูกค้า/ประเทศ", customer_ok, all_text, carton_customer_code or "ไม่ระบุ"),
+        ("วันที่ผลิต", has_mfg, all_text, expected_mfg),
+        ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
+        ("ตัวท้าย K / Pattern D48", has_k, all_text, "K หรือ Pattern ที่ไม่บังคับ K"),
+    ]
+
+    for item, ok, actual_value, expected_value in checks:
+        if not ok:
+            overall = False
+        details.append({
+            "item": item,
+            "status": "PASS" if ok else "NG",
+            "actual": actual_value,
+            "expected": expected_value
+        })
+
     return overall, details
 
 
@@ -706,6 +937,8 @@ def stamped_file(filename):
 def check():
     try:
         data = request.json
+
+        check_type = data.get("checkType", "pouch").strip().lower()
         mode = data.get("mode", "sachet").strip().lower()
         product_type = data.get("productType", "EPC").strip().upper()
         market_type = data.get("marketType", "TH").strip().upper()
@@ -715,37 +948,114 @@ def check():
         mix_code = data.get("mixCode", "").strip().upper()
         image_data = data.get("image", "")
 
+        carton_run_no = data.get("cartonRunNo", "").strip().upper()
+        carton_sales_code = data.get("cartonSalesCode", "00").strip().upper()
+        building_no = data.get("buildingNo", "").strip()
+        carton_customer_code = data.get("cartonCustomerCode", "").strip().upper()
+
         if not expected_mfg:
             return jsonify({"error": "กรุณาเลือกวันที่ผลิต"}), 400
+
+        if not image_data:
+            return jsonify({"error": "กรุณาอัปโหลดรูปหรือถ่ายรูปก่อน"}), 400
+
         if not os.getenv("OPENAI_API_KEY"):
             return jsonify({"error": "ไม่พบ OPENAI_API_KEY"}), 500
 
         auto_exp = calculate_exp(product_type, market_type, expected_mfg)
         if auto_exp:
             expected_exp = auto_exp
+
         skip_exp = no_exp_required(product_type, market_type)
-        if not skip_exp and not expected_exp:
+
+        if check_type == "pouch" and not skip_exp and not expected_exp:
             return jsonify({"error": "กรุณากรอก EXP หรือเลือกประเภทงานที่ไม่ต้องมี EXP"}), 400
 
+        if check_type == "carton" and market_type == "TH":
+            if not re.fullmatch(r"\d{5}", carton_run_no):
+                return jsonify({"error": "เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก เช่น 00001"}), 400
+            if carton_sales_code != "00":
+                return jsonify({"error": "งานไทย รหัสงานขายต้องเป็น 00"}), 400
+            if building_no not in ["1", "2", "3", "4", "5", "6"]:
+                return jsonify({"error": "เลขอาคารต้องเป็น 1-6"}), 400
+
         image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
-        raw_ai = read_lot_with_ai(image_base64, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code)
+
+        raw_ai = read_lot_with_ai(
+            image_base64,
+            check_type,
+            mode,
+            product_type,
+            market_type,
+            expected_mfg,
+            expected_line,
+            expected_exp,
+            mix_code,
+            carton_run_no,
+            carton_sales_code,
+            building_no,
+            carton_customer_code
+        )
+
         result_json = json.loads(clean_json_text(raw_ai))
         lines = result_json.get("lines", [])
 
-        if mode == "sachet":
-            overall, details = check_sachet(lines, product_type, market_type, expected_mfg, expected_line, expected_exp)
+        if check_type == "carton":
+            overall, details = check_carton(
+                lines,
+                market_type,
+                expected_mfg,
+                expected_exp,
+                carton_run_no,
+                carton_sales_code,
+                building_no,
+                carton_customer_code,
+                result_json
+            )
+            mode_name = "Carton"
+            check_type_name = "กล่อง"
+        elif mode == "sachet":
+            overall, details = check_pouch_sachet(
+                lines,
+                product_type,
+                market_type,
+                expected_mfg,
+                expected_line,
+                expected_exp
+            )
             mode_name = "Sachet"
+            check_type_name = "ซอง"
         else:
             ai_time = result_json.get("time", "")
-            overall, details = check_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time)
+            overall, details = check_pouch_linapack(
+                lines,
+                product_type,
+                market_type,
+                expected_mfg,
+                expected_line,
+                expected_exp,
+                mix_code,
+                ai_time
+            )
             mode_name = "Linapack"
+            check_type_name = "ซอง"
 
         summary = "PASS" if overall else "NG"
-        checked_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
-        stamped_filename = stamp_image(image_data, summary, product_type, market_type, mode_name, checked_time)
+        checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
+
+        stamped_filename = stamp_image(
+            image_data,
+            summary,
+            check_type_name,
+            product_type,
+            market_type,
+            mode_name,
+            checked_time
+        )
 
         return jsonify({
             "summary": summary,
+            "checkType": check_type_name,
             "mode": mode_name,
             "productType": product_type,
             "marketType": market_type,
@@ -755,6 +1065,7 @@ def check():
             "time": checked_time,
             "stampedImageUrl": f"/stamped/{stamped_filename}"
         })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
