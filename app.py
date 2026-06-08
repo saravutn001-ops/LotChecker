@@ -1207,7 +1207,7 @@ def draw_red_boxes_on_image(image, boxes):
     return image
 
 
-def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time, red_boxes=None):
+def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time, red_boxes=None, ng_reasons=None):
     if "," in image_base64:
         image_base64 = image_base64.split(",", 1)[1]
 
@@ -1256,6 +1256,14 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     draw_text_with_shadow(draw, (x, y), f"By Lot Checker | {checked_time}", body_font, (255, 255, 255))
     y += int(body_font.size * 1.25)
     draw_text_with_shadow(draw, (x, y), f"{check_type_en} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
+    if summary == "NG" and ng_reasons:
+        yy = y + int(body_font.size * 1.5)
+        draw_text_with_shadow(draw, (x, yy), "NG REASONS:", body_font, (255,0,0))
+        yy += int(body_font.size * 1.2)
+        for reason in ng_reasons[:5]:
+            draw_text_with_shadow(draw, (x, yy), f"- {reason}", body_font, (255,255,0))
+            yy += int(body_font.size * 1.1)
+
 
     filename = f"{summary}_{now_thai().strftime('%Y%m%d_%H%M%S')}.jpg"
     output_path = os.path.join(STAMP_DIR, filename)
