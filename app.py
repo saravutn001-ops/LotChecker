@@ -314,7 +314,7 @@ pre {
         <input id="sachetLine" value="MS11" placeholder="เช่น MS11">
 
         <label>EXP</label>
-        <input id="sachetExp" value="" placeholder="เช่น 080927">
+        <input id="sachetExp" value="" placeholder="Auto Calculated" readonly>
 
         <p class="small">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
     </div>
@@ -334,7 +334,7 @@ pre {
         </div>
 
         <label>EXP</label>
-        <input id="linapackExp" value="" placeholder="เช่น 080927">
+        <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
 
         <p id="linapackHint" class="small"></p>
     </div>
@@ -415,7 +415,7 @@ pre {
         <p class="small">เช่น N = เปลี่ยน Artwork Packaging / QR = งาน XR STK แบบใหม่</p>
 
         <label>EXP สำหรับ Pattern ที่มี EXP</label>
-        <input id="cartonExp" value="" placeholder="เช่น 080927">
+        <input id="cartonExp" value="" placeholder="Auto Calculated" readonly>
 
         <p class="small">กล่องต่างประเทศ: มีหลายรูปแบบตาม D48 เช่น Shipping Mark + Running No. + รหัสตัวอักษร + MFG + EXP/K</p>
     </div>
@@ -616,9 +616,9 @@ function autoExp() {
             sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPW งานไทย: มีวันผสม / ไม่มี EXP";
         } else if (market === "LAOS") {
-            const exp = formatDDMMYY(addMonths(date, 24));
+            const exp = formatDDMMYY(addMonths(date, 36));
             sachetExp.value = exp; linapackExp.value = exp;
-            info.innerHTML = "EPW งานต่างประเทศ ลาว: EXP = MFG + 2 ปี → " + exp;
+            info.innerHTML = "EPW งานต่างประเทศ ลาว: EXP = MFG + 3 ปี → " + exp;
         } else {
             sachetExp.value = ""; linapackExp.value = "";
             info.innerHTML = "EPW งานต่างประเทศ: ไม่มีวันผสม และไม่มี EXP";
@@ -675,7 +675,7 @@ function changeProduct() {
             hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40";
         } else if (product === "EPW" && market === "LAOS") {
             mixCodeBox.style.display = "none";
-            hint.innerHTML = "EPW งานต่างประเทศ ลาว: ตรวจ MFG + เวลา + EXP 2 ปี";
+            hint.innerHTML = "EPW งานต่างประเทศ ลาว: ตรวจ MFG + เวลา + EXP 3 ปี";
         } else if (product === "EPW" && market === "EXPORT") {
             mixCodeBox.style.display = "none";
             hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เวลา ไม่มีวันผสม และไม่มี EXP";
@@ -887,7 +887,7 @@ def calculate_exp(product_type, market_type, mfg):
 
     if product_type == "EPW":
         if market_type == "LAOS":
-            return format_ddmmyy(add_months(dt, 24))
+            return format_ddmmyy(add_months(dt, 36))
         return ""
 
     return ""
@@ -1438,9 +1438,9 @@ def check():
         if not os.getenv("OPENAI_API_KEY"):
             return jsonify({"error": "ไม่พบ OPENAI_API_KEY"}), 500
 
+        # EXP is locked by system. Do not trust editable/browser-submitted value.
         auto_exp = calculate_exp(product_type, market_type, expected_mfg)
-        if auto_exp:
-            expected_exp = auto_exp
+        expected_exp = auto_exp if auto_exp else ""
 
         skip_exp = no_exp_required(product_type, market_type)
 
