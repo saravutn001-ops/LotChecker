@@ -1,23 +1,17 @@
-import base64
-import io
 import json
 import os
 import re
-from calendar import monthrange
 from datetime import datetime
+from calendar import monthrange
 
-from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, request, jsonify
 from openai import OpenAI
-from PIL import Image, ImageDraw, ImageFont
+from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-STAMP_DIR = "stamped_images"
-os.makedirs(STAMP_DIR, exist_ok=True)
 
 HTML = """
 <!DOCTYPE html>
@@ -42,7 +36,6 @@ th, td { border:1px solid #ccc; padding:8px; font-size:15px; }
 th { background:#eee; }
 hr { margin:20px 0; }
 .small { color:#666; font-size:14px; }
-.download { display:block; text-align:center; background:#222; color:white; padding:14px; border-radius:10px; margin-top:15px; text-decoration:none; font-size:20px; }
 </style>
 </head>
 <body>
@@ -99,7 +92,7 @@ hr { margin:20px 0; }
     <div id="mixCodeBox">
         <label>รหัสวันที่ผสม / Mix Code</label>
         <input id="mixCode" value="08F" placeholder="เช่น 08F">
-        <p class="small">ใช้กับ EPW งานไทย เช่น MFG 080626 08F 09:40</p>
+        <p class="small">ใช้กับ EPW ไทย เช่น MFG 080626 08F 09:40</p>
     </div>
 
     <label>EXP</label>
@@ -155,7 +148,11 @@ function addMonths(date, months) {
     const d = date.getDate();
     const newDate = new Date(date);
     newDate.setMonth(newDate.getMonth() + months);
-    if (newDate.getDate() !== d) newDate.setDate(0);
+
+    if (newDate.getDate() !== d) {
+        newDate.setDate(0);
+    }
+
     return newDate;
 }
 
@@ -163,6 +160,7 @@ function autoExp() {
     const product = document.getElementById("productType").value;
     const market = document.getElementById("marketType").value;
     const mfg = document.getElementById("mfg").value.trim();
+
     const info = document.getElementById("autoExpInfo");
     const sachetExp = document.getElementById("sachetExp");
     const linapackExp = document.getElementById("linapackExp");
@@ -189,23 +187,14 @@ function autoExp() {
         } else {
             sachetExp.value = "";
             linapackExp.value = "";
-            info.innerHTML = "EPC งานต่างประเทศ: ไม่มีวันหมดอายุ";
+            info.innerHTML = "EPC งานต่างประเทศ: ไม่มีวันหมดอายุ ระบบจะไม่ตรวจ EXP";
         }
+    } else if (product === "EPW_TH") {
+        sachetExp.value = "";
+        linapackExp.value = "";
+        info.innerHTML = "EPW ไทย: มีวันผสม / ไม่มี EXP";
     } else {
-        if (market === "TH") {
-            sachetExp.value = "";
-            linapackExp.value = "";
-            info.innerHTML = "EPW งานไทย: มีวันผสม / ไม่มี EXP";
-        } else if (market === "LAOS") {
-            const exp = formatDDMMYY(addMonths(date, 24));
-            sachetExp.value = exp;
-            linapackExp.value = exp;
-            info.innerHTML = "EPW งานลาว: EXP = MFG + 2 ปี → " + exp;
-        } else {
-            sachetExp.value = "";
-            linapackExp.value = "";
-            info.innerHTML = "EPW งานต่างประเทศ: ไม่มีวันผสม และไม่มี EXP";
-        }
+        info.innerHTML = "EPW ต่างประเทศ: ไม่มีวันผสม ให้กรอก EXP เองก่อน";
     }
 }
 
@@ -227,29 +216,29 @@ function changeProduct() {
     const hint = document.getElementById("linapackHint");
 
     const noExp = (
-        (product === "EPC" && market === "EXPORT") ||
-        (product === "EPW" && market === "TH") ||
-        (product === "EPW" && market === "EXPORT")
+        product === "EPW_TH" ||
+        (product === "EPC" && market === "EXPORT")
     );
 
     sachetExp.disabled = noExp;
     linapackExp.disabled = noExp;
 
     if (mode === "linapack") {
-        if (product === "EPW" && market === "TH") {
+        if (product === "EPW_TH") {
             mixCodeBox.style.display = "block";
-            hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40";
-        } else if (product === "EPW" && market === "LAOS") {
+            hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40 และไม่ตรวจ EXP";
+        } else if (product === "EPW_EXPORT") {
             mixCodeBox.style.display = "none";
-            hint.innerHTML = "EPW ลาว: ตรวจ MFG + เวลา + EXP เช่น MFG 080626 09:40 / EXP 080628";
-        } else if (product === "EPW" && market === "EXPORT") {
-            mixCodeBox.style.display = "none";
-            hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เวลา ไม่มีวันผสม และไม่มี EXP";
+            hint.innerHTML = "EPW ต่างประเทศ: ไม่มีวันผสม ตรวจ MFG + เวลา + EXP เช่น MFG 080626 09:40 / EXP 080927";
         } else {
             mixCodeBox.style.display = "none";
-            if (market === "TH") hint.innerHTML = "EPC ไทย: ตรวจ MFG + LP1-9 + เวลา + EXP";
-            else if (market === "LAOS") hint.innerHTML = "EPC ลาว: ตรวจ MFG + LP1-9 + เวลา + EXP 2 ปี";
-            else hint.innerHTML = "EPC ต่างประเทศ: ตรวจ MFG + LP1-9 + เวลา ไม่มี EXP";
+            if (market === "TH") {
+                hint.innerHTML = "EPC งานไทย: ตรวจ MFG + LP1-9 + เวลา + EXP";
+            } else if (market === "LAOS") {
+                hint.innerHTML = "EPC งานลาว: ตรวจ MFG + LP1-9 + เวลา + EXP 2 ปี";
+            } else {
+                hint.innerHTML = "EPC งานต่างประเทศ: ตรวจ MFG + LP1-9 + เวลา และไม่ตรวจ EXP";
+            }
         }
     }
 
@@ -261,13 +250,16 @@ function changeProduct() {
 document.getElementById("fileInput").addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
+
     reader.onload = function(event) {
         imageData = event.target.result;
         const preview = document.getElementById("preview");
         preview.src = imageData;
         preview.style.display = "block";
     };
+
     reader.readAsDataURL(file);
 });
 
@@ -291,13 +283,17 @@ function captureImage() {
     const preview = document.getElementById("preview");
 
     if (!video.videoWidth) {
-        document.getElementById("result").innerHTML = '<div class="ng">กรุณาเปิดกล้องก่อน</div>';
+        document.getElementById("result").innerHTML =
+            '<div class="ng">กรุณาเปิดกล้องก่อน</div>';
         return;
     }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
     imageData = canvas.toDataURL("image/jpeg", 0.9);
     preview.src = imageData;
     preview.style.display = "block";
@@ -361,13 +357,13 @@ async function sendCheck() {
         html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
 
-        if (data.stampedImageUrl) {
-            html += `<a class="download" href="${data.stampedImageUrl}" target="_blank">เปิด / ดาวน์โหลดรูปที่ประทับผลแล้ว</a>`;
-            html += `<img src="${data.stampedImageUrl}">`;
-        }
-
         html += `<table>
-            <tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+            <tr>
+                <th>รายการ</th>
+                <th>ผล</th>
+                <th>อ่านได้</th>
+                <th>ค่าที่ควรเป็น</th>
+            </tr>`;
 
         data.details.forEach(row => {
             html += `<tr>
@@ -380,6 +376,7 @@ async function sendCheck() {
 
         html += `</table>`;
         html += `<h3>AI อ่านได้ทั้งหมด</h3><pre>${JSON.stringify(data.lines, null, 2)}</pre>`;
+
         detailDiv.innerHTML = html;
 
     } catch (err) {
@@ -387,8 +384,11 @@ async function sendCheck() {
     }
 }
 
-window.onload = function() { changeProduct(); };
+window.onload = function() {
+    changeProduct();
+};
 </script>
+
 </body>
 </html>
 """
@@ -396,7 +396,7 @@ window.onload = function() { changeProduct(); };
 
 def normalize(text):
     text = str(text).upper()
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\\s+", " ", text).strip()
     return text
 
 
@@ -406,9 +406,12 @@ def clean_json_text(text):
 
 def parse_ddmmyy(s):
     s = str(s).strip()
-    if not re.fullmatch(r"\d{6}", s):
+    if not re.fullmatch(r"\\d{6}", s):
         return None
-    return datetime(2000 + int(s[4:6]), int(s[2:4]), int(s[:2]))
+    day = int(s[:2])
+    month = int(s[2:4])
+    year = 2000 + int(s[4:6])
+    return datetime(year, month, day)
 
 
 def add_months(dt, months):
@@ -424,26 +427,33 @@ def format_ddmmyy(dt):
 
 
 def calculate_exp(product_type, market_type, mfg):
+
     dt = parse_ddmmyy(mfg)
     if not dt:
         return ""
 
     if product_type == "EPC":
+
         if market_type == "TH":
             return format_ddmmyy(add_months(dt, 15))
+
         if market_type == "LAOS":
             return format_ddmmyy(add_months(dt, 24))
+
         return ""
 
     if product_type == "EPW":
+
         if market_type == "LAOS":
             return format_ddmmyy(add_months(dt, 24))
+
         return ""
 
     return ""
 
 
 def no_exp_required(product_type, market_type):
+
     if product_type == "EPC":
         return market_type == "EXPORT"
 
@@ -451,68 +461,6 @@ def no_exp_required(product_type, market_type):
         return market_type in ["TH", "EXPORT"]
 
     return False
-
-
-def get_font(size):
-    candidates = [
-        "NotoSansThai-Regular.ttf",
-        "THSarabunNew.ttf",
-        "arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    for path in candidates:
-        try:
-            return ImageFont.truetype(path, size)
-        except Exception:
-            pass
-    return ImageFont.load_default()
-
-
-def stamp_image(image_base64, summary, product_type, market_type, mode, details, checked_time):
-    if "," in image_base64:
-        image_base64 = image_base64.split(",", 1)[1]
-
-    image_bytes = base64.b64decode(image_base64)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-    draw = ImageDraw.Draw(image)
-    w, h = image.size
-
-    header_h = max(220, int(h * 0.18))
-    box_color = (230, 255, 230) if summary == "PASS" else (255, 230, 230)
-    border_color = (0, 150, 0) if summary == "PASS" else (220, 0, 0)
-    text_color = (0, 120, 0) if summary == "PASS" else (200, 0, 0)
-
-    draw.rectangle((0, 0, w, header_h), fill=box_color, outline=border_color, width=6)
-
-    title_font = get_font(max(32, int(w * 0.045)))
-    body_font = get_font(max(22, int(w * 0.028)))
-
-    if summary == "PASS":
-        title = "LOT CHECK PASS"
-        thai = "LOT VERIFIED"
-    else:
-        title = "LOT CHECK NG"
-        thai = "LOT VERIFICATION FAILED"
-
-    lines = [
-        title,
-        thai,
-        f"By Lot Checker | {checked_time}",
-        f"{mode} | {product_type} | {market_type}",
-    ]
-
-    y = 20
-    for idx, line in enumerate(lines):
-        font = title_font if idx == 0 else body_font
-        draw.text((30, y), line, fill=text_color if idx < 2 else (0, 0, 0), font=font)
-        y += int(font.size * 1.3)
-
-    filename = f"{summary}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-    output_path = os.path.join(STAMP_DIR, filename)
-    image.save(output_path, quality=95)
-
-    return filename
 
 
 def read_lot_with_ai(image_base64, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code):
@@ -552,7 +500,7 @@ Return JSON only:
 {{"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}}
 """
     else:
-        if product_type == "EPW" and market_type == "TH":
+        if product_type == "EPW_TH":
             prompt = f"""
 Read ONLY printed lot code from the image.
 This is Linapack EPW Thailand format. EXP is NOT required.
@@ -566,10 +514,11 @@ MFG {expected_mfg} {mix_code} 09:40
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
-        elif product_type == "EPW" and market_type == "LAOS":
+        elif product_type == "EPW_EXPORT":
             prompt = f"""
 Read ONLY printed lot code from the image.
-This is Linapack EPW Laos format. No Mix Code.
+This is Linapack EPW Export format.
+EPW Export has NO Mix Code / NO mixing date.
 
 Expected:
 MFG {expected_mfg} TT:TT
@@ -581,20 +530,6 @@ EXP {expected_exp}
 
 Return JSON only:
 {{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
-"""
-        elif product_type == "EPW" and market_type == "EXPORT":
-            prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPW Export format. No Mix Code and no EXP.
-
-Expected:
-MFG {expected_mfg} TT:TT
-
-Example:
-MFG {expected_mfg} 09:40
-
-Return JSON only:
-{{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
         else:
             if skip_exp:
@@ -674,7 +609,7 @@ def check_sachet(lines, product_type, market_type, expected_mfg, expected_line, 
 
 
 def extract_time(text):
-    match = re.search(r"\b([0-2][0-9]:[0-5][0-9])\b", text)
+    match = re.search(r"\\b([0-2][0-9]:[0-5][0-9])\\b", text)
     return match.group(1) if match else ""
 
 
@@ -689,9 +624,9 @@ def check_linapack(lines, product_type, market_type, expected_mfg, expected_line
     mfg_line = lines[0] if len(lines) > 0 else ""
     exp_line = lines[1] if len(lines) > 1 else ""
 
-    if product_type == "EPW" and market_type == "TH":
+    if product_type == "EPW_TH":
         expected_mfg_part = f"MFG {expected_mfg} {mix_code}".upper()
-    elif product_type == "EPW":
+    elif product_type == "EPW_EXPORT":
         expected_mfg_part = f"MFG {expected_mfg}".upper()
     else:
         expected_mfg_part = f"MFG {expected_mfg} {expected_line}".upper()
@@ -702,7 +637,10 @@ def check_linapack(lines, product_type, market_type, expected_mfg, expected_line
     mfg_ok = expected_mfg_part in mfg_line
     time_ok = bool(time_found)
 
-    exp_ok = True if skip_exp else (expected_exp_part in exp_line or expected_exp_part in all_text)
+    if skip_exp:
+        exp_ok = True
+    else:
+        exp_ok = expected_exp_part in exp_line or expected_exp_part in all_text
 
     if not mfg_ok:
         overall = False
@@ -727,7 +665,7 @@ def check_linapack(lines, product_type, market_type, expected_mfg, expected_line
             "item": "EXP",
             "status": "PASS",
             "actual": "ไม่ต้องมี EXP",
-            "expected": "ไม่ตรวจวันหมดอายุ"
+            "expected": "ผลิตภัณฑ์/ประเภทงานนี้ไม่ตรวจวันหมดอายุ"
         })
     else:
         if not exp_ok:
@@ -747,11 +685,6 @@ def index():
     return HTML
 
 
-@app.route("/stamped/<filename>")
-def stamped_file(filename):
-    return send_from_directory(STAMP_DIR, filename)
-
-
 @app.route("/check", methods=["POST"])
 def check():
     try:
@@ -769,9 +702,6 @@ def check():
         if not expected_mfg:
             return jsonify({"error": "กรุณากรอก MFG"}), 400
 
-        if not os.getenv("OPENAI_API_KEY"):
-            return jsonify({"error": "ไม่พบ OPENAI_API_KEY"}), 500
-
         auto_exp = calculate_exp(product_type, market_type, expected_mfg)
         if auto_exp:
             expected_exp = auto_exp
@@ -779,7 +709,10 @@ def check():
         skip_exp = no_exp_required(product_type, market_type)
 
         if not skip_exp and not expected_exp:
-            return jsonify({"error": "กรุณากรอก EXP หรือเลือกประเภทงานที่ไม่ต้องมี EXP"}), 400
+            return jsonify({"error": "กรุณากรอก EXP หรือเลือกผลิตภัณฑ์/ประเภทงานที่ไม่ต้องมี EXP"}), 400
+
+        if not os.getenv("OPENAI_API_KEY"):
+            return jsonify({"error": "ไม่พบ OPENAI_API_KEY"}), 500
 
         image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
 
@@ -821,29 +754,15 @@ def check():
             )
             mode_name = "Linapack"
 
-        summary = "PASS" if overall else "NG"
-        checked_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        stamped_filename = stamp_image(
-            image_data,
-            summary,
-            product_type,
-            market_type,
-            mode_name,
-            details,
-            checked_time
-        )
-
         return jsonify({
-            "summary": summary,
+            "summary": "PASS" if overall else "NG",
             "mode": mode_name,
             "productType": product_type,
             "marketType": market_type,
             "expectedExp": expected_exp if expected_exp else "ไม่ใช้ EXP",
             "lines": lines,
             "details": details,
-            "time": checked_time,
-            "stampedImageUrl": f"/stamped/{stamped_filename}"
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
     except Exception as e:
