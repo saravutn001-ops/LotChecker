@@ -128,11 +128,52 @@ hr { margin:20px 0; }
     </div>
 
     <div id="cartonExportBox" style="display:none;">
-        <label>Shipping Mark</label>
-        <input id="shippingMark" value="" placeholder="เช่น IPO VN, VN-MT, TS, หรือเว้นว่างถ้าไม่มี">
+        <label>Prefix</label>
+        <select id="cartonPrefix" onchange="updateShippingMarkByPrefix()">
+            <option value="KC">KC → ZZZZZ</option>
+            <option value="VN">VN → IPO VN</option>
+            <option value="VT">VT → VN-MT</option>
+            <option value="KK">KK → AKK</option>
+            <option value="CT">CT → SHIPPING MARK: CDT</option>
+            <option value="TS">TS → TS</option>
+            <option value="AC">AC → AKC</option>
+            <option value="SM">SM → SOMCHAICHALUEN</option>
+            <option value="AX">AX → AKX</option>
+            <option value="MM">MM → IP ONE-MYANMAR</option>
+            <option value="ML">ML → ML</option>
+            <option value="KT">KT → KT</option>
+            <option value="MW">MW → MWD</option>
+            <option value="MK">MK → MK</option>
+            <option value="MY">MY → MDY</option>
+            <option value="TG">TG → TG1</option>
+            <option value="MN">MN → MNJM</option>
+            <option value="MA">MA → MLA</option>
+            <option value="LM">LM → MT/LM+VY</option>
+            <option value="DK">DK → DKSH</option>
+            <option value="NT">NT → NTPL</option>
+            <option value="XR">XR → XR</option>
+            <option value="BU">BU → BUL</option>
+            <option value="UK">UK → U,K,T-7</option>
+            <option value="DB">DB → DBL INDUSTRIES PLC</option>
+            <option value="OD">OD → IMPORTER: ORGANIC LINE CO.,LTD</option>
+            <option value="MI">MI → ZZZZZ</option>
+            <option value="WD">WD → WEDAR</option>
+            <option value="CZ">CZ → ZZZZZ</option>
+            <option value="ND">ND → NDF</option>
+            <option value="CS">CS → CSMS</option>
+            <option value="FN">FN → FENIX</option>
+            <option value="CD">CD → CDM</option>
+            <option value="DT">DT → DBT</option>
+            <option value="YP">YP → YPG</option>
+            <option value="LB">LB → ZZZZZ</option>
+            <option value="LQ">LQ → ZZZZZ</option>
+            <option value="CUSTOM">CUSTOM → กรอกเอง</option>
+        </select>
 
-        <label>รหัสตัวอักษรหลังเลขลำดับกล่อง</label>
-        <input id="cartonAlphaCode" value="" placeholder="เช่น KC, VN, VT, TS, AC, MM">
+        <label>Shipping Mark</label>
+        <input id="shippingMark" value="" placeholder="ระบบเติมจาก Prefix อัตโนมัติ" readonly>
+
+        <p class="small">ตัวอย่าง: Prefix AC → Shipping Mark AKC</p>
 
         <label>EXP สำหรับ Pattern ที่มี EXP</label>
         <input id="cartonExp" value="" placeholder="เช่น 080927">
@@ -168,6 +209,62 @@ hr { margin:20px 0; }
 
 <script>
 let imageData = "";
+
+const PREFIX_SHIPPING_MAP = {
+    "KC": "ZZZZZ",
+    "VN": "IPO VN",
+    "VT": "VN-MT",
+    "KK": "AKK",
+    "CT": "SHIPPING MARK: CDT",
+    "TS": "TS",
+    "AC": "AKC",
+    "SM": "SOMCHAICHALUEN",
+    "AX": "AKX",
+    "MM": "IP ONE-MYANMAR",
+    "ML": "ML",
+    "KT": "KT",
+    "MW": "MWD",
+    "MK": "MK",
+    "MY": "MDY",
+    "TG": "TG1",
+    "MN": "MNJM",
+    "MA": "MLA",
+    "LM": "MT/LM+VY",
+    "DK": "DKSH",
+    "NT": "NTPL",
+    "XR": "XR",
+    "BU": "BUL",
+    "UK": "U,K,T-7",
+    "DB": "DBL INDUSTRIES PLC",
+    "OD": "IMPORTER: ORGANIC LINE CO.,LTD",
+    "MI": "ZZZZZ",
+    "WD": "WEDAR",
+    "CZ": "ZZZZZ",
+    "ND": "NDF",
+    "CS": "CSMS",
+    "FN": "FENIX",
+    "CD": "CDM",
+    "DT": "DBT",
+    "YP": "YPG",
+    "LB": "ZZZZZ",
+    "LQ": "ZZZZZ"
+};
+
+function updateShippingMarkByPrefix() {
+    const prefix = document.getElementById("cartonPrefix").value;
+    const shippingInput = document.getElementById("shippingMark");
+
+    if (prefix === "CUSTOM") {
+        shippingInput.readOnly = false;
+        shippingInput.value = "";
+        shippingInput.placeholder = "กรอก Shipping Mark เอง";
+        return;
+    }
+
+    shippingInput.readOnly = true;
+    shippingInput.value = PREFIX_SHIPPING_MAP[prefix] || "";
+}
+
 
 function setTodayDefault() {
     const today = new Date();
@@ -298,6 +395,7 @@ function changeProduct() {
     if (checkType === "carton") {
         cartonTHBox.style.display = market === "TH" ? "block" : "none";
         cartonExportBox.style.display = market === "EXPORT" ? "block" : "none";
+        if (market === "EXPORT") updateShippingMarkByPrefix();
     }
 
     if (checkType === "pouch" && mode === "linapack") {
@@ -399,7 +497,7 @@ async function sendCheck() {
         payload.mixCode = "";
         payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : "";
         payload.shippingMark = marketType === "EXPORT" ? document.getElementById("shippingMark").value : "";
-        payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonAlphaCode").value : "";
+        payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonPrefix").value : "";
     }
 
     resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
@@ -448,7 +546,7 @@ async function sendCheck() {
     }
 }
 
-window.onload = function() { setTodayDefault(); changeCheckType(); };
+window.onload = function() { setTodayDefault(); updateShippingMarkByPrefix(); changeCheckType(); };
 </script>
 </body>
 </html>
@@ -566,8 +664,14 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     elif check_type_en == "กล่อง":
         check_type_en = "CARTON"
 
-    x = 30
-    y = h - 180
+    x = max(20, int(w * 0.035))
+
+    # Put stamp at bottom-left, no background box
+    line_count = 4
+    line_height_title = int(title_font.size * 1.25)
+    line_height_body = int(body_font.size * 1.25)
+    total_text_height = line_height_title + (line_count - 1) * line_height_body
+    y = max(20, h - total_text_height - max(30, int(h * 0.035)))
 
     draw_text_with_shadow(draw, (x, y), title, title_font, color)
     y += int(title_font.size * 1.25)
