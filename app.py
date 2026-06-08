@@ -723,7 +723,7 @@ Rules:
 - MFG date must be exactly {expected_mfg}.
 - Building number must be exactly {building_no} and must be 1-6.
 - Suffix after building number must be exactly "{building_suffix}" if provided. If suffix is blank, there must be no suffix after building number.
-- Examples: 3N means building 3 with suffix N. 3QR means building 3 with suffix QR.
+- Examples: 3 N means building 3 with suffix N. 3 QR means building 3 with suffix QR. Suffix must be separated by a space.
 - Do not silently correct mistakes.
 - Beware Dot Matrix OCR: 0 may look like 8, but return exactly what you see.
 
@@ -1018,7 +1018,10 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     if market_type == "TH":
         run_no, sales_code, mfg_code, building_code = parse_th_carton_fields(actual)
 
-        expected_building_full = f"{building_no}{building_suffix}".upper()
+        if building_suffix:
+            expected_building_full = f"{building_no} {building_suffix}".upper()
+        else:
+            expected_building_full = building_no
         building_code = building_code.upper()
 
         checks = [
@@ -1079,7 +1082,10 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     else:
         run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
 
-    expected_building_full = f"{building_no}{building_suffix}".upper()
+    if building_suffix:
+            expected_building_full = f"{building_no} {building_suffix}".upper()
+        else:
+            expected_building_full = building_no
     building_ok = True
     if building_no:
         if building_suffix:
