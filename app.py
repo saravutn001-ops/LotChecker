@@ -1041,88 +1041,109 @@ Return JSON only:
 
 def find_dark_lot_area_fallback(image):
     """
-    Fallback when AI does not return a usable box.
-    It tries to find a small dark dot-matrix / printed text area in the upper-middle part.
-    This is not perfect, but prevents NG image from having no red box.
+    Deterministic fallback for lot text box.
+    Finds small black dot-matrix / inkjet lot text printed on a lighter local background.
+    This avoids AI putting a box on tanks/background.
     """
     try:
         gray = image.convert("L")
         w, h = gray.size
         pix = gray.load()
 
-        # Search central/upper area where lot code usually appears.
-        # Avoid very top machine/background and lower product logo area.
-        y_start = int(h * 0.18)
-        y_end = int(h * 0.62)
-        x_start = int(w * 0.05)
-        x_end = int(w * 0.95)
+        # Lot code usually appears on product/carton, not on the machine background.
+        # Search the middle/product area first.
+        x_start = int(w * 0.06)
+        x_end = int(w * 0.94)
+        y_start = int(h * 0.34)
+        y_end = int(h * 0.72)
 
-        # Make coarse grid and find rows/cols with dark pixel density.
-        rows = []
+        points = []
+
+        # Dark text on light/pink/brown carton background:
+        # pixel is dark, but surrounding background is not dark.
         for y in range(y_start, y_end, 3):
-            cnt = 0
-            total = 0
-            for x in range(x_start, x_end, 4):
-                total += 1
-                if pix[x, y] < 95:
-                    cnt += 1
-            density = cnt / max(total, 1)
-            if 0.01 <= density <= 0.28:
-                rows.append(y)
+            for x in range(x_start, x_end, 3):
+                v = pix[x, y]
+                if v > 95:
+                    continue
 
-        if not rows:
+                # local average around the point
+                total = 0
+                count = 0
+                r = 9
+                for yy in range(max(0, y-r), min(h, y+r+1), 6):
+                    for xx in range(max(0, x-r), min(w, x+r+1), 6):
+                        total += pix[xx, yy]
+                        count += 1
+                avg = total / max(count, 1)
+
+                # reject dark logo/background; accept black print on lighter background
+                if avg >= 105:
+                    points.append((x, y))
+
+        if not points:
             return []
 
-        # Group nearby rows
-        groups = []
-        current = [rows[0]]
-        for y in rows[1:]:
-            if y - current[-1] <= 9:
-                current.append(y)
-            else:
-                groups.append(current)
-                current = [y]
-        groups.append(current)
+        # Group by row bands. Lot text usually forms 1-3 compact horizontal rows.
+        rows = {}
+        band = max(8, int(h * 0.008))
+        for x, y in points:
+            key = int(y / band)
+            rows.setdefault(key, []).append((x, y))
 
         candidates = []
-        for g in groups:
-            gy1 = max(y_start, min(g) - 12)
-            gy2 = min(y_end, max(g) + 12)
-            if gy2 - gy1 < 14:
+        for key, pts in rows.items():
+            if len(pts) < 8:
                 continue
 
-            xs = []
-            for y in range(gy1, gy2, 2):
-                for x in range(x_start, x_end, 3):
-                    if pix[x, y] < 95:
-                        xs.append(x)
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            x1, x2 = min(xs), max(xs)
+            y1, y2 = min(ys), max(ys)
 
-            if not xs:
+            # Merge nearby row bands to include 2-line codes
+            for k2 in [key + 1, key + 2, key - 1, key - 2]:
+                if k2 in rows:
+                    pts2 = rows[k2]
+                    if len(pts2) >= 6:
+                        xs2 = [p[0] for p in pts2]
+                        # only merge if horizontally overlaps
+                        if not (max(xs2) < x1 or min(xs2) > x2):
+                            xs += xs2
+                            ys += [p[1] for p in pts2]
+                            x1, x2 = min(xs), max(xs)
+                            y1, y2 = min(ys), max(ys)
+
+            bw = x2 - x1
+            bh = y2 - y1
+
+            # Filter text-like compact area
+            if bw < w * 0.08 or bw > w * 0.55:
+                continue
+            if bh < h * 0.006 or bh > h * 0.09:
                 continue
 
-            gx1 = max(0, min(xs) - 20)
-            gx2 = min(w - 1, max(xs) + 20)
-            width = gx2 - gx1
-            height = gy2 - gy1
-
-            # Prefer compact text-like region, not giant logo/background.
-            if width < w * 0.08 or width > w * 0.65:
-                continue
-            if height > h * 0.16:
-                continue
-
-            score = (width * height)
-            candidates.append((score, gx1, gy1, gx2, gy2))
+            # Prefer upper area of product and compact wide text.
+            # The actual lot is usually above product logo/marketing text.
+            score = (y1 / h) * 1000 + (bh / h) * 100 + abs((bw / w) - 0.24) * 200
+            candidates.append((score, x1, y1, x2, y2))
 
         if not candidates:
             return []
 
-        # choose upper compact candidate
-        candidates.sort(key=lambda t: (t[2], t[0]))
+        candidates.sort(key=lambda t: t[0])
         _, x1, y1, x2, y2 = candidates[0]
 
+        # Expand enough to cover both MFG/EXP lines and missing words area
+        pad_x = int(w * 0.035)
+        pad_y = int(h * 0.018)
+        x1 = max(0, x1 - pad_x)
+        x2 = min(w - 1, x2 + pad_x)
+        y1 = max(0, y1 - pad_y)
+        y2 = min(h - 1, y2 + pad_y)
+
         return [{
-            "label": "LOT NG",
+            "label": "LOT TEXT",
             "x1": x1 * 1000 / w,
             "y1": y1 * 1000 / h,
             "x2": x2 * 1000 / w,
@@ -1169,7 +1190,7 @@ def draw_red_boxes_on_image(image, boxes):
 
             label = str(b.get("label", "LOT NG")).strip() or "LOT NG"
             font = get_font(max(22, int(w * 0.025)))
-            text = f"NG: {label}"
+            text = f"{label}"
             try:
                 tb = draw.textbbox((0, 0), text, font=font)
                 tw = tb[2] - tb[0]
@@ -1790,9 +1811,9 @@ def check():
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Use deterministic image analysis for red box.
+        # Do not let AI guess coordinates because it may box background/machine.
         red_boxes = []
-        if summary == "NG":
-            red_boxes = get_red_boxes_with_ai(image_base64, details, lines)
 
         stamped_filename = stamp_image(
             image_data,
