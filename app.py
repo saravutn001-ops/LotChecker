@@ -800,6 +800,8 @@ MFG {expected_mfg} {mix_code} TT:TT
 
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
+
+Important: If the image does not show the word MFG, do not add MFG yourself. Return exactly what is printed.
 """
         elif product_type == "EPW" and market_type == "EXPORT":
             prompt = f"""
@@ -811,6 +813,8 @@ MFG {expected_mfg} TT:TT
 
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
+
+Important: If the image does not show the word MFG, do not add MFG yourself. Return exactly what is printed.
 """
         else:
             if skip_exp:
@@ -823,6 +827,8 @@ MFG {expected_mfg} {expected_line} TT:TT
 
 Return JSON only:
 {{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
+
+Important: If the image does not show the word MFG, do not add MFG yourself. Return exactly what is printed.
 """
             else:
                 prompt = f"""
@@ -835,6 +841,8 @@ EXP {expected_exp}
 
 Return JSON only:
 {{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
+
+Important: If the image does not show the words MFG or EXP, do not add them yourself. Return exactly what is printed.
 """
 
     response = client.responses.create(
@@ -905,6 +913,9 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
     mfg_line = lines[0] if len(lines) > 0 else ""
     exp_line = lines[1] if len(lines) > 1 else ""
 
+    has_mfg_word = "MFG" in all_text
+    has_exp_word = "EXP" in all_text
+
     if product_type == "EPW" and market_type == "TH":
         expected_mfg_part = f"MFG {expected_mfg} {mix_code}".upper()
     elif product_type == "EPW":
@@ -915,9 +926,12 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
     expected_exp_part = f"EXP {expected_exp}".upper() if expected_exp else ""
     time_found = ai_time or extract_time(all_text)
 
-    mfg_ok = expected_mfg_part in mfg_line
+    # Safety rule:
+    # Pouch/Linapack must contain the printed word MFG.
+    # If this product/market requires EXP, it must also contain the printed word EXP.
+    mfg_ok = (expected_mfg_part in mfg_line) and has_mfg_word
     time_ok = bool(time_found)
-    exp_ok = True if skip_exp else (expected_exp_part in exp_line or expected_exp_part in all_text)
+    exp_ok = True if skip_exp else ((expected_exp_part in exp_line or expected_exp_part in all_text) and has_exp_word)
 
     if not mfg_ok:
         overall = False
@@ -925,7 +939,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         "item": "MFG / Line / Mix",
         "status": "PASS" if mfg_ok else "NG",
         "actual": mfg_line,
-        "expected": expected_mfg_part + " TT:TT"
+        "expected": expected_mfg_part + " TT:TT / ต้องมีคำว่า MFG"
     })
 
     if not time_ok:
@@ -951,11 +965,29 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
             "item": "EXP",
             "status": "PASS" if exp_ok else "NG",
             "actual": exp_line,
-            "expected": expected_exp_part
+            "expected": expected_exp_part + " / ต้องมีคำว่า EXP"
+        })
+
+    # Extra explicit warning rows for missing printed words
+    if not has_mfg_word:
+        overall = False
+        details.append({
+            "item": "MFG word",
+            "status": "NG",
+            "actual": all_text,
+            "expected": "ต้องมีคำว่า MFG บนซอง"
+        })
+
+    if not skip_exp and not has_exp_word:
+        overall = False
+        details.append({
+            "item": "EXP word",
+            "status": "NG",
+            "actual": all_text,
+            "expected": "ต้องมีคำว่า EXP บนซอง"
         })
 
     return overall, details
-
 
 def parse_th_carton_fields(text):
     text = normalize(text)
