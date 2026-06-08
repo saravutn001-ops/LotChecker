@@ -125,6 +125,10 @@ hr { margin:20px 0; }
             <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
+
+        <label>Suffix หลังเลขอาคาร</label>
+        <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR">
+        <p class="small">ถ้ามีการเติมท้ายเลขอาคาร เช่น 3N หรือ 3QR ให้กรอก N หรือ QR</p>
     </div>
 
     <div id="cartonExportBox" style="display:none;">
@@ -180,6 +184,10 @@ hr { margin:20px 0; }
             <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
+
+        <label>Suffix หลังเลขอาคาร</label>
+        <input id="buildingSuffixExport" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR">
+        <p class="small">เช่น N = เปลี่ยน Artwork Packaging / QR = งาน XR STK แบบใหม่</p>
 
         <label>EXP สำหรับ Pattern ที่มี EXP</label>
         <input id="cartonExp" value="" placeholder="เช่น 080927">
@@ -502,6 +510,7 @@ async function sendCheck() {
         payload.exp = marketType === "TH" ? "" : document.getElementById("cartonExp").value;
         payload.mixCode = "";
         payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : document.getElementById("buildingNoExport").value;
+        payload.buildingSuffix = marketType === "TH" ? document.getElementById("buildingSuffixTH").value : document.getElementById("buildingSuffixExport").value;
         payload.shippingMark = marketType === "EXPORT" ? document.getElementById("shippingMark").value : "";
         payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonPrefix").value : "";
     }
@@ -695,7 +704,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
 
 def read_lot_with_ai(image_base64, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp,
-                     mix_code, building_no, shipping_mark, carton_alpha_code):
+                     mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code):
     skip_exp = no_exp_required(product_type, market_type)
 
     if check_type == "carton":
@@ -706,13 +715,15 @@ Read ONLY the printed carton lot/batch number from the image.
 This is Thailand carton format.
 
 Expected format:
-NNNNN 00 {expected_mfg} {building_no}
+NNNNN 00 {expected_mfg} {building_no}{building_suffix}
 
 Rules:
 - NNNNN must be any 5 digits. Do not compare it with an expected value.
 - The second field must be exactly 00.
 - MFG date must be exactly {expected_mfg}.
 - Building number must be exactly {building_no} and must be 1-6.
+- Suffix after building number must be exactly "{building_suffix}" if provided. If suffix is blank, there must be no suffix after building number.
+- Examples: 3N means building 3 with suffix N. 3QR means building 3 with suffix QR.
 - Do not silently correct mistakes.
 - Beware Dot Matrix OCR: 0 may look like 8, but return exactly what you see.
 
@@ -732,7 +743,7 @@ Common format parts:
 - Running number must be 5 characters/digits.
 - The field after running number is alphabet code, not 00.
 - MFG date DDMMYY must be {expected_mfg}.
-- Building/category number must be {building_no} if visible in the carton code.
+- Building/category number must be {building_no}{building_suffix} if visible in the carton code. Suffix after building number must be exactly "{building_suffix}" if provided.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
 - Do not check K. The last number is Building No. 1-6, not K.
 - Special rule: Prefix OL uses Shipping Mark "IMPORTER:ORGANIC LINE CO., LTD" and it can be printed directly attached to the date without a space. Other prefixes normally have spacing.
@@ -997,7 +1008,7 @@ def parse_th_carton_fields(text):
     return parts[0], parts[1], parts[2], parts[3]
 
 
-def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, shipping_mark, carton_alpha_code, ai_json):
+def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
     overall = True
     lines = [normalize(x) for x in lines]
@@ -1007,11 +1018,14 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, sh
     if market_type == "TH":
         run_no, sales_code, mfg_code, building_code = parse_th_carton_fields(actual)
 
+        expected_building_full = f"{building_no}{building_suffix}".upper()
+        building_code = building_code.upper()
+
         checks = [
             ("Running No. 5 digits", bool(re.fullmatch(r"\d{5}", run_no)), run_no, "ตัวเลข 5 หลัก เช่น 00004"),
             ("Thailand sales code", sales_code == "00", sales_code, "00"),
             ("MFG date", mfg_code == expected_mfg, mfg_code, expected_mfg),
-            ("Building No.", building_code == building_no and building_code in ["1", "2", "3", "4", "5", "6"], building_code, building_no),
+            ("Building No. + Suffix", building_code == expected_building_full and building_no in ["1", "2", "3", "4", "5", "6"], building_code, expected_building_full),
         ]
 
         for item, ok, actual_value, expected_value in checks:
@@ -1065,16 +1079,20 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, sh
     else:
         run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
 
+    expected_building_full = f"{building_no}{building_suffix}".upper()
     building_ok = True
     if building_no:
-        building_ok = re.search(rf"\b{re.escape(building_no)}\b", all_text) is not None
+        if building_suffix:
+            building_ok = re.search(rf"\b{re.escape(expected_building_full)}\b", all_text) is not None
+        else:
+            building_ok = re.search(rf"\b{re.escape(building_no)}\b", all_text) is not None
 
     checks = [
         ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
         ("Running No.", run_ok, all_text, "OL ไม่ต้องมี Running No." if carton_alpha_code == "OL" else "5 ตัวอักษร/ตัวเลข"),
         ("Alpha code after Running No.", has_alpha_code, all_text, carton_alpha_code or "ตัวอักษรตาม D48"),
         ("MFG date", has_mfg, all_text, expected_mfg),
-        ("Building No.", building_ok, all_text, building_no or "1-6"),
+        ("Building No. + Suffix", building_ok, all_text, expected_building_full or "1-6"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
     ]
 
@@ -1117,6 +1135,7 @@ def check():
         image_data = data.get("image", "")
 
         building_no = data.get("buildingNo", "").strip()
+        building_suffix = data.get("buildingSuffix", "").strip().upper()
         shipping_mark = data.get("shippingMark", "").strip().upper()
         carton_alpha_code = data.get("cartonAlphaCode", "").strip().upper()
 
@@ -1141,6 +1160,8 @@ def check():
         if check_type == "carton":
             if building_no and building_no not in ["1", "2", "3", "4", "5", "6"]:
                 return jsonify({"error": "เลขอาคารต้องเป็น 1-6"}), 400
+            if building_suffix and not re.fullmatch(r"[A-Z0-9]{1,5}", building_suffix):
+                return jsonify({"error": "Suffix ต้องเป็นตัวอักษร/ตัวเลข 1-5 ตัว เช่น N หรือ QR"}), 400
 
         image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
 
@@ -1155,6 +1176,7 @@ def check():
             expected_exp,
             mix_code,
             building_no,
+            building_suffix,
             shipping_mark,
             carton_alpha_code
         )
@@ -1169,6 +1191,7 @@ def check():
                 expected_mfg,
                 expected_exp,
                 building_no,
+                building_suffix,
                 shipping_mark,
                 carton_alpha_code,
                 result_json
