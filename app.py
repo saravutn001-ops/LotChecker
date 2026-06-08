@@ -134,18 +134,18 @@ hr { margin:20px 0; }
             <option value="VN">VN → IPO VN</option>
             <option value="VT">VT → VN-MT</option>
             <option value="KK">KK → AKK</option>
-            <option value="CT">CT → CDT</option>
+            <option value="CT">CT → SHIPPING MARK: CDT</option>
             <option value="TS">TS → TS</option>
             <option value="AC">AC → AKC</option>
             <option value="SM">SM → SOMCHAICHALUEN</option>
             <option value="AX">AX → AKX</option>
-            <option value="MM">MM → I.P. ONE-MYANMAR</option>
+            <option value="MM">MM → IP ONE-MYANMAR</option>
             <option value="ML">ML → ML</option>
             <option value="KT">KT → KT</option>
             <option value="MW">MW → MWD</option>
             <option value="MK">MK → MK</option>
             <option value="MY">MY → MDY</option>
-            <option value="TG">TG → TG</option>
+            <option value="TG">TG → TG1</option>
             <option value="MN">MN → MNJM</option>
             <option value="MA">MA → MLA</option>
             <option value="LM">LM → MT/LM+VY</option>
@@ -155,7 +155,7 @@ hr { margin:20px 0; }
             <option value="BU">BU → BUL</option>
             <option value="UK">UK → U,K,T-7</option>
             <option value="DB">DB → DBL INDUSTRIES PLC</option>
-            <option value="OL">OL → IMPORTER:ORGANIC LINE CO.,LTD</option>
+            <option value="OD">OD → IMPORTER: ORGANIC LINE CO.,LTD</option>
             <option value="MI">MI → ZZZZZ</option>
             <option value="WD">WD → WEDAR</option>
             <option value="CZ">CZ → ZZZZZ</option>
@@ -185,7 +185,6 @@ hr { margin:20px 0; }
         <input id="cartonExp" value="" placeholder="เช่น 080927">
 
         <p class="small">กล่องต่างประเทศ: มีหลายรูปแบบตาม D48 เช่น Shipping Mark + Running No. + รหัสตัวอักษร + MFG + EXP/K</p>
-
     </div>
 </div>
 
@@ -322,7 +321,7 @@ function autoExp() {
     const info = document.getElementById("autoExpInfo");
     const sachetExp = document.getElementById("sachetExp");
     const linapackExp = document.getElementById("linapackExp");
-    const  = document.getElementById("");
+    const cartonExp = document.getElementById("cartonExp");
 
     if (!/^\\d{6}$/.test(mfg)) {
         info.innerHTML = "เลือกวันที่ผลิตจากปฏิทิน";
@@ -334,7 +333,7 @@ function autoExp() {
 
     if (checkType === "carton") {
         if (market === "TH") {
-            .value = "";
+            cartonExp.value = "";
             info.innerHTML = "กล่องงานไทย: ตรวจ Running No. 5 หลัก + 00 + MFG + อาคาร 1-6";
         } else {
             info.innerHTML = "กล่องงานต่างประเทศ: ตรวจ Shipping Mark / Running No. / รหัสตัวอักษร / MFG / EXP ตาม Pattern";
@@ -385,7 +384,7 @@ function changeProduct() {
 
     const mixCodeBox = document.getElementById("mixCodeBox");
     const cartonTHBox = document.getElementById("cartonTHBox");
-    const ortBox = document.getElementById("ortBox");
+    const cartonExportBox = document.getElementById("cartonExportBox");
     const linapackExp = document.getElementById("linapackExp");
     const sachetExp = document.getElementById("sachetExp");
     const hint = document.getElementById("linapackHint");
