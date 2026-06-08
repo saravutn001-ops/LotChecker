@@ -185,6 +185,9 @@ hr { margin:20px 0; }
         <input id="cartonExp" value="" placeholder="เช่น 080927">
 
         <p class="small">กล่องต่างประเทศ: มีหลายรูปแบบตาม D48 เช่น Shipping Mark + Running No. + รหัสตัวอักษร + MFG + EXP/K</p>
+
+        <label>Suffix</label>
+        <input id="cartonExp" value="" placeholder="Suffix ต่อท้ายกล่องเช่น N, QR">
     </div>
 </div>
 
@@ -321,7 +324,7 @@ function autoExp() {
     const info = document.getElementById("autoExpInfo");
     const sachetExp = document.getElementById("sachetExp");
     const linapackExp = document.getElementById("linapackExp");
-    const cartonExp = document.getElementById("cartonExp");
+    const  = document.getElementById("");
 
     if (!/^\\d{6}$/.test(mfg)) {
         info.innerHTML = "เลือกวันที่ผลิตจากปฏิทิน";
@@ -333,7 +336,7 @@ function autoExp() {
 
     if (checkType === "carton") {
         if (market === "TH") {
-            cartonExp.value = "";
+            .value = "";
             info.innerHTML = "กล่องงานไทย: ตรวจ Running No. 5 หลัก + 00 + MFG + อาคาร 1-6";
         } else {
             info.innerHTML = "กล่องงานต่างประเทศ: ตรวจ Shipping Mark / Running No. / รหัสตัวอักษร / MFG / EXP ตาม Pattern";
@@ -384,7 +387,7 @@ function changeProduct() {
 
     const mixCodeBox = document.getElementById("mixCodeBox");
     const cartonTHBox = document.getElementById("cartonTHBox");
-    const cartonExportBox = document.getElementById("cartonExportBox");
+    const ortBox = document.getElementById("ortBox");
     const linapackExp = document.getElementById("linapackExp");
     const sachetExp = document.getElementById("sachetExp");
     const hint = document.getElementById("linapackHint");
