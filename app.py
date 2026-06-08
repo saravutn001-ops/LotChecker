@@ -12,6 +12,7 @@ load_dotenv()
 
 app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 HTML = """
 <!DOCTYPE html>
 <html lang="th">
@@ -72,8 +73,7 @@ hr { margin:20px 0; }
     <label>EXP</label>
     <input id="sachetExp" value="080927" placeholder="เช่น 080927">
 
-    <p class="small">Sachet EPC/EPW Export: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
-    <p class="small">Sachet EPW ไทย / EPC Export: ไม่ตรวจ EXP</p>
+    <p class="small">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
 </div>
 
 <div id="linapackBox" style="display:none;">
@@ -93,7 +93,7 @@ hr { margin:20px 0; }
     <div id="mixCodeBox">
         <label>รหัสวันที่ผสม / Mix Code</label>
         <input id="mixCode" value="08F" placeholder="เช่น 08F">
-        <p class="small">ใช้กับ EPW เช่น MFG 080626 08F 09:40</p>
+        <p class="small">ใช้กับ EPW ไทย เช่น MFG 080626 08F 09:40</p>
     </div>
 
     <label>EXP</label>
@@ -193,28 +193,16 @@ function autoExp() {
     } else if (product === "EPW_TH") {
         sachetExp.value = "";
         linapackExp.value = "";
-        info.innerHTML = "EPW ไทย: ไม่มีวันหมดอายุ ระบบจะไม่ตรวจ EXP";
+        info.innerHTML = "EPW ไทย: มีวันผสม / ไม่มี EXP";
     } else {
-        info.innerHTML = "EPW ต่างประเทศ: ตอนนี้ให้กรอก EXP เองก่อน เพราะมีหลายรูปแบบ";
+        info.innerHTML = "EPW ต่างประเทศ: ไม่มีวันผสม ให้กรอก EXP เองก่อน";
     }
-}
-
-function isNoExpRequired() {
-    const product = document.getElementById("productType").value;
-    const market = document.getElementById("marketType").value;
-
-    return (
-        product === "EPW_TH" ||
-        (product === "EPC" && market === "EXPORT")
-    );
 }
 
 function changeMode() {
     const mode = document.getElementById("mode").value;
-
     document.getElementById("sachetBox").style.display = mode === "sachet" ? "block" : "none";
     document.getElementById("linapackBox").style.display = mode === "linapack" ? "block" : "none";
-
     changeProduct();
 }
 
@@ -223,13 +211,10 @@ function changeProduct() {
     const market = document.getElementById("marketType").value;
     const mode = document.getElementById("mode").value;
 
-    const marketBox = document.getElementById("marketType");
     const mixCodeBox = document.getElementById("mixCodeBox");
     const linapackExp = document.getElementById("linapackExp");
     const sachetExp = document.getElementById("sachetExp");
     const hint = document.getElementById("linapackHint");
-
-    marketBox.disabled = false;
 
     const noExp = (
         product === "EPW_TH" ||
@@ -242,10 +227,10 @@ function changeProduct() {
     if (mode === "linapack") {
         if (product === "EPW_TH") {
             mixCodeBox.style.display = "block";
-            hint.innerHTML = "EPW ไทย: ตรวจรูปแบบ MFG 080626 08F TT:TT และไม่ตรวจ EXP";
+            hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40 และไม่ตรวจ EXP";
         } else if (product === "EPW_EXPORT") {
-            mixCodeBox.style.display = "block";
-            hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + Mix Code + เวลา + EXP";
+            mixCodeBox.style.display = "none";
+            hint.innerHTML = "EPW ต่างประเทศ: ไม่มีวันผสม ตรวจ MFG + เวลา + EXP เช่น MFG 080626 09:40 / EXP 080927";
         } else {
             mixCodeBox.style.display = "none";
             if (market === "TH") {
@@ -260,7 +245,6 @@ function changeProduct() {
 
     document.getElementById("result").innerHTML = "";
     document.getElementById("detail").innerHTML = "";
-
     autoExp();
 }
 
@@ -283,12 +267,10 @@ document.getElementById("fileInput").addEventListener("change", function(e) {
 async function startCamera() {
     try {
         const video = document.getElementById("video");
-
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "environment" },
             audio: false
         });
-
         video.srcObject = stream;
     } catch (err) {
         document.getElementById("result").innerHTML =
@@ -314,7 +296,6 @@ function captureImage() {
     ctx.drawImage(video, 0, 0);
 
     imageData = canvas.toDataURL("image/jpeg", 0.9);
-
     preview.src = imageData;
     preview.style.display = "block";
 }
@@ -416,7 +397,7 @@ window.onload = function() {
 
 def normalize(text):
     text = str(text).upper()
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\\s+", " ", text).strip()
     return text
 
 
@@ -426,7 +407,7 @@ def clean_json_text(text):
 
 def parse_ddmmyy(s):
     s = str(s).strip()
-    if not re.fullmatch(r"\d{6}", s):
+    if not re.fullmatch(r"\\d{6}", s):
         return None
     day = int(s[:2])
     month = int(s[2:4])
@@ -451,13 +432,10 @@ def calculate_exp(product_type, market_type, mfg):
         dt = parse_ddmmyy(mfg)
         if not dt:
             return ""
-
         if market_type == "TH":
             return format_ddmmyy(add_months(dt, 15))
-
         if market_type == "LAOS":
             return format_ddmmyy(add_months(dt, 24))
-
         if market_type == "EXPORT":
             return ""
 
@@ -480,14 +458,10 @@ def read_lot_with_ai(image_base64, mode, product_type, market_type, expected_mfg
     if mode == "sachet":
         if skip_exp:
             prompt = f"""
-You are a factory OCR checker.
-
 Read ONLY printed lot code lines from the image.
-Ignore handwriting, notebook lines, pen marks, shadows, and background.
+This is Sachet format. EXP is NOT required.
 
-This is Sachet format. EXP is NOT required for this product/market.
-
-Expected target pattern has 6 rows:
+Expected 6 rows:
 MFG {expected_mfg} {expected_line} 1
 MFG {expected_mfg} {expected_line} 2
 MFG {expected_mfg} {expected_line} 3
@@ -497,23 +471,13 @@ MFG {expected_mfg} {expected_line} 6
 
 Return JSON only:
 {{"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}}
-
-Rules:
-- Do not silently correct mistakes.
-- Keep the number after {expected_line} exactly as seen.
-- If EXP appears in the image, include it exactly as seen in the line.
-- If one row is missing or unreadable, put an empty string for that row.
 """
         else:
             prompt = f"""
-You are a factory OCR checker.
-
 Read ONLY printed lot code lines from the image.
-Ignore handwriting, notebook lines, pen marks, shadows, and background.
+This is Sachet format.
 
-This is Sachet format. The target lot code must have 6 rows.
-
-Expected pattern:
+Expected 6 rows:
 MFG {expected_mfg} {expected_line} 1 EXP {expected_exp}
 MFG {expected_mfg} {expected_line} 2 EXP {expected_exp}
 MFG {expected_mfg} {expected_line} 3 EXP {expected_exp}
@@ -523,112 +487,60 @@ MFG {expected_mfg} {expected_line} 6 EXP {expected_exp}
 
 Return JSON only:
 {{"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}}
-
-Rules:
-- Do not silently correct mistakes.
-- If you see EXP 0800927, return EXP 0800927.
-- Keep the number after {expected_line} exactly as seen.
-- If one row is missing or unreadable, put an empty string for that row.
 """
     else:
-        if product_type.startswith("EPW"):
-            if skip_exp:
-                prompt = f"""
-You are a factory OCR checker.
-
+        if product_type == "EPW_TH":
+            prompt = f"""
 Read ONLY printed lot code from the image.
-Ignore handwriting, notebook lines, pen marks, shadows, and background.
+This is Linapack EPW Thailand format. EXP is NOT required.
 
-This is Linapack format. EXP is NOT required.
-
-Expected format:
+Expected:
 MFG {expected_mfg} {mix_code} TT:TT
 
 Example:
 MFG {expected_mfg} {mix_code} 09:40
 
 Return JSON only:
-{{
-  "lines": [
-    "MFG line exactly as seen"
-  ],
-  "time": "HH:MM exactly as seen"
-}}
-
-Rules:
-- Do not silently correct mistakes.
-- TT:TT is a time such as 09:40.
-- If time is unreadable, return empty string for time.
+{{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
-            else:
-                prompt = f"""
-You are a factory OCR checker.
-
+        elif product_type == "EPW_EXPORT":
+            prompt = f"""
 Read ONLY printed lot code from the image.
-Ignore handwriting, notebook lines, pen marks, shadows, and background.
+This is Linapack EPW Export format.
+EPW Export has NO Mix Code / NO mixing date.
 
-This is Linapack format, EPW export product.
-Expected format for now:
-MFG {expected_mfg} {mix_code} TT:TT
+Expected:
+MFG {expected_mfg} TT:TT
 EXP {expected_exp}
 
 Example:
-MFG {expected_mfg} {mix_code} 09:40
+MFG {expected_mfg} 09:40
 EXP {expected_exp}
 
 Return JSON only:
-{{
-  "lines": [
-    "MFG line exactly as seen",
-    "EXP line exactly as seen"
-  ],
-  "time": "HH:MM exactly as seen"
-}}
-
-Rules:
-- Do not silently correct mistakes.
-- TT:TT is a time such as 09:40.
-- If one line is missing or unreadable, put an empty string for that row.
+{{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
         else:
             if skip_exp:
                 prompt = f"""
-You are a factory OCR checker.
-
 Read ONLY printed lot code from the image.
-Ignore handwriting, notebook lines, pen marks, shadows, and background.
+This is Linapack EPC Export format. EXP is NOT required.
 
-This is Linapack format, EPC export product. EXP is NOT required.
-
-Expected format:
+Expected:
 MFG {expected_mfg} {expected_line} TT:TT
 
 Example:
 MFG {expected_mfg} {expected_line} 09:40
 
 Return JSON only:
-{{
-  "lines": [
-    "MFG line exactly as seen"
-  ],
-  "time": "HH:MM exactly as seen"
-}}
-
-Rules:
-- Do not silently correct mistakes.
-- {expected_line} must be one of LP1, LP2, LP3, LP4, LP5, LP6, LP7, LP8, LP9.
-- TT:TT is a time such as 09:40.
-- If time is unreadable, return empty string for time.
+{{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
             else:
                 prompt = f"""
-You are a factory OCR checker.
-
 Read ONLY printed lot code from the image.
-Ignore handwriting, notebook lines, pen marks, shadows, and background.
+This is Linapack EPC format.
 
-This is Linapack format, EPC product.
-Expected format:
+Expected:
 MFG {expected_mfg} {expected_line} TT:TT
 EXP {expected_exp}
 
@@ -637,20 +549,7 @@ MFG {expected_mfg} {expected_line} 09:40
 EXP {expected_exp}
 
 Return JSON only:
-{{
-  "lines": [
-    "MFG line exactly as seen",
-    "EXP line exactly as seen"
-  ],
-  "time": "HH:MM exactly as seen"
-}}
-
-Rules:
-- Do not silently correct mistakes.
-- {expected_line} must be one of LP1, LP2, LP3, LP4, LP5, LP6, LP7, LP8, LP9.
-- TT:TT is a time such as 09:40.
-- If time is unreadable, return empty string for time.
-- If one line is missing or unreadable, put an empty string for that row.
+{{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 """
 
     response = client.responses.create(
@@ -660,10 +559,7 @@ Rules:
                 "role": "user",
                 "content": [
                     {"type": "input_text", "text": prompt},
-                    {
-                        "type": "input_image",
-                        "image_url": f"data:image/jpeg;base64,{image_base64}",
-                    },
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{image_base64}"},
                 ],
             }
         ],
@@ -676,17 +572,16 @@ def check_sachet(lines, product_type, market_type, expected_mfg, expected_line, 
     details = []
     overall = True
     skip_exp = no_exp_required(product_type, market_type)
-
     lines = [normalize(x) for x in lines]
 
     for i in range(1, 7):
+        actual = lines[i - 1] if i <= len(lines) else ""
+
         if skip_exp:
             expected = f"MFG {expected_mfg} {expected_line} {i}"
-            actual = lines[i - 1] if i <= len(lines) else ""
             status = "PASS" if expected in actual else "NG"
         else:
             expected = f"MFG {expected_mfg} {expected_line} {i} EXP {expected_exp}"
-            actual = lines[i - 1] if i <= len(lines) else ""
             status = "PASS" if actual == expected else "NG"
 
         if status == "NG":
@@ -703,7 +598,7 @@ def check_sachet(lines, product_type, market_type, expected_mfg, expected_line, 
 
 
 def extract_time(text):
-    match = re.search(r"\b([0-2][0-9]:[0-5][0-9])\b", text)
+    match = re.search(r"\\b([0-2][0-9]:[0-5][0-9])\\b", text)
     return match.group(1) if match else ""
 
 
@@ -718,13 +613,14 @@ def check_linapack(lines, product_type, market_type, expected_mfg, expected_line
     mfg_line = lines[0] if len(lines) > 0 else ""
     exp_line = lines[1] if len(lines) > 1 else ""
 
-    if product_type.startswith("EPW"):
+    if product_type == "EPW_TH":
         expected_mfg_part = f"MFG {expected_mfg} {mix_code}".upper()
+    elif product_type == "EPW_EXPORT":
+        expected_mfg_part = f"MFG {expected_mfg}".upper()
     else:
         expected_mfg_part = f"MFG {expected_mfg} {expected_line}".upper()
 
     expected_exp_part = f"EXP {expected_exp}".upper() if expected_exp else ""
-
     time_found = ai_time or extract_time(all_text)
 
     mfg_ok = expected_mfg_part in mfg_line
@@ -805,12 +701,9 @@ def check():
             return jsonify({"error": "กรุณากรอก EXP หรือเลือกผลิตภัณฑ์/ประเภทงานที่ไม่ต้องมี EXP"}), 400
 
         if not os.getenv("OPENAI_API_KEY"):
-            return jsonify({"error": "ไม่พบ OPENAI_API_KEY ในไฟล์ .env"}), 500
+            return jsonify({"error": "ไม่พบ OPENAI_API_KEY"}), 500
 
-        if "," in image_data:
-            image_base64 = image_data.split(",", 1)[1]
-        else:
-            image_base64 = image_data
+        image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
 
         raw_ai = read_lot_with_ai(
             image_base64,
