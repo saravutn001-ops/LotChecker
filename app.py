@@ -173,7 +173,13 @@ hr { margin:20px 0; }
         <label>Shipping Mark</label>
         <input id="shippingMark" value="" placeholder="ระบบเติมจาก Prefix อัตโนมัติ" readonly>
 
-        <p class="small">ตัวอย่าง: Prefix AC → Shipping Mark AKC</p>
+        <p class="small">ตัวอย่าง: Prefix AC → Shipping Mark AKC / Prefix KC → ไม่มี Shipping Mark</p>
+
+        <label>เลขอาคาร</label>
+        <select id="buildingNoExport">
+            <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+        </select>
 
         <label>EXP สำหรับ Pattern ที่มี EXP</label>
         <input id="cartonExp" value="" placeholder="เช่น 080927">
@@ -211,22 +217,22 @@ hr { margin:20px 0; }
 let imageData = "";
 
 const PREFIX_SHIPPING_MAP = {
-    "KC": "ZZZZZ",
+    "KC": "",
     "VN": "IPO VN",
     "VT": "VN-MT",
     "KK": "AKK",
-    "CT": "SHIPPING MARK: CDT",
+    "CT": "CDT",
     "TS": "TS",
     "AC": "AKC",
     "SM": "SOMCHAICHALUEN",
     "AX": "AKX",
-    "MM": "IP ONE-MYANMAR",
+    "MM": "I.P. ONE-MYANMAR",
     "ML": "ML",
     "KT": "KT",
     "MW": "MWD",
     "MK": "MK",
     "MY": "MDY",
-    "TG": "TG1",
+    "TG": "TG",
     "MN": "MNJM",
     "MA": "MLA",
     "LM": "MT/LM+VY",
@@ -236,7 +242,7 @@ const PREFIX_SHIPPING_MAP = {
     "BU": "BUL",
     "UK": "U,K,T-7",
     "DB": "DBL INDUSTRIES PLC",
-    "OD": "IMPORTER: ORGANIC LINE CO.,LTD",
+    "OL": "IMPORTER:ORGANIC LINE CO., LTD",
     "MI": "ZZZZZ",
     "WD": "WEDAR",
     "CZ": "ZZZZZ",
@@ -495,7 +501,7 @@ async function sendCheck() {
         payload.line = "";
         payload.exp = marketType === "TH" ? "" : document.getElementById("cartonExp").value;
         payload.mixCode = "";
-        payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : "";
+        payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : document.getElementById("buildingNoExport").value;
         payload.shippingMark = marketType === "EXPORT" ? document.getElementById("shippingMark").value : "";
         payload.cartonAlphaCode = marketType === "EXPORT" ? document.getElementById("cartonPrefix").value : "";
     }
@@ -726,8 +732,10 @@ Common format parts:
 - Running number must be 5 characters/digits.
 - The field after running number is alphabet code, not 00.
 - MFG date DDMMYY must be {expected_mfg}.
+- Building/category number must be {building_no} if visible in the carton code.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
 - Some patterns end with category code K.
+- Special rule: Prefix OL uses Shipping Mark "IMPORTER:ORGANIC LINE CO., LTD" and it can be printed directly attached to the date without a space. Other prefixes normally have spacing.
 
 {shipping_rule}
 {alpha_rule}
@@ -995,7 +1003,10 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, sh
     has_k = bool(ai_json.get("has_k", False)) or re.search(r"\bK\b", all_text) is not None
 
     if shipping_mark:
-        has_shipping_mark = shipping_mark.upper() in all_text
+        # For OL, shipping mark may be attached to the date without a space.
+        compact_actual = re.sub(r"\s+", "", all_text.upper())
+        compact_expected = re.sub(r"\s+", "", shipping_mark.upper())
+        has_shipping_mark = (shipping_mark.upper() in all_text) or (compact_expected in compact_actual)
     else:
         has_shipping_mark = True
 
@@ -1010,12 +1021,16 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, sh
         has_exp = True
 
     run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
+    building_ok = True
+    if building_no:
+        building_ok = re.search(rf"\b{re.escape(building_no)}\b", all_text) is not None
 
     checks = [
         ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
         ("Running No.", run_ok, all_text, "5 ตัวอักษร/ตัวเลข"),
         ("Alpha code after Running No.", has_alpha_code, all_text, carton_alpha_code or "ตัวอักษรตาม D48"),
         ("MFG date", has_mfg, all_text, expected_mfg),
+        ("Building No.", building_ok, all_text, building_no or "1-6"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
         ("K / D48 pattern", has_k, all_text, "K หรือ Pattern ที่ไม่บังคับ K"),
     ]
@@ -1080,8 +1095,8 @@ def check():
         if check_type == "pouch" and not skip_exp and not expected_exp:
             return jsonify({"error": "กรุณากรอก EXP หรือเลือกประเภทงานที่ไม่ต้องมี EXP"}), 400
 
-        if check_type == "carton" and market_type == "TH":
-            if building_no not in ["1", "2", "3", "4", "5", "6"]:
+        if check_type == "carton":
+            if building_no and building_no not in ["1", "2", "3", "4", "5", "6"]:
                 return jsonify({"error": "เลขอาคารต้องเป็น 1-6"}), 400
 
         image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
