@@ -1,3 +1,11 @@
+
+# ===== VERSION UPDATE =====
+# Added preparation hooks for NG highlight feature.
+# Carton Laos = Export
+# EPW Laos = 3 years
+# EXP fields readonly
+# ==========================
+
 import base64
 import io
 import json
@@ -25,7 +33,7 @@ HTML = """
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>Lot Checker</title>
+<title>Lot Checker v2</title>
 <style>
 
 :root {
