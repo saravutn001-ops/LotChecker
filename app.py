@@ -1,11 +1,3 @@
-
-# ===== VERSION UPDATE =====
-# Added preparation hooks for NG highlight feature.
-# Carton Laos = Export
-# EPW Laos = 3 years
-# EXP fields readonly
-# ==========================
-
 import base64
 import io
 import json
@@ -33,7 +25,7 @@ HTML = """
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>Lot Checker v2</title>
+<title>Lot Checker</title>
 <style>
 
 :root {
@@ -822,6 +814,9 @@ async function sendCheck() {
         html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
         html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
+        if (data.summary === "NG") {
+            html += `<p><b>กรอบแดง:</b> ${data.redBoxCount || 0} จุด</p>`;
+        }
 
         if (data.stampedImageUrl) {
             html += `
@@ -942,7 +937,77 @@ def draw_text_with_shadow(draw, position, text, font, fill, shadow=(0, 0, 0)):
     draw.text((x, y), text, font=font, fill=fill)
 
 
-def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time):
+
+def draw_ai_red_boxes(image, boxes, summary):
+    """
+    Draw red boxes on NG image from AI normalized coordinates.
+    AI coordinates must be 0-1000 scale:
+    x1,y1,x2,y2
+    """
+    if summary != "NG":
+        return image
+
+    if not boxes:
+        return image
+
+    # Draw red boxes first when NG
+    image = draw_ai_red_boxes(image, red_boxes or [], summary)
+
+    draw = ImageDraw.Draw(image)
+    w, h = image.size
+
+    for box in boxes:
+        try:
+            x1 = int(float(box.get("x1", 0)) * w / 1000)
+            y1 = int(float(box.get("y1", 0)) * h / 1000)
+            x2 = int(float(box.get("x2", 0)) * w / 1000)
+            y2 = int(float(box.get("y2", 0)) * h / 1000)
+
+            # Keep inside image
+            x1 = max(0, min(w - 1, x1))
+            y1 = max(0, min(h - 1, y1))
+            x2 = max(0, min(w - 1, x2))
+            y2 = max(0, min(h - 1, y2))
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            padding = max(8, int(w * 0.008))
+            x1 = max(0, x1 - padding)
+            y1 = max(0, y1 - padding)
+            x2 = min(w - 1, x2 + padding)
+            y2 = min(h - 1, y2 + padding)
+
+            # thick red rectangle
+            thickness = max(5, int(w * 0.006))
+            for i in range(thickness):
+                draw.rectangle(
+                    [x1 - i, y1 - i, x2 + i, y2 + i],
+                    outline=(255, 0, 0)
+                )
+
+            label = str(box.get("label", "NG")).strip() or "NG"
+            font = get_font(max(22, int(w * 0.025)))
+            label_text = f"NG: {label}"
+
+            # label background
+            try:
+                bbox = draw.textbbox((x1, max(0, y1 - font.size - 10)), label_text, font=font)
+                bg_y1 = max(0, y1 - font.size - 14)
+                bg_y2 = bg_y1 + (bbox[3] - bbox[1]) + 8
+                bg_x2 = min(w - 1, x1 + (bbox[2] - bbox[0]) + 14)
+                draw.rectangle([x1, bg_y1, bg_x2, bg_y2], fill=(255, 0, 0))
+                draw.text((x1 + 6, bg_y1 + 4), label_text, font=font, fill=(255, 255, 255))
+            except Exception:
+                pass
+
+        except Exception:
+            continue
+
+    return image
+
+
+def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time, red_boxes=None):
     if "," in image_base64:
         image_base64 = image_base64.split(",", 1)[1]
 
@@ -1146,6 +1211,25 @@ Return JSON only:
 {{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 
 Important: If the image does not show the words MFG or EXP, do not add them yourself. Return exactly what is printed.
+"""
+
+    # Ask AI to also return bounding boxes for the printed lot lines.
+    # Coordinates must be normalized 0-1000 for original image size.
+    prompt += """
+
+IMPORTANT BOUNDING BOX REQUIREMENT:
+Return JSON only.
+In addition to the normal fields, include:
+"boxes": [
+  {"text":"exact printed lot line text", "label":"LOT", "x1":0, "y1":0, "x2":1000, "y2":1000}
+]
+
+Bounding box rules:
+- x1,y1,x2,y2 must be normalized coordinates from 0 to 1000.
+- Draw boxes around the printed lot/date/batch text area only.
+- If multiple lot lines exist, return one box per line.
+- Do not box product artwork, barcode, QR code, or Thai marketing text.
+- If unsure, return the box around the whole visible printed lot code area.
 """
 
     response = client.responses.create(
@@ -1417,6 +1501,49 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     return overall, details
 
 
+
+def choose_ng_boxes(result_json, overall):
+    """
+    Use AI returned boxes to highlight the detected lot text area when NG.
+    This avoids requiring Tesseract/OpenCV on Render.
+    """
+    if overall:
+        return []
+
+    boxes = result_json.get("boxes", [])
+    if not isinstance(boxes, list):
+        return []
+
+    cleaned = []
+    for b in boxes:
+        if not isinstance(b, dict):
+            continue
+        try:
+            x1 = float(b.get("x1", 0))
+            y1 = float(b.get("y1", 0))
+            x2 = float(b.get("x2", 0))
+            y2 = float(b.get("y2", 0))
+        except Exception:
+            continue
+
+        # accept only plausible normalized boxes
+        if x2 <= x1 or y2 <= y1:
+            continue
+        if x1 < 0 or y1 < 0 or x2 > 1000 or y2 > 1000:
+            continue
+
+        cleaned.append({
+            "text": str(b.get("text", "")),
+            "label": str(b.get("label", "LOT NG")),
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2,
+        })
+
+    return cleaned
+
+
 @app.route("/")
 def index():
     return HTML
@@ -1541,6 +1668,8 @@ def check():
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
 
+        red_boxes = choose_ng_boxes(result_json, overall)
+
         stamped_filename = stamp_image(
             image_data,
             summary,
@@ -1548,7 +1677,8 @@ def check():
             product_type,
             market_type,
             mode_name,
-            checked_time
+            checked_time,
+            red_boxes
         )
 
         return jsonify({
@@ -1561,7 +1691,8 @@ def check():
             "lines": lines,
             "details": details,
             "time": checked_time,
-            "stampedImageUrl": f"/stamped/{stamped_filename}"
+            "stampedImageUrl": f"/stamped/{stamped_filename}",
+            "redBoxCount": len(red_boxes)
         })
 
     except Exception as e:
