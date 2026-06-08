@@ -52,8 +52,7 @@ hr { margin:20px 0; }
 <label>ประเภทผลิตภัณฑ์</label>
 <select id="productType" onchange="changeProduct()">
     <option value="EPC">EPC</option>
-    <option value="EPW_TH">EPW ไทย</option>
-    <option value="EPW_EXPORT">EPW ต่างประเทศ</option>
+    <option value="EPW">EPW</option>
 </select>
 
 <label>ประเภทงาน</label>
@@ -428,28 +427,40 @@ def format_ddmmyy(dt):
 
 
 def calculate_exp(product_type, market_type, mfg):
+
+    dt = parse_ddmmyy(mfg)
+    if not dt:
+        return ""
+
     if product_type == "EPC":
-        dt = parse_ddmmyy(mfg)
-        if not dt:
-            return ""
+
         if market_type == "TH":
             return format_ddmmyy(add_months(dt, 15))
+
         if market_type == "LAOS":
             return format_ddmmyy(add_months(dt, 24))
-        if market_type == "EXPORT":
-            return ""
 
-    if product_type == "EPW_TH":
+        return ""
+
+    if product_type == "EPW":
+
+        if market_type == "LAOS":
+            return format_ddmmyy(add_months(dt, 24))
+
         return ""
 
     return ""
 
 
 def no_exp_required(product_type, market_type):
-    return (
-        product_type == "EPW_TH" or
-        (product_type == "EPC" and market_type == "EXPORT")
-    )
+
+    if product_type == "EPC":
+        return market_type == "EXPORT"
+
+    if product_type == "EPW":
+        return market_type in ["TH", "EXPORT"]
+
+    return False
 
 
 def read_lot_with_ai(image_base64, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code):
