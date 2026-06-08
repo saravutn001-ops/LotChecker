@@ -4,7 +4,7 @@ import json
 import os
 import re
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
@@ -493,7 +493,7 @@ def stamp_image(image_base64, summary, product_type, market_type, mode, checked_
     y += int(body_font.size * 1.25)
     draw_text_with_shadow(draw, (x, y), f"{mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
 
-    filename = f"{summary}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+    filename = f"{summary}_{(datetime.utcnow() + timedelta(hours=7)).strftime('%Y%m%d_%H%M%S')}.jpg"
     output_path = os.path.join(STAMP_DIR, filename)
     image.save(output_path, quality=95)
     return filename
@@ -741,7 +741,7 @@ def check():
             mode_name = "Linapack"
 
         summary = "PASS" if overall else "NG"
-        checked_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        checked_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
         stamped_filename = stamp_image(image_data, summary, product_type, market_type, mode_name, checked_time)
 
         return jsonify({
