@@ -561,14 +561,22 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     title_font = get_font(max(30, int(w * 0.045)))
     body_font = get_font(max(20, int(w * 0.028)))
 
+    # Use English only to prevent Thai text from showing as square boxes on Render
     if summary == "PASS":
         title = "LOT CHECK PASS"
-        line2 = "ตรวจสอบ Lot ถูกต้องแล้ว"
+        line2 = "LOT VERIFIED"
         color = (0, 180, 0)
     else:
         title = "LOT CHECK NG"
-        line2 = "ตรวจพบ Lot ไม่ถูกต้อง"
+        line2 = "LOT VERIFICATION FAILED"
         color = (255, 0, 0)
+
+    # Convert Thai check type words to English for stamped image
+    check_type_en = str(check_type)
+    if check_type_en == "ซอง":
+        check_type_en = "POUCH"
+    elif check_type_en == "กล่อง":
+        check_type_en = "CARTON"
 
     x = max(20, int(w * 0.035))
     y = max(20, int(h * 0.035))
@@ -579,7 +587,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     y += int(body_font.size * 1.25)
     draw_text_with_shadow(draw, (x, y), f"By Lot Checker | {checked_time}", body_font, (255, 255, 255))
     y += int(body_font.size * 1.25)
-    draw_text_with_shadow(draw, (x, y), f"{check_type} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
+    draw_text_with_shadow(draw, (x, y), f"{check_type_en} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
 
     filename = f"{summary}_{now_thai().strftime('%Y%m%d_%H%M%S')}.jpg"
     output_path = os.path.join(STAMP_DIR, filename)
