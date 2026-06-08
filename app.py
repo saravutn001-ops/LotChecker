@@ -186,8 +186,6 @@ hr { margin:20px 0; }
 
         <p class="small">กล่องต่างประเทศ: มีหลายรูปแบบตาม D48 เช่น Shipping Mark + Running No. + รหัสตัวอักษร + MFG + EXP/K</p>
 
-        <label>Suffix</label>
-        <input id="cartonExp" value="" placeholder="Suffix ต่อท้ายกล่องเช่น N, QR">
     </div>
 </div>
 
