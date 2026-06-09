@@ -374,7 +374,7 @@ pre {
             <option value="MW">MW → MWD</option>
             <option value="MK">MK → MK</option>
             <option value="MY">MY → MDY</option>
-            <option value="TG">TG → TG1</option>
+            <option value="TG">TG → TG</option>
             <option value="MN">MN → MNJM</option>
             <option value="MA">MA → MLA</option>
             <option value="LM">LM → MT/LM+VY</option>
@@ -1289,16 +1289,16 @@ Return JSON only:
 """
         else:
             shipping_rule = f"Shipping mark must be visible and match: {shipping_mark}" if shipping_mark else "Shipping mark may be blank or vary."
-            alpha_rule = f"The Prefix before running number must match: {carton_alpha_code}" if carton_alpha_code else "Alphabet code after running number may vary by D48 pattern."
+            alpha_rule = f"The Prefix before MFG date must match: {carton_alpha_code}" if carton_alpha_code else "Alphabet code after running number may vary by D48 pattern."
             prompt = f"""
 Read ONLY the printed carton batch/lot code from the image.
 
 This is Export carton format based on D48 table.
 
 Common format parts:
-- Shipping mark before carton running number, if printed.
+- Shipping Mark must be before the 5-digit Running No. Example: XR 00001 XR 080626. If visible code is 00001 XR 080626, Shipping Mark is missing.
 - Running number must be 5 characters/digits.
-- Prefix must be printed before the 5-digit running number. If expected Prefix is XR and the visible code starts with 00004 without XR before it, this is NG.
+- Prefix is the code before MFG date. Example: 00001 XR 080626, Prefix is XR.
 - MFG date DDMMYY must be {expected_mfg}.
 - Building/category number is optional. If selected, it must be {building_no} {building_suffix}. Suffix must be separated by a space. If building number is blank/none, ignore building and suffix. Suffix after building number must be exactly "{building_suffix}" if provided.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
@@ -1321,7 +1321,7 @@ Return JSON only:
 Rules:
 - Do not silently correct mistakes.
 - If shipping mark is not required or not specified, set has_shipping_mark to true.
-- If Prefix is specified but it is not printed before the 5-digit running number, set has_alpha_code to false.
+- If Prefix is specified but it is not printed before MFG date, set has_alpha_code to false.
 - If no EXP is printed and EXP is not required, set has_exp to true.
 """
     elif mode == "sachet":
@@ -1580,42 +1580,110 @@ def parse_th_carton_fields(text):
 
 
 
-def token_clean_for_prefix(token):
+def clean_lot_token(token):
+    """Keep only A-Z and 0-9 for carton parsing."""
     return re.sub(r"[^A-Z0-9]", "", str(token).upper())
 
 
-def prefix_before_running_ok(all_text, expected_prefix):
+def lot_tokens(text):
+    text = normalize(text)
+    tokens = [clean_lot_token(t) for t in text.split()]
+    return [t for t in tokens if t]
+
+
+def shipping_mark_before_running_ok(all_text, shipping_mark):
     """
-    Strictly validate Prefix position for export carton.
-    Required example: XR 00004 ...
-    If expected_prefix is XR but text is only 00004 ..., return False.
+    Shipping Mark = text before Running No.
+    Example:
+      XR 00001 XR 080626 3 QR  -> Shipping Mark XR PASS
+      00001 XR 080626 3 QR     -> Shipping Mark XR NG
+    Blank shipping mark = not required.
     """
-    expected_prefix = token_clean_for_prefix(expected_prefix)
+    shipping_mark = str(shipping_mark or "").strip().upper()
+    if not shipping_mark:
+        return True
+
+    tokens = lot_tokens(all_text)
+    if not tokens:
+        return False
+
+    expected_compact = clean_lot_token(shipping_mark)
+    text_norm = normalize(all_text).upper()
+
+    # OL special: allow importer text before OL/date pattern
+    if expected_compact in ["OL", "OD"] or "ORGANICLINE" in re.sub(r"[^A-Z0-9]", "", shipping_mark.upper()):
+        return ("IMPORTER" in text_norm and "ORGANIC" in text_norm) or bool(re.search(r"\bOL\d{6}\b|\bOL\s*\d{6}\b", text_norm))
+
+    for i, token in enumerate(tokens):
+        if not re.fullmatch(r"\d{5}", token):
+            continue
+
+        # Simple shipping mark such as XR, AKC, TG, KC must be immediately before Running No.
+        if i > 0 and tokens[i - 1] == expected_compact:
+            return True
+
+        # Compact case like XR00001
+        if i == 0:
+            continue
+
+    # Multi-word shipping mark: compare compact text before first running no.
+    compact_expected = re.sub(r"[^A-Z0-9]", "", shipping_mark.upper())
+    if compact_expected:
+        compact_all = re.sub(r"[^A-Z0-9]", "", text_norm)
+        m = re.search(r"\d{5}", compact_all)
+        if m:
+            before_running = compact_all[:m.start()]
+            return before_running.endswith(compact_expected)
+
+    return False
+
+
+def prefix_before_mfg_ok(all_text, expected_prefix, expected_mfg):
+    """
+    Prefix = code before MFG date.
+    Example:
+      00001 XR 080626 3 QR -> Prefix XR PASS
+      00001 080626 3 QR    -> Prefix XR NG
+    """
+    expected_prefix = clean_lot_token(expected_prefix)
+    expected_mfg = clean_lot_token(expected_mfg)
+
     if not expected_prefix:
         return True
 
     if expected_prefix == "OD":
         expected_prefix = "OL"
 
-    text = normalize(all_text)
-    tokens = [token_clean_for_prefix(t) for t in text.split()]
-    tokens = [t for t in tokens if t]
+    tokens = lot_tokens(all_text)
+    if not tokens:
+        return False
 
-    # OL special: no separate running no; allow OL attached to date.
+    # OL special can be compact as OL250526
     if expected_prefix == "OL":
-        compact = re.sub(r"[^A-Z0-9]", "", text.upper())
-        return bool(re.search(r"\bOL\b", text.upper())) or ("OL" in compact)
+        compact = re.sub(r"[^A-Z0-9]", "", normalize(all_text).upper())
+        return bool(re.search(rf"OL{re.escape(expected_mfg)}", compact)) or ("OL" in tokens)
 
     for i, token in enumerate(tokens):
-        # XR 00004
-        if token == expected_prefix and i + 1 < len(tokens) and re.fullmatch(r"\d{5}", tokens[i + 1]):
+        # XR 080626
+        if token == expected_mfg and i > 0 and tokens[i - 1] == expected_prefix:
             return True
 
-        # XR00004
-        if re.fullmatch(rf"{re.escape(expected_prefix)}\d{{5}}", token):
+        # XR080626 compact
+        if re.fullmatch(rf"{re.escape(expected_prefix)}{re.escape(expected_mfg)}", token):
             return True
 
     return False
+
+
+def running_no_present(all_text, carton_alpha_code=""):
+    """
+    Normal export cartons require a 5-digit running number.
+    OL pattern has no separate Running No.
+    """
+    code = clean_lot_token(carton_alpha_code)
+    if code in ["OL", "OD"]:
+        return True
+    return re.search(r"\b\d{5}\b", normalize(all_text)) is not None
 
 
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
@@ -1670,37 +1738,21 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
 
         return overall, details
 
-    has_shipping_mark = bool(ai_json.get("has_shipping_mark", False))
-    has_alpha_code = bool(ai_json.get("has_alpha_code", False))
-    has_mfg = bool(ai_json.get("has_mfg", False)) or (expected_mfg in all_text)
+    # Do not trust AI boolean alone for carton key positions.
+    # Shipping Mark = before Running No.
+    # Prefix = before MFG Date.
+    has_shipping_mark = shipping_mark_before_running_ok(all_text, shipping_mark)
+    has_alpha_code = prefix_before_mfg_ok(all_text, carton_alpha_code, expected_mfg)
+    has_mfg = expected_mfg in all_text
     has_exp = bool(ai_json.get("has_exp", False))
-
-    if shipping_mark:
-        # For OL, shipping mark may be attached to the date without a space.
-        compact_actual = re.sub(r"\s+", "", all_text.upper())
-        compact_expected = re.sub(r"\s+", "", shipping_mark.upper())
-        has_shipping_mark = (shipping_mark.upper() in all_text) or (compact_expected in compact_actual)
-    else:
-        has_shipping_mark = True
-
-    # Strict Prefix check: Prefix must be printed before the 5-digit running no.
-    # Example: XR 00004 is PASS, but 00004 without XR is NG.
-    if carton_alpha_code:
-        has_alpha_code = prefix_before_running_ok(all_text, carton_alpha_code)
-    else:
-        has_alpha_code = True
 
     if expected_exp:
         has_exp = has_exp or (expected_exp in all_text)
     else:
         has_exp = True
 
-    # OL pattern has no separate Running No. Example:
-    # IMPORTER:ORGANIC LINE CO., LTD OL250526 1
-    if carton_alpha_code == "OL":
-        run_ok = True
-    else:
-        run_ok = re.search(r"\b[A-Z0-9]{5}\b", all_text) is not None
+    # OL pattern has no separate Running No.
+    run_ok = running_no_present(all_text, carton_alpha_code)
 
     if building_no:
         if building_suffix:
@@ -1716,9 +1768,9 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         building_ok = True
 
     checks = [
-        ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
+        ("Shipping Mark before Running No.", has_shipping_mark, all_text, shipping_mark or "ไม่ต้องมี Shipping Mark"),
         ("Running No.", run_ok, all_text, "OL ไม่ต้องมี Running No." if carton_alpha_code == "OL" else "5 ตัวอักษร/ตัวเลข"),
-        ("Prefix before Running No.", has_alpha_code, all_text, carton_alpha_code or "ไม่บังคับ Prefix"),
+        ("Prefix before MFG date", has_alpha_code, all_text, carton_alpha_code or "ไม่บังคับ Prefix"),
         ("MFG date", has_mfg, all_text, expected_mfg),
         ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
