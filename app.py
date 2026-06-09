@@ -384,7 +384,7 @@ pre {
             <option value="BU">BU → BUL</option>
             <option value="UK">UK → U,K,T-7</option>
             <option value="DB">DB → DBL INDUSTRIES PLC</option>
-            <option value="OD">OD → IMPORTER: ORGANIC LINE CO.,LTD</option>
+            <option value="OL">OL → IMPORTER:ORGANIC LINE CO., LTD</option>
             <option value="MI">MI → ZZZZZ</option>
             <option value="WD">WD → WEDAR</option>
             <option value="CZ">CZ → ZZZZZ</option>
@@ -500,6 +500,7 @@ const PREFIX_SHIPPING_MAP = {
     "UK": "U,K,T-7",
     "DB": "DBL INDUSTRIES PLC",
     "OL": "IMPORTER:ORGANIC LINE CO., LTD",
+    "OD": "IMPORTER:ORGANIC LINE CO., LTD",
     "MI": "ZZZZZ",
     "WD": "WEDAR",
     "CZ": "ZZZZZ",
@@ -1288,7 +1289,7 @@ Return JSON only:
 """
         else:
             shipping_rule = f"Shipping mark must be visible and match: {shipping_mark}" if shipping_mark else "Shipping mark may be blank or vary."
-            alpha_rule = f"The alphabet code after running number must match: {carton_alpha_code}" if carton_alpha_code else "Alphabet code after running number may vary by D48 pattern."
+            alpha_rule = f"The Prefix before running number must match: {carton_alpha_code}" if carton_alpha_code else "Alphabet code after running number may vary by D48 pattern."
             prompt = f"""
 Read ONLY the printed carton batch/lot code from the image.
 
@@ -1297,7 +1298,7 @@ This is Export carton format based on D48 table.
 Common format parts:
 - Shipping mark before carton running number, if printed.
 - Running number must be 5 characters/digits.
-- The field after running number is alphabet code, not 00.
+- Prefix must be printed before the 5-digit running number. If expected Prefix is XR and the visible code starts with 00004 without XR before it, this is NG.
 - MFG date DDMMYY must be {expected_mfg}.
 - Building/category number is optional. If selected, it must be {building_no} {building_suffix}. Suffix must be separated by a space. If building number is blank/none, ignore building and suffix. Suffix after building number must be exactly "{building_suffix}" if provided.
 - EXP date may be {expected_exp if expected_exp else "not required"}.
@@ -1320,7 +1321,7 @@ Return JSON only:
 Rules:
 - Do not silently correct mistakes.
 - If shipping mark is not required or not specified, set has_shipping_mark to true.
-- If alphabet code is not specified, set has_alpha_code to true.
+- If Prefix is specified but it is not printed before the 5-digit running number, set has_alpha_code to false.
 - If no EXP is printed and EXP is not required, set has_exp to true.
 """
     elif mode == "sachet":
@@ -1578,6 +1579,45 @@ def parse_th_carton_fields(text):
     return parts[0], parts[1], parts[2], parts[3]
 
 
+
+def token_clean_for_prefix(token):
+    return re.sub(r"[^A-Z0-9]", "", str(token).upper())
+
+
+def prefix_before_running_ok(all_text, expected_prefix):
+    """
+    Strictly validate Prefix position for export carton.
+    Required example: XR 00004 ...
+    If expected_prefix is XR but text is only 00004 ..., return False.
+    """
+    expected_prefix = token_clean_for_prefix(expected_prefix)
+    if not expected_prefix:
+        return True
+
+    if expected_prefix == "OD":
+        expected_prefix = "OL"
+
+    text = normalize(all_text)
+    tokens = [token_clean_for_prefix(t) for t in text.split()]
+    tokens = [t for t in tokens if t]
+
+    # OL special: no separate running no; allow OL attached to date.
+    if expected_prefix == "OL":
+        compact = re.sub(r"[^A-Z0-9]", "", text.upper())
+        return bool(re.search(r"\bOL\b", text.upper())) or ("OL" in compact)
+
+    for i, token in enumerate(tokens):
+        # XR 00004
+        if token == expected_prefix and i + 1 < len(tokens) and re.fullmatch(r"\d{5}", tokens[i + 1]):
+            return True
+
+        # XR00004
+        if re.fullmatch(rf"{re.escape(expected_prefix)}\d{{5}}", token):
+            return True
+
+    return False
+
+
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
     overall = True
@@ -1643,10 +1683,12 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     else:
         has_shipping_mark = True
 
+    # Strict Prefix check: Prefix must be printed before the 5-digit running no.
+    # Example: XR 00004 is PASS, but 00004 without XR is NG.
     if carton_alpha_code:
-        has_alpha_code = carton_alpha_code.upper() in all_text
+        has_alpha_code = prefix_before_running_ok(all_text, carton_alpha_code)
     else:
-        has_alpha_code = re.search(r"\b[A-Z]{1,4}\b", all_text) is not None
+        has_alpha_code = True
 
     if expected_exp:
         has_exp = has_exp or (expected_exp in all_text)
@@ -1676,7 +1718,7 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     checks = [
         ("Shipping Mark", has_shipping_mark, all_text, shipping_mark or "ไม่ระบุ/ไม่บังคับ"),
         ("Running No.", run_ok, all_text, "OL ไม่ต้องมี Running No." if carton_alpha_code == "OL" else "5 ตัวอักษร/ตัวเลข"),
-        ("Alpha code after Running No.", has_alpha_code, all_text, carton_alpha_code or "ตัวอักษรตาม D48"),
+        ("Prefix before Running No.", has_alpha_code, all_text, carton_alpha_code or "ไม่บังคับ Prefix"),
         ("MFG date", has_mfg, all_text, expected_mfg),
         ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
@@ -1819,7 +1861,6 @@ def check():
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
 
-
         stamped_filename = stamp_image(
             image_data,
             summary,
@@ -1840,7 +1881,7 @@ def check():
             "lines": lines,
             "details": details,
             "time": checked_time,
-            "stampedImageUrl": f"/stamped/{stamped_filename}",
+            "stampedImageUrl": f"/stamped/{stamped_filename}"
         })
 
     except Exception as e:
