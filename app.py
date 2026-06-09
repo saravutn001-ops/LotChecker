@@ -1297,7 +1297,9 @@ This is Export carton format based on D48 table.
 
 Common format parts:
 - Shipping Mark must be before the 5-digit Running No. Example: XR 00001 XR 080626. If visible code is 00001 XR 080626, Shipping Mark is missing.
-- Running number must be 5 characters/digits.
+- Running number must be exactly 5 digits as printed.
+- CRITICAL: Never add leading zeros yourself. If the printed code is 0001, return 0001 exactly, do NOT convert it to 00001.
+- If the running number is not exactly 5 digits, the result must be NG.
 - Prefix is the code before MFG date. Example: 00001 XR 080626, Prefix is XR.
 - MFG date DDMMYY must be {expected_mfg}.
 - Building/category number is optional. If selected, it must be {building_no} {building_suffix}. Suffix must be separated by a space. If building number is blank/none, ignore building and suffix. Suffix after building number must be exactly "{building_suffix}" if provided.
@@ -1622,7 +1624,7 @@ def shipping_mark_before_running_ok(all_text, shipping_mark):
         if i > 0 and tokens[i - 1] == expected_compact:
             return True
 
-        # Compact case like XR00001
+        # Compact case like XR00001 as one token may not be split here.
         if i == 0:
             continue
 
@@ -1634,6 +1636,11 @@ def shipping_mark_before_running_ok(all_text, shipping_mark):
         if m:
             before_running = compact_all[:m.start()]
             return before_running.endswith(compact_expected)
+
+    # Compact simple shipping mark + 5-digit running, e.g. XR00001
+    compact_all2 = re.sub(r"[^A-Z0-9]", "", text_norm)
+    if re.search(rf"{re.escape(expected_compact)}\d{{5}}", compact_all2):
+        return True
 
     return False
 
@@ -1675,16 +1682,37 @@ def prefix_before_mfg_ok(all_text, expected_prefix, expected_mfg):
     return False
 
 
-def running_no_present(all_text, carton_alpha_code=""):
+def extract_export_running_no(all_text, carton_alpha_code=""):
     """
-    Normal export cartons require a 5-digit running number.
+    Extract export carton running number exactly.
+    Normal export cartons require exactly 5 digits.
     OL pattern has no separate Running No.
     """
     code = clean_lot_token(carton_alpha_code)
     if code in ["OL", "OD"]:
-        return True
-    return re.search(r"\b\d{5}\b", normalize(all_text)) is not None
+        return "", True
 
+    tokens = lot_tokens(all_text)
+
+    # Prefer the first numeric token with 4-5 digits because it is usually Running No.
+    # Date is 6 digits, so it will not be confused here.
+    for token in tokens:
+        if re.fullmatch(r"\d{4,5}", token):
+            return token, bool(re.fullmatch(r"\d{5}", token))
+
+    # Compact case, e.g. XR00001XR080626
+    compact = re.sub(r"[^A-Z0-9]", "", normalize(all_text).upper())
+    m = re.search(r"(?<!\d)(\d{4,5})(?!\d)", compact)
+    if m:
+        run = m.group(1)
+        return run, bool(re.fullmatch(r"\d{5}", run))
+
+    return "", False
+
+
+def running_no_present(all_text, carton_alpha_code=""):
+    run, ok = extract_export_running_no(all_text, carton_alpha_code)
+    return ok
 
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
@@ -1752,7 +1780,7 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         has_exp = True
 
     # OL pattern has no separate Running No.
-    run_ok = running_no_present(all_text, carton_alpha_code)
+    actual_run_no, run_ok = extract_export_running_no(all_text, carton_alpha_code)
 
     if building_no:
         if building_suffix:
@@ -1769,7 +1797,7 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
 
     checks = [
         ("Shipping Mark before Running No.", has_shipping_mark, all_text, shipping_mark or "ไม่ต้องมี Shipping Mark"),
-        ("Running No.", run_ok, all_text, "OL ไม่ต้องมี Running No." if carton_alpha_code == "OL" else "5 ตัวอักษร/ตัวเลข"),
+        ("Running No.", run_ok, actual_run_no if actual_run_no else all_text, "ตัวเลข 5 หลัก เช่น 00001"),
         ("Prefix before MFG date", has_alpha_code, all_text, carton_alpha_code or "ไม่บังคับ Prefix"),
         ("MFG date", has_mfg, all_text, expected_mfg),
         ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร"),
