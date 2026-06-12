@@ -260,26 +260,6 @@ pre {
     th, td { font-size:13px; padding:8px; }
 }
 
-
-.realtime-panel {
-    background:#ecfeff;
-    border:1px solid #67e8f9;
-    padding:14px;
-    border-radius:16px;
-    margin-top:14px;
-}
-.realtime-status {
-    font-size:22px;
-    font-weight:bold;
-    margin-top:10px;
-    padding:12px;
-    border-radius:14px;
-    background:#f8fafc;
-    text-align:center;
-}
-.realtime-on { color:#15803d; }
-.realtime-off { color:#b91c1c; }
-
 </style>
 </head>
 <body>
@@ -459,16 +439,6 @@ pre {
 <video id="video" autoplay playsinline></video>
 <button onclick="captureImage()">ถ่ายรูปจากกล้อง</button>
 
-<div class="realtime-panel">
-    <h3>ตรวจ Real-time ทดลอง</h3>
-    <p class="small">ระบบจะจับภาพจากกล้องอัตโนมัติทุก 3 วินาที แล้วส่งตรวจเหมือนกดปุ่มตรวจสอบล็อต</p>
-    <div class="nav-row">
-        <button class="btn-success" onclick="startRealtimeCheck()">เริ่ม Real-time</button>
-        <button class="btn-secondary" onclick="stopRealtimeCheck()">หยุด Real-time</button>
-    </div>
-    <div id="realtimeStatus" class="realtime-status realtime-off">Real-time: OFF</div>
-</div>
-
 <canvas id="canvas" style="display:none;"></canvas>
 
 <h3>รูปตัวอย่าง</h3>
@@ -492,9 +462,6 @@ pre {
 
 <script>
 let imageData = "";
-let realtimeTimer = null;
-let realtimeBusy = false;
-let realtimeLastSummary = "";
 
 function goPage(page) {
     for (let i = 1; i <= 3; i++) {
@@ -779,8 +746,15 @@ function captureImage() {
     preview.style.display = "block";
 }
 
+async function sendCheck() {
+    const resultDiv = document.getElementById("result");
+    const detailDiv = document.getElementById("detail");
 
-function buildPayload() {
+    if (!imageData) {
+        resultDiv.innerHTML = '<div class="ng">กรุณาอัปโหลดรูปหรือถ่ายรูปก่อน</div>';
+        return;
+    }
+
     const checkType = document.getElementById("checkType").value;
     const mode = document.getElementById("mode").value;
     const productType = document.getElementById("productType").value;
@@ -814,152 +788,55 @@ function buildPayload() {
         payload.shippingMark = (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("shippingMark").value : "";
         payload.cartonAlphaCode = (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("cartonPrefix").value : "";
     }
-    return payload;
-}
 
-function renderCheckResult(data, autoMode=false) {
-    const resultDiv = document.getElementById("result");
-    const detailDiv = document.getElementById("detail");
-
-    if (data.error) {
-        resultDiv.innerHTML = `<div class="ng">ERROR</div><p>${data.error}</p>`;
-        return;
-    }
-
-    resultDiv.innerHTML = data.summary === "PASS"
-        ? `<div class="pass">PASS ✅</div>`
-        : `<div class="ng">NG ❌</div>`;
-
-    let html = `<p><b>เวลา:</b> ${data.time}</p>`;
-    html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
-    html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
-    html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
-    if (autoMode) html += `<div class="info"><b>Real-time mode:</b> ตรวจอัตโนมัติ</div>`;
-
-    if (data.stampedImageUrl) {
-        html += `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px;">
-            <a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a>
-            <a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a>
-        </div>`;
-        html += `<img src="${data.stampedImageUrl}">`;
-    }
-
-    html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
-    data.details.forEach(row => {
-        html += `<tr><td>${row.item}</td><td>${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
-    });
-    html += `</table>`;
-    html += `<h3>AI อ่านได้ทั้งหมด</h3><pre>${JSON.stringify(data.lines, null, 2)}</pre>`;
-    detailDiv.innerHTML = html;
-}
-
-async function doCheck(autoMode=false) {
-    const resultDiv = document.getElementById("result");
-    const detailDiv = document.getElementById("detail");
-
-    if (!imageData) {
-        resultDiv.innerHTML = '<div class="ng">กรุณาอัปโหลดรูปหรือถ่ายรูปก่อน</div>';
-        return null;
-    }
-
-    if (!autoMode) {
-        goPage(3);
-        resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
-        detailDiv.innerHTML = "";
-    }
-
-    const res = await fetch("/check", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(buildPayload())
-    });
-
-    const data = await res.json();
-    renderCheckResult(data, autoMode);
-    return data;
-}
-
-function captureFrameOnly() {
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const preview = document.getElementById("preview");
-
-    if (!video.videoWidth) return false;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    imageData = canvas.toDataURL("image/jpeg", 0.85);
-    preview.src = imageData;
-    preview.style.display = "block";
-    return true;
-}
-
-async function realtimeTick() {
-    if (realtimeBusy) return;
-    realtimeBusy = true;
-
-    const status = document.getElementById("realtimeStatus");
+    goPage(3);
+    resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
+    detailDiv.innerHTML = "";
 
     try {
-        const ok = captureFrameOnly();
-        if (!ok) {
-            status.innerHTML = "Real-time: เปิดกล้องก่อน";
-            status.className = "realtime-status realtime-off";
-            realtimeBusy = false;
+        const res = await fetch("/check", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+            resultDiv.innerHTML = `<div class="ng">ERROR</div><p>${data.error}</p>`;
             return;
         }
 
-        status.innerHTML = "Real-time: กำลังตรวจ...";
-        status.className = "realtime-status";
+        resultDiv.innerHTML = data.summary === "PASS"
+            ? `<div class="pass">PASS ✅</div>`
+            : `<div class="ng">NG ❌</div>`;
 
-        const data = await doCheck(true);
-
-        if (data && !data.error) {
-            status.innerHTML = data.summary === "PASS" ? "Real-time: PASS ✅" : "Real-time: NG ❌";
-            status.className = data.summary === "PASS" ? "realtime-status realtime-on" : "realtime-status realtime-off";
-            if (data.summary === "NG") goPage(3);
-        } else {
-            status.innerHTML = "Real-time: ERROR";
-            status.className = "realtime-status realtime-off";
+        let html = `<p><b>เวลา:</b> ${data.time}</p>`;
+        html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
+        html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
+        html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
+if (data.stampedImageUrl) {
+            html += `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px;">
+                <a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a>
+                <a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a>
+            </div>
+            `;
+            html += `<img src="${data.stampedImageUrl}">`;
         }
+
+        html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+
+        data.details.forEach(row => {
+            html += `<tr><td>${row.item}</td><td>${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
+        });
+
+        html += `</table>`;
+        html += `<h3>AI อ่านได้ทั้งหมด</h3><pre>${JSON.stringify(data.lines, null, 2)}</pre>`;
+        detailDiv.innerHTML = html;
+
     } catch (err) {
-        status.innerHTML = "Real-time ERROR: " + err;
-        status.className = "realtime-status realtime-off";
-    }
-
-    realtimeBusy = false;
-}
-
-function startRealtimeCheck() {
-    const status = document.getElementById("realtimeStatus");
-    if (realtimeTimer) {
-        status.innerHTML = "Real-time: กำลังทำงานอยู่";
-        return;
-    }
-    status.innerHTML = "Real-time: ON";
-    status.className = "realtime-status realtime-on";
-    realtimeTick();
-    realtimeTimer = setInterval(realtimeTick, 3000);
-}
-
-function stopRealtimeCheck() {
-    if (realtimeTimer) {
-        clearInterval(realtimeTimer);
-        realtimeTimer = null;
-    }
-    const status = document.getElementById("realtimeStatus");
-    status.innerHTML = "Real-time: OFF";
-    status.className = "realtime-status realtime-off";
-}
-
-
-async function sendCheck() {
-    try {
-        await doCheck(false);
-    } catch (err) {
-        document.getElementById("result").innerHTML = `<div class="ng">ERROR</div><p>${err}</p>`;
+        resultDiv.innerHTML = `<div class="ng">ERROR</div><p>${err}</p>`;
     }
 }
 
@@ -1403,6 +1280,10 @@ Rules:
 - Building number is optional. If building number is selected, it must be exactly {building_no} and must be 1-6.
 - If building number is blank/none, the carton code must not be judged NG because of missing building number.
 - Suffix after building number must be exactly "{building_suffix}" if provided. If building number is blank/none, ignore suffix.
+- Do not infer suffix from expected value.
+- If suffix is unclear, broken, incomplete, smeared, partially missing, or not clearly readable, return it as UNCLEAR.
+- Only return QR if both Q and R are clearly visible. If only R is visible, return R. If unsure, return UNCLEAR.
+- Only return N if N is clearly visible. If unsure, return UNCLEAR.
 - Examples: 3 N means building 3 with suffix N. 3 QR means building 3 with suffix QR. Suffix must be separated by a space.
 - Do not silently correct mistakes.
 - Beware Dot Matrix OCR: 0 may look like 8, but return exactly what you see.
@@ -1837,6 +1718,34 @@ def running_no_present(all_text, carton_alpha_code=""):
     run, ok = extract_export_running_no(all_text, carton_alpha_code)
     return ok
 
+
+def building_suffix_strict_ok(all_text, building_no, building_suffix):
+    """
+    Strict check for Building No. + Suffix.
+    If suffix is selected, AI must read exact suffix clearly.
+    Example: expected 3 QR -> only "3 QR" passes.
+    "3 R", "3 Q", "3 UNCLEAR", "3 ?" must be NG.
+    """
+    building_no = str(building_no or "").strip().upper()
+    building_suffix = str(building_suffix or "").strip().upper()
+    text = normalize(all_text)
+
+    if not building_no:
+        return True, "ไม่ตรวจเลขอาคาร"
+
+    if "UNCLEAR" in text or "?" in text:
+        return False, f"{building_no} {building_suffix}".strip()
+
+    if building_suffix:
+        expected = f"{building_no} {building_suffix}".upper()
+        # ต้องมีการเว้นวรรคระหว่างเลขอาคารกับ suffix
+        ok = re.search(rf"\b{re.escape(building_no)}\s+{re.escape(building_suffix)}\b", text) is not None
+        return ok, expected
+
+    # ไม่มี suffix ตรวจแค่เลขอาคาร
+    ok = re.search(rf"\b{re.escape(building_no)}\b", text) is not None
+    return ok, building_no
+
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
     overall = True
@@ -1852,9 +1761,12 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
                 expected_building_full = f"{building_no} {building_suffix}".upper()
             else:
                 expected_building_full = building_no
-            building_code = building_code.upper()
-            building_ok = building_code == expected_building_full and building_no in ["1", "2", "3", "4", "5", "6"]
-            building_expected = expected_building_full
+            # Rebuild visible building field from the remaining tokens so suffix like "3 QR" can be checked strictly.
+            parts = normalize(actual).split()
+            building_visible = " ".join(parts[3:5]) if len(parts) >= 5 else (parts[3] if len(parts) >= 4 else "")
+            building_ok, building_expected = building_suffix_strict_ok(building_visible, building_no, building_suffix)
+            building_ok = building_ok and building_no in ["1", "2", "3", "4", "5", "6"]
+            building_code = building_visible
         else:
             expected_building_full = ""
             building_ok = True
@@ -1905,25 +1817,14 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     # OL pattern has no separate Running No.
     actual_run_no, run_ok = extract_export_running_no(all_text, carton_alpha_code)
 
-    if building_no:
-        if building_suffix:
-            expected_building_full = f"{building_no} {building_suffix}".upper()
-        else:
-            expected_building_full = building_no
-        if building_suffix:
-            building_ok = re.search(rf"\b{re.escape(expected_building_full)}\b", all_text) is not None
-        else:
-            building_ok = re.search(rf"\b{re.escape(building_no)}\b", all_text) is not None
-    else:
-        expected_building_full = ""
-        building_ok = True
+    building_ok, expected_building_full = building_suffix_strict_ok(all_text, building_no, building_suffix)
 
     checks = [
         ("Shipping Mark before Running No.", has_shipping_mark, all_text, shipping_mark or "ไม่ต้องมี Shipping Mark"),
         ("Running No.", run_ok, actual_run_no if actual_run_no else all_text, "ตัวเลข 5 หลัก เช่น 00001"),
         ("Prefix before MFG date", has_alpha_code, all_text, carton_alpha_code or "ไม่บังคับ Prefix"),
         ("MFG date", has_mfg, all_text, expected_mfg),
-        ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร"),
+        ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร / ถ้าเลือก QR ต้องอ่านได้ 3 QR ชัดเจนเท่านั้น"),
         ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
     ]
 
