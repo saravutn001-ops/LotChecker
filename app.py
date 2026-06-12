@@ -1346,13 +1346,13 @@ Return JSON only:
   "has_exp": true,
   "has_k": true,
   "abnormal_points": [
-    {
+    {{
       "item": "Running No. / Shipping Mark / Prefix / MFG Date / Building No. / Suffix / EXP / MFG Word / EXP Word",
       "actual": "what is visible",
       "expected": "what should be printed",
       "problem": "Missing / Wrong / Unclear / Incomplete / Extra",
       "position_hint": "before Running No. / before MFG date / after Building No. / first line / second line"
-    }
+    }}
   ]
 }}
 
