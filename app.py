@@ -25,7 +25,9 @@ HTML = """
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>Lot Checker</title>
+<title>IP ONE Lot Checker</title>
+<link rel="icon" type="image/png" href="/static/logo.png">
+<link rel="apple-touch-icon" href="/static/logo.png">
 <style>
 
 :root {
@@ -65,12 +67,8 @@ h1 {
     letter-spacing:0.5px;
 }
 h1::after {
-    content:"AI Lot Verification";
-    display:block;
-    font-size:14px;
-    color:var(--muted);
-    font-weight:normal;
-    margin-top:4px;
+    content:"";
+    display:none;
 }
 h3 { font-size:22px; margin:10px 0 8px; }
 label {
@@ -263,12 +261,47 @@ pre {
 
 .status-pass { color:#087f36; font-weight:bold; }
 .status-ng { color:#b91c1c; font-weight:bold; }
+
+.header-logo {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    margin:4px 0 10px;
+}
+.header-logo img {
+    width:82px;
+    height:auto;
+    object-fit:contain;
+}
+.header-logo h1 {
+    margin:0;
+    text-align:left;
+}
+.header-logo p {
+    margin:4px 0 0;
+    color:var(--muted);
+    font-size:14px;
+    letter-spacing:0.4px;
+}
+@media (max-width:640px) {
+    .header-logo { gap:10px; }
+    .header-logo img { width:64px; }
+    .header-logo h1 { font-size:24px; }
+}
+
 </style>
 </head>
 <body>
 
 <div class="box">
-<h1>Lot Checker</h1>
+<div class="header-logo">
+    <img src="/static/logo.png" alt="IP One Logo">
+    <div>
+        <h1>IP ONE LOT CHECKER</h1>
+        <p>AI Lot Verification System</p>
+    </div>
+</div>
 
 <div class="step-tabs">
     <button id="tab1" onclick="goPage(1)">1 ตั้งค่า</button>
