@@ -1513,6 +1513,20 @@ Additional visual inspection requirement:
     return response.output_text
 
 
+def build_abnormal_points(details):
+    abnormal_points = []
+    for d in (details or []):
+        if str(d.get("status","")).upper() == "NG":
+            abnormal_points.append({
+                "item": d.get("item",""),
+                "actual": d.get("actual",""),
+                "expected": d.get("expected",""),
+                "problem": "Wrong",
+                "position_hint": d.get("item","")
+            })
+    return abnormal_points
+
+
 def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_line, expected_exp):
     details = []
     overall = True
