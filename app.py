@@ -832,6 +832,22 @@ if (data.stampedImageUrl) {
         });
 
         html += `</table>`;
+
+        if (data.abnormalPoints && data.abnormalPoints.length > 0) {
+            html += `<h3>จุดผิดปกติที่พบ</h3>`;
+            html += `<table><tr><th>จุดที่ผิด</th><th>ปัญหา</th><th>อ่านได้</th><th>ควรเป็น</th><th>ตำแหน่งในรูป/ล็อต</th></tr>`;
+            data.abnormalPoints.forEach(p => {
+                html += `<tr>
+                    <td>${p.item || ""}</td>
+                    <td>${p.problem || ""}</td>
+                    <td>${p.actual || ""}</td>
+                    <td>${p.expected || ""}</td>
+                    <td>${p.position_hint || ""}</td>
+                </tr>`;
+            });
+            html += `</table>`;
+        }
+
         html += `<h3>AI อ่านได้ทั้งหมด</h3><pre>${JSON.stringify(data.lines, null, 2)}</pre>`;
         detailDiv.innerHTML = html;
 
@@ -1279,10 +1295,17 @@ Rules:
 - MFG date must be exactly {expected_mfg}.
 - Building number is optional. If building number is selected, it must be exactly {building_no} and must be 1-6.
 - If building number is blank/none, the carton code must not be judged NG because of missing building number.
-- Suffix after building number must be exactly "{building_suffix}" if provided. If building number is blank/none, ignore suffix.
+- Suffix after building number must be exactly "{building_suffix}" if provided.
+- Do not infer suffix from expected value.
+- If suffix is unclear, broken, incomplete, smeared, faint, partially missing, or not clearly readable, return UNCLEAR.
+- Only return QR if both Q and R are clearly visible.
+- If only R is visible, return R.
+- If only Q is visible, return Q.
+- If unsure between QR and R, return UNCLEAR, not QR. If building number is blank/none, ignore suffix.
 - Do not infer suffix from expected value.
 - If suffix is unclear, broken, incomplete, smeared, partially missing, or not clearly readable, return it as UNCLEAR.
 - Only return QR if both Q and R are clearly visible. If only R is visible, return R. If unsure, return UNCLEAR.
+- If unsure between QR and R, return UNCLEAR, not QR.
 - Only return N if N is clearly visible. If unsure, return UNCLEAR.
 - Examples: 3 N means building 3 with suffix N. 3 QR means building 3 with suffix QR. Suffix must be separated by a space.
 - Do not silently correct mistakes.
@@ -1321,7 +1344,16 @@ Return JSON only:
   "has_alpha_code": true,
   "has_mfg": true,
   "has_exp": true,
-  "has_k": true
+  "has_k": true,
+  "abnormal_points": [
+    {
+      "item": "Running No. / Shipping Mark / Prefix / MFG Date / Building No. / Suffix / EXP / MFG Word / EXP Word",
+      "actual": "what is visible",
+      "expected": "what should be printed",
+      "problem": "Missing / Wrong / Unclear / Incomplete / Extra",
+      "position_hint": "before Running No. / before MFG date / after Building No. / first line / second line"
+    }
+  ]
 }}
 
 Rules:
@@ -1431,6 +1463,38 @@ Return JSON only:
 {{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
 
 Important: If the image does not show the words MFG or EXP, do not add them yourself. Return exactly what is printed.
+"""
+
+    prompt += """
+
+STRICT INSPECTION MODE:
+- Read ONLY what is clearly visible in the image.
+- Do NOT infer, guess, complete, correct, or normalize any character from the expected value.
+- Do NOT use expected values to decide unclear characters.
+- If any character is unclear, broken, smeared, faint, incomplete, partially missing, hidden, or visually ambiguous, return "UNCLEAR" for that character/field.
+- If the whole field is unclear, return "UNCLEAR".
+- For suffix QR:
+  - Return "QR" ONLY when both Q and R are clearly visible.
+  - If Q is unclear, return "UNCLEAR R" or "UNCLEAR".
+  - If R is unclear, return "Q UNCLEAR" or "UNCLEAR".
+  - If only R is visible, return "R".
+  - If only Q is visible, return "Q".
+  - Never return "QR" just because expected suffix is QR.
+- For Running No.:
+  - Read exact number of digits as printed.
+  - Never add leading zero.
+  - 0001 must remain 0001, not 00001.
+- For MFG/EXP:
+  - Never add missing words MFG or EXP.
+  - If MFG or EXP text is not clearly visible, return exactly what is visible or UNCLEAR.
+- If confidence is not high, choose UNCLEAR, not the expected value.
+
+Additional visual inspection requirement:
+- Identify abnormal point if visible.
+- Do not guess or correct characters.
+- If a character/word is unclear, broken, smeared, missing, or incomplete, mark it as UNCLEAR.
+- Return abnormal_points only for visible abnormal items.
+- position_hint must describe where it is on the lot code, such as "before Running No.", "before MFG date", "after Building No.", "MFG line", or "EXP line".
 """
 
     response = client.responses.create(
@@ -1723,8 +1787,8 @@ def building_suffix_strict_ok(all_text, building_no, building_suffix):
     """
     Strict check for Building No. + Suffix.
     If suffix is selected, AI must read exact suffix clearly.
-    Example: expected 3 QR -> only "3 QR" passes.
-    "3 R", "3 Q", "3 UNCLEAR", "3 ?" must be NG.
+    Example: expected 3 QR -> only exact "3 QR" passes.
+    "3 R", "3 Q", "3 UNCLEAR", "3 ?", smeared or unclear must be NG.
     """
     building_no = str(building_no or "").strip().upper()
     building_suffix = str(building_suffix or "").strip().upper()
@@ -1733,14 +1797,25 @@ def building_suffix_strict_ok(all_text, building_no, building_suffix):
     if not building_no:
         return True, "ไม่ตรวจเลขอาคาร"
 
-    if "UNCLEAR" in text or "?" in text:
-        return False, f"{building_no} {building_suffix}".strip()
+    expected = f"{building_no} {building_suffix}".strip().upper()
+
+    # Anything unclear must fail when we are checking building/suffix.
+    if "UNCLEAR" in text or "?" in text or "UNKNOWN" in text:
+        return False, expected if expected else building_no
 
     if building_suffix:
-        expected = f"{building_no} {building_suffix}".upper()
-        # ต้องมีการเว้นวรรคระหว่างเลขอาคารกับ suffix
-        ok = re.search(rf"\b{re.escape(building_no)}\s+{re.escape(building_suffix)}\b", text) is not None
-        return ok, expected
+        # Need exact separated suffix, e.g. "3 QR"
+        ok_exact = re.search(rf"\b{re.escape(building_no)}\s+{re.escape(building_suffix)}\b", text) is not None
+
+        # Special safety for QR:
+        # If expected QR but AI reads only Q or only R after building, must NG.
+        if building_suffix == "QR":
+            ok_exact = re.search(rf"\b{re.escape(building_no)}\s+QR\b", text) is not None
+            only_q_or_r = re.search(rf"\b{re.escape(building_no)}\s+[QR]\b", text) is not None
+            if only_q_or_r and not ok_exact:
+                return False, expected
+
+        return ok_exact, expected
 
     # ไม่มี suffix ตรวจแค่เลขอาคาร
     ok = re.search(rf"\b{re.escape(building_no)}\b", text) is not None
@@ -1965,6 +2040,9 @@ def check():
         summary = "PASS" if overall else "NG"
         checked_time = now_thai().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Abnormal points are generated from real validation result.
+        abnormal_points = build_abnormal_points(details) if summary == "NG" else []
+
         stamped_filename = stamp_image(
             image_data,
             summary,
@@ -1984,6 +2062,7 @@ def check():
             "expectedExp": expected_exp if expected_exp else "ไม่ใช้ EXP",
             "lines": lines,
             "details": details,
+            "abnormalPoints": abnormal_points,
             "time": checked_time,
             "stampedImageUrl": f"/stamped/{stamped_filename}"
         })
