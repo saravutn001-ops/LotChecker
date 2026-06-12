@@ -260,6 +260,9 @@ pre {
     th, td { font-size:13px; padding:8px; }
 }
 
+
+.status-pass { color:#087f36; font-weight:bold; }
+.status-ng { color:#b91c1c; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -828,7 +831,8 @@ if (data.stampedImageUrl) {
         html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
 
         data.details.forEach(row => {
-            html += `<tr><td>${row.item}</td><td>${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
+            const cls = row.status === "PASS" ? "status-pass" : (row.status === "NG" ? "status-ng" : "");
+            html += `<tr><td>${row.item}</td><td class="${cls}">${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
         });
 
         html += `</table>`;
@@ -1835,12 +1839,95 @@ def building_suffix_strict_ok(all_text, building_no, building_suffix):
     ok = re.search(rf"\b{re.escape(building_no)}\b", text) is not None
     return ok, building_no
 
+
+def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code="", shipping_mark="", building_no="", building_suffix=""):
+    """
+    Return only the real field value for each carton check row.
+    Example visible: XR 00001 IR 080626 3 Q
+    shipping_mark -> XR
+    running_no -> 00001
+    prefix -> IR
+    mfg -> 080626
+    building_suffix -> 3 Q
+    """
+    text = normalize(all_text)
+    tokens = lot_tokens(text)
+
+    result = {
+        "shipping_mark": "",
+        "running_no": "",
+        "prefix": "",
+        "mfg": "",
+        "building_suffix": "",
+        "exp": "",
+    }
+
+    expected_mfg = clean_lot_token(expected_mfg)
+    expected_prefix = clean_lot_token(carton_alpha_code)
+
+    run_index = None
+    for i, t in enumerate(tokens):
+        if re.fullmatch(r"\d{4,5}", t):
+            result["running_no"] = t
+            run_index = i
+            break
+
+    if run_index is not None and run_index > 0:
+        result["shipping_mark"] = tokens[run_index - 1]
+
+    mfg_index = None
+    for i, t in enumerate(tokens):
+        if expected_mfg and t == expected_mfg:
+            result["mfg"] = t
+            mfg_index = i
+            break
+
+    if mfg_index is None:
+        for i, t in enumerate(tokens):
+            if re.fullmatch(r"\d{6}", t):
+                result["mfg"] = t
+                mfg_index = i
+                break
+
+    if mfg_index is not None and mfg_index > 0:
+        result["prefix"] = tokens[mfg_index - 1]
+
+    if mfg_index is not None and mfg_index + 1 < len(tokens):
+        b = tokens[mfg_index + 1]
+        if mfg_index + 2 < len(tokens):
+            result["building_suffix"] = f"{b} {tokens[mfg_index + 2]}"
+        else:
+            result["building_suffix"] = b
+
+    for i, t in enumerate(tokens):
+        if t == "EXP" and i + 1 < len(tokens):
+            result["exp"] = tokens[i + 1]
+            break
+
+    if expected_prefix in ["OL", "OD"]:
+        compact = re.sub(r"[^A-Z0-9]", "", text.upper())
+        m = re.search(r"OL(\d{6})", compact)
+        if m:
+            result["prefix"] = "OL"
+            result["mfg"] = m.group(1)
+
+    return result
+
+
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
     overall = True
     lines = [normalize(x) for x in lines]
     all_text = " ".join(lines)
     actual = lines[0] if lines else ""
+    field_actual = extract_carton_actual_fields(
+        all_text,
+        expected_mfg,
+        carton_alpha_code,
+        shipping_mark,
+        building_no,
+        building_suffix
+    )
 
     if market_type == "TH":
         run_no, sales_code, mfg_code, building_code = parse_th_carton_fields(actual)
@@ -1909,12 +1996,12 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     building_ok, expected_building_full = building_suffix_strict_ok(all_text, building_no, building_suffix)
 
     checks = [
-        ("Shipping Mark before Running No.", has_shipping_mark, all_text, shipping_mark or "ไม่ต้องมี Shipping Mark"),
-        ("Running No.", run_ok, actual_run_no if actual_run_no else all_text, "ตัวเลข 5 หลัก เช่น 00001"),
-        ("Prefix before MFG date", has_alpha_code, all_text, carton_alpha_code or "ไม่บังคับ Prefix"),
-        ("MFG date", has_mfg, all_text, expected_mfg),
-        ("Building No. + Suffix", building_ok, all_text, expected_building_full or "ไม่ตรวจเลขอาคาร / ถ้าเลือก QR ต้องอ่านได้ 3 QR ชัดเจนเท่านั้น"),
-        ("EXP", has_exp, all_text, expected_exp if expected_exp else "ไม่ต้องมี EXP"),
+        ("Shipping Mark before Running No.", has_shipping_mark, field_actual.get("shipping_mark") or "NOT FOUND", shipping_mark or "ไม่ต้องมี Shipping Mark"),
+        ("Running No.", run_ok, actual_run_no or field_actual.get("running_no") or "NOT FOUND", "ตัวเลข 5 หลัก เช่น 00001"),
+        ("Prefix before MFG date", has_alpha_code, field_actual.get("prefix") or "NOT FOUND", carton_alpha_code or "ไม่บังคับ Prefix"),
+        ("MFG date", has_mfg, field_actual.get("mfg") or "NOT FOUND", expected_mfg),
+        ("Building No. + Suffix", building_ok, field_actual.get("building_suffix") or "NOT FOUND", expected_building_full or "ไม่ตรวจเลขอาคาร / ถ้าเลือก QR ต้องอ่านได้ 3 QR ชัดเจนเท่านั้น"),
+        ("EXP", has_exp, field_actual.get("exp") or ("ไม่ต้องมี EXP" if not expected_exp else "NOT FOUND"), expected_exp if expected_exp else "ไม่ต้องมี EXP"),
     ]
 
     for item, ok, actual_value, expected_value in checks:
