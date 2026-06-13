@@ -1534,6 +1534,13 @@ Additional visual inspection requirement:
 - position_hint must describe where it is on the lot code, such as "before Running No.", "before MFG date", "after Building No.", "MFG line", or "EXP line".
 """
 
+    prompt += """
+Time validation rule:
+- Time must be in 24-hour format from 00:00 to 23:59 only.
+- 24:00, 25:15, 29:59, or any hour greater than 23 is invalid.
+- If the printed time is 25:15, return "time":"25:15" exactly. Do not correct it.
+"""
+
     response = client.responses.create(
         model="gpt-4.1-mini",
         input=[
@@ -1600,8 +1607,17 @@ def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_
 
     return overall, details
 
+def is_valid_time_hhmm(value):
+    """
+    Valid time must be 00:00 - 23:59 only.
+    24:00, 25:15, 29:59 are invalid.
+    """
+    value = str(value or "").strip()
+    return re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", value) is not None
+
+
 def extract_time(text):
-    match = re.search(r"\b([0-2][0-9]:[0-5][0-9])\b", text)
+    match = re.search(r"\b(([01][0-9]|2[0-3]):[0-5][0-9])\b", text)
     return match.group(1) if match else ""
 
 
@@ -1627,13 +1643,21 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         expected_mfg_part = f"MFG {expected_mfg} {expected_line}".upper()
 
     expected_exp_part = f"EXP {expected_exp}".upper() if expected_exp else ""
-    time_found = ai_time or extract_time(all_text)
+
+    # Time must be valid 00:00 - 23:59 only.
+    # Do not accept impossible time such as 24:00 or 25:15.
+    ai_time = str(ai_time or "").strip()
+    time_found = ai_time if ai_time else extract_time(all_text)
+    if not is_valid_time_hhmm(time_found):
+        invalid_time_match = re.search(r"\b([0-9]{2}:[0-9]{2})\b", all_text)
+        if invalid_time_match:
+            time_found = invalid_time_match.group(1)
 
     # Safety rule:
     # Pouch/Linapack must contain the printed word MFG.
     # If this product/market requires EXP, it must also contain the printed word EXP.
     mfg_ok = (expected_mfg_part in mfg_line) and has_mfg_word
-    time_ok = bool(time_found)
+    time_ok = is_valid_time_hhmm(time_found)
     exp_ok = True if skip_exp else ((expected_exp_part in exp_line or expected_exp_part in all_text) and has_exp_word)
 
     if not mfg_ok:
@@ -1651,7 +1675,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         "item": "เวลา TT:TT",
         "status": "PASS" if time_ok else "NG",
         "actual": time_found,
-        "expected": "รูปแบบ HH:MM เช่น 09:40"
+        "expected": "เวลาต้องอยู่ในช่วง 00:00-23:59 เช่น 09:40 / 25:15 ใช้ไม่ได้"
     })
 
     if skip_exp:
