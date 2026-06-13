@@ -1917,6 +1917,95 @@ def building_suffix_strict_ok(all_text, building_no, building_suffix):
 
     return True, building_no
 
+
+def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code="", shipping_mark="", building_no="", building_suffix=""):
+    """
+    Extract only the actual value for each carton field from the OCR/GPT text.
+    This prevents the UI from showing the whole lot line in every row.
+    Example: XR 00001 XR 130626 3 QR
+      shipping_mark = XR
+      running_no = 00001
+      prefix = XR
+      mfg = 130626
+      building_suffix = 3 QR
+    """
+    text = normalize(all_text)
+    tokens = lot_tokens(text)
+
+    result = {
+        "shipping_mark": "",
+        "running_no": "",
+        "prefix": "",
+        "mfg": "",
+        "building_suffix": "",
+        "exp": "",
+    }
+
+    expected_mfg = clean_lot_token(expected_mfg)
+    expected_prefix = clean_lot_token(carton_alpha_code)
+
+    # Running No. = first 4-5 digit token. MFG date is 6 digits, so it is ignored here.
+    run_index = None
+    for i, token in enumerate(tokens):
+        if re.fullmatch(r"\d{4,5}", token):
+            result["running_no"] = token
+            run_index = i
+            break
+
+    # Shipping Mark = token before Running No.
+    if run_index is not None and run_index > 0:
+        result["shipping_mark"] = tokens[run_index - 1]
+
+    # MFG date = expected MFG if found, otherwise first 6 digit token
+    mfg_index = None
+    for i, token in enumerate(tokens):
+        if expected_mfg and token == expected_mfg:
+            result["mfg"] = token
+            mfg_index = i
+            break
+
+    if mfg_index is None:
+        for i, token in enumerate(tokens):
+            if re.fullmatch(r"\d{6}", token):
+                result["mfg"] = token
+                mfg_index = i
+                break
+
+    # Prefix = token before MFG date
+    if mfg_index is not None and mfg_index > 0:
+        result["prefix"] = tokens[mfg_index - 1]
+
+    # Building + suffix = token(s) after MFG date.
+    # If there is an extra suffix such as QR, show it so the user sees why it is NG.
+    if mfg_index is not None and mfg_index + 1 < len(tokens):
+        building = tokens[mfg_index + 1]
+        if mfg_index + 2 < len(tokens):
+            next_token = tokens[mfg_index + 2]
+            # Show suffix if alphabetic, e.g. 3 QR or 3 N
+            if re.fullmatch(r"[A-Z]+", next_token):
+                result["building_suffix"] = f"{building} {next_token}"
+            else:
+                result["building_suffix"] = building
+        else:
+            result["building_suffix"] = building
+
+    # EXP = token after EXP word if present
+    for i, token in enumerate(tokens):
+        if token == "EXP" and i + 1 < len(tokens):
+            result["exp"] = tokens[i + 1]
+            break
+
+    # OL special pattern may be OL130626 etc.
+    if expected_prefix in ["OL", "OD"]:
+        compact = re.sub(r"[^A-Z0-9]", "", text.upper())
+        m = re.search(r"OL(\d{6})", compact)
+        if m:
+            result["prefix"] = "OL"
+            result["mfg"] = m.group(1)
+
+    return result
+
+
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
     overall = True
