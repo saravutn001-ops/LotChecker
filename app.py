@@ -1861,9 +1861,15 @@ def running_no_present(all_text, carton_alpha_code=""):
 def building_suffix_strict_ok(all_text, building_no, building_suffix):
     """
     Strict check for Building No. + Suffix.
-    If suffix is selected, AI must read exact suffix clearly.
-    Example: expected 3 QR -> only exact "3 QR" passes.
-    "3 R", "3 Q", "3 UNCLEAR", "3 ?", smeared or unclear must be NG.
+
+    Rules:
+    - If building_no is blank: do not check building/suffix.
+    - If building_suffix is selected, exact "building suffix" is required, e.g. "3 QR".
+    - If building_suffix is blank, only the building number is allowed.
+      Example expected "3":
+        "3"    = PASS
+        "3 QR" = NG because QR is extra
+        "3 N"  = NG because N is extra
     """
     building_no = str(building_no or "").strip().upper()
     building_suffix = str(building_suffix or "").strip().upper()
@@ -1874,102 +1880,42 @@ def building_suffix_strict_ok(all_text, building_no, building_suffix):
 
     expected = f"{building_no} {building_suffix}".strip().upper()
 
-    # Anything unclear must fail when we are checking building/suffix.
-    if "UNCLEAR" in text or "?" in text or "UNKNOWN" in text:
-        return False, expected if expected else building_no
+    if "UNCLEAR" in text or "UNKNOWN" in text or "?" in text:
+        return False, expected
 
-    if building_suffix:
-        # Need exact separated suffix, e.g. "3 QR"
-        ok_exact = re.search(rf"\b{re.escape(building_no)}\s+{re.escape(building_suffix)}\b", text) is not None
-
-        # Special safety for QR:
-        # If expected QR but AI reads only Q or only R after building, must NG.
-        if building_suffix == "QR":
-            ok_exact = re.search(rf"\b{re.escape(building_no)}\s+QR\b", text) is not None
-            only_q_or_r = re.search(rf"\b{re.escape(building_no)}\s+[QR]\b", text) is not None
-            if only_q_or_r and not ok_exact:
-                return False, expected
-
-        return ok_exact, expected
-
-    # ไม่มี suffix ตรวจแค่เลขอาคาร
-    ok = re.search(rf"\b{re.escape(building_no)}\b", text) is not None
-    return ok, building_no
-
-
-def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code="", shipping_mark="", building_no="", building_suffix=""):
-    """
-    Return only the real field value for each carton check row.
-    Example visible: XR 00001 IR 080626 3 Q
-    shipping_mark -> XR
-    running_no -> 00001
-    prefix -> IR
-    mfg -> 080626
-    building_suffix -> 3 Q
-    """
-    text = normalize(all_text)
+    # Tokenize only visible building field / lot text
     tokens = lot_tokens(text)
 
-    result = {
-        "shipping_mark": "",
-        "running_no": "",
-        "prefix": "",
-        "mfg": "",
-        "building_suffix": "",
-        "exp": "",
-    }
+    # Find building number token
+    building_indexes = [i for i, t in enumerate(tokens) if t == building_no]
+    if not building_indexes:
+        return False, expected
 
-    expected_mfg = clean_lot_token(expected_mfg)
-    expected_prefix = clean_lot_token(carton_alpha_code)
+    # Use the last building occurrence because building is usually at the end of lot code
+    idx = building_indexes[-1]
 
-    run_index = None
-    for i, t in enumerate(tokens):
-        if re.fullmatch(r"\d{4,5}", t):
-            result["running_no"] = t
-            run_index = i
-            break
+    if building_suffix:
+        # Must have exact suffix after building number
+        if idx + 1 >= len(tokens):
+            return False, expected
 
-    if run_index is not None and run_index > 0:
-        result["shipping_mark"] = tokens[run_index - 1]
+        actual_suffix = tokens[idx + 1]
+        ok = actual_suffix == building_suffix
 
-    mfg_index = None
-    for i, t in enumerate(tokens):
-        if expected_mfg and t == expected_mfg:
-            result["mfg"] = t
-            mfg_index = i
-            break
+        # Safety for QR: must be QR exactly, not Q/R/UNCLEAR
+        if building_suffix == "QR" and actual_suffix != "QR":
+            return False, expected
 
-    if mfg_index is None:
-        for i, t in enumerate(tokens):
-            if re.fullmatch(r"\d{6}", t):
-                result["mfg"] = t
-                mfg_index = i
-                break
+        return ok, expected
 
-    if mfg_index is not None and mfg_index > 0:
-        result["prefix"] = tokens[mfg_index - 1]
+    # No suffix expected:
+    # If anything alphabetic appears immediately after building number, it is extra and must be NG.
+    if idx + 1 < len(tokens):
+        next_token = tokens[idx + 1]
+        if re.fullmatch(r"[A-Z]+", next_token):
+            return False, building_no
 
-    if mfg_index is not None and mfg_index + 1 < len(tokens):
-        b = tokens[mfg_index + 1]
-        if mfg_index + 2 < len(tokens):
-            result["building_suffix"] = f"{b} {tokens[mfg_index + 2]}"
-        else:
-            result["building_suffix"] = b
-
-    for i, t in enumerate(tokens):
-        if t == "EXP" and i + 1 < len(tokens):
-            result["exp"] = tokens[i + 1]
-            break
-
-    if expected_prefix in ["OL", "OD"]:
-        compact = re.sub(r"[^A-Z0-9]", "", text.upper())
-        m = re.search(r"OL(\d{6})", compact)
-        if m:
-            result["prefix"] = "OL"
-            result["mfg"] = m.group(1)
-
-    return result
-
+    return True, building_no
 
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
     details = []
@@ -2057,7 +2003,7 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         ("Running No.", run_ok, actual_run_no or field_actual.get("running_no") or "NOT FOUND", "ตัวเลข 5 หลัก เช่น 00001"),
         ("Prefix before MFG date", has_alpha_code, field_actual.get("prefix") or "NOT FOUND", carton_alpha_code or "ไม่บังคับ Prefix"),
         ("MFG date", has_mfg, field_actual.get("mfg") or "NOT FOUND", expected_mfg),
-        ("Building No. + Suffix", building_ok, field_actual.get("building_suffix") or "NOT FOUND", expected_building_full or "ไม่ตรวจเลขอาคาร / ถ้าเลือก QR ต้องอ่านได้ 3 QR ชัดเจนเท่านั้น"),
+        ("Building No. + Suffix", building_ok, field_actual.get("building_suffix") or "NOT FOUND", expected_building_full or "ถ้าไม่เลือก Suffix ต้องไม่มีตัวอักษรต่อท้าย เช่น QR/N"),
         ("EXP", has_exp, field_actual.get("exp") or ("ไม่ต้องมี EXP" if not expected_exp else "NOT FOUND"), expected_exp if expected_exp else "ไม่ต้องมี EXP"),
     ]
 
