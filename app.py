@@ -1327,236 +1327,121 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
 def read_lot_with_ai(image_base64, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp,
                      mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code):
-    skip_exp = no_exp_required(product_type, market_type)
+    """
+    OCR-only prompt.
+
+    IMPORTANT CHANGE:
+    Do NOT send expected MFG/EXP/Line/Prefix values to the vision model.
+    If expected values are included in the prompt, the model tends to "correct" what it sees
+    (example: actual 220026 may be guessed/corrected as expected 220626).
+
+    The model must only transcribe visible text. Verification is done later by Python logic.
+    """
 
     if check_type == "carton":
         if market_type == "TH":
-            prompt = f"""
-Read ONLY the printed carton lot/batch number from the image.
+            prompt = """
+You are an OCR transcriber for a factory carton lot code.
+Read ONLY the printed lot/batch text visible in the image.
+Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits.
 
-This is Thailand carton format.
-
-Expected format:
-NNNNN 00 {expected_mfg} {building_no} {building_suffix}
-
-Rules:
-- NNNNN must be any 5 digits. Do not compare it with an expected value.
-- The second field must be exactly 00.
-- MFG date must be exactly {expected_mfg}.
-- Building number is optional. If building number is selected, it must be exactly {building_no} and must be 1-6.
-- If building number is blank/none, the carton code must not be judged NG because of missing building number.
-- Suffix after building number must be exactly "{building_suffix}" if provided.
-- Do not infer suffix from expected value.
-- If suffix is unclear, broken, incomplete, smeared, faint, partially missing, or not clearly readable, return UNCLEAR.
-- Only return QR if both Q and R are clearly visible.
-- If only R is visible, return R.
-- If only Q is visible, return Q.
-- If unsure between QR and R, return UNCLEAR, not QR. If building number is blank/none, ignore suffix.
-- Do not infer suffix from expected value.
-- If suffix is unclear, broken, incomplete, smeared, partially missing, or not clearly readable, return it as UNCLEAR.
-- Only return QR if both Q and R are clearly visible. If only R is visible, return R. If unsure, return UNCLEAR.
-- If unsure between QR and R, return UNCLEAR, not QR.
-- Only return N if N is clearly visible. If unsure, return UNCLEAR.
-- Examples: 3 N means building 3 with suffix N. 3 QR means building 3 with suffix QR. Suffix must be separated by a space.
-- Do not silently correct mistakes.
-- Beware Dot Matrix OCR: 0 may look like 8, but return exactly what you see.
+Likely Thailand carton visual pattern:
+- Running No. digits
+- sales code digits
+- MFG date digits
+- optional building number and optional suffix
 
 Return JSON only:
-{{"lines":["carton lot exactly as seen"]}}
+{"lines":["carton lot exactly as seen"]}
 """
         else:
-            shipping_rule = f"Shipping mark must be visible and match: {shipping_mark}" if shipping_mark else "Shipping mark may be blank or vary."
-            alpha_rule = f"The Prefix before MFG date must match: {carton_alpha_code}" if carton_alpha_code else "Alphabet code after running number may vary by D48 pattern."
-            prompt = f"""
-Read ONLY the printed carton batch/lot code from the image.
+            prompt = """
+You are an OCR transcriber for an export carton lot/batch code.
+Read ONLY the printed lot/batch text visible in the image.
+Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits.
 
-This is Export carton format based on D48 table.
-
-Common format parts:
-- Shipping Mark must be before the 5-digit Running No. Example: XR 00001 XR 080626. If visible code is 00001 XR 080626, Shipping Mark is missing.
-- Running number must be exactly 5 digits as printed.
-- CRITICAL: Never add leading zeros yourself. If the printed code is 0001, return 0001 exactly, do NOT convert it to 00001.
-- If the running number is not exactly 5 digits, the result must be NG.
-- Prefix is the code before MFG date. Example: 00001 XR 080626, Prefix is XR.
-- MFG date DDMMYY must be {expected_mfg}.
-- Building/category number is optional. If selected, it must be {building_no} {building_suffix}. Suffix must be separated by a space. If building number is blank/none, ignore building and suffix. Suffix after building number must be exactly "{building_suffix}" if provided.
-- EXP date may be {expected_exp if expected_exp else "not required"}.
-- Do not check K. The last number is Building No. 1-6, not K.
-- Special rule: Prefix OL uses Shipping Mark "IMPORTER:ORGANIC LINE CO., LTD" and it can be printed directly attached to the date without a space. Other prefixes normally have spacing.
-
-{shipping_rule}
-{alpha_rule}
+Likely export carton visual parts may include:
+- Shipping mark before running number
+- Running number
+- Prefix before date
+- MFG date
+- optional building number and suffix
+- optional EXP date
 
 Return JSON only:
-{{
+{
   "lines": ["carton batch/lot exactly as seen"],
   "has_shipping_mark": true,
   "has_alpha_code": true,
   "has_mfg": true,
   "has_exp": true,
   "has_k": true,
-  "abnormal_points": [
-    {{
-      "item": "Running No. / Shipping Mark / Prefix / MFG Date / Building No. / Suffix / EXP / MFG Word / EXP Word",
-      "actual": "what is visible",
-      "expected": "what should be printed",
-      "problem": "Missing / Wrong / Unclear / Incomplete / Extra",
-      "position_hint": "before Running No. / before MFG date / after Building No. / first line / second line"
-    }}
-  ]
-}}
-
-Rules:
-- Do not silently correct mistakes.
-- If shipping mark is not required or not specified, set has_shipping_mark to true.
-- If Prefix is specified but it is not printed before MFG date, set has_alpha_code to false.
-- If no EXP is printed and EXP is not required, set has_exp to true.
+  "abnormal_points": []
+}
 """
     elif mode == "sachet":
-        if skip_exp:
-            prompt = f"""
-Read ONLY printed lot code lines from the image.
-This is Sachet format. EXP is NOT required.
-
-Expected 6 rows:
-MFG {expected_mfg} {expected_line} 1
-MFG {expected_mfg} {expected_line} 2
-MFG {expected_mfg} {expected_line} 3
-MFG {expected_mfg} {expected_line} 4
-MFG {expected_mfg} {expected_line} 5
-MFG {expected_mfg} {expected_line} 6
+        prompt = """
+You are an OCR transcriber for sachet lot code rows.
+Read ONLY the printed lot code rows visible in the image.
+Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits or words.
 
 Return JSON only:
-{{"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}}
-"""
-        else:
-            prompt = f"""
-Read ONLY printed lot code lines from the image.
-This is Sachet format.
-
-Expected 6 rows:
-MFG {expected_mfg} {expected_line} 1 EXP {expected_exp}
-MFG {expected_mfg} {expected_line} 2 EXP {expected_exp}
-MFG {expected_mfg} {expected_line} 3 EXP {expected_exp}
-MFG {expected_mfg} {expected_line} 4 EXP {expected_exp}
-MFG {expected_mfg} {expected_line} 5 EXP {expected_exp}
-MFG {expected_mfg} {expected_line} 6 EXP {expected_exp}
-
-Return JSON only:
-{{"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}}
+{"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}
 """
     else:
-        if product_type == "EPW" and market_type == "TH":
-            prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPW Thailand format. EXP is NOT required.
-
-Expected:
-MFG {expected_mfg} {mix_code} TT:TT
+        prompt = """
+You are an OCR transcriber for a pouch / Linapack lot code.
+Read ONLY the printed MFG/EXP lot text visible in the image.
+Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits, times, line codes, MFG, or EXP.
 
 Return JSON only:
-{{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
-
-Important: If the image does not show the word MFG, do not add MFG yourself. Return exactly what is printed.
-"""
-        elif product_type == "EPW" and market_type == "LAOS":
-            prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPW Laos Export format. No Mix Code. EXP is required.
-
-Expected:
-MFG {expected_mfg} TT:TT
-EXP {expected_exp}
-
-Return JSON only:
-{{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
-
-Important: If the image does not show the words MFG or EXP, do not add them yourself. Return exactly what is printed.
-"""
-        elif product_type == "EPW" and market_type == "EXPORT":
-            prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPW Export format. No Mix Code and no EXP.
-
-Expected:
-MFG {expected_mfg} TT:TT
-
-Return JSON only:
-{{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
-
-Important: If the image does not show the word MFG, do not add MFG yourself. Return exactly what is printed.
-"""
-        else:
-            if skip_exp:
-                prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPC Export format. EXP is NOT required.
-
-Expected:
-MFG {expected_mfg} {expected_line} TT:TT
-
-Return JSON only:
-{{"lines":["MFG line exactly as seen"],"time":"HH:MM exactly as seen"}}
-
-Important: If the image does not show the word MFG, do not add MFG yourself. Return exactly what is printed.
-"""
-            else:
-                prompt = f"""
-Read ONLY printed lot code from the image.
-This is Linapack EPC Thailand format.
-
-Expected:
-MFG {expected_mfg} {expected_line} TT:TT
-EXP {expected_exp}
-
-Return JSON only:
-{{"lines":["MFG line exactly as seen","EXP line exactly as seen"],"time":"HH:MM exactly as seen"}}
-
-Important: If the image does not show the words MFG or EXP, do not add them yourself. Return exactly what is printed.
+{"lines":["first printed line exactly as seen","second printed line exactly as seen if visible"],"time":"HH:MM exactly as seen if visible"}
 """
 
     prompt += """
 
 STRICT OCR / NO GUESSING MODE:
-- Your job is visual transcription only, not correction.
-- Read ONLY what is clearly visible in the image.
-- Do NOT infer, guess, complete, correct, normalize, or repair any character from the expected value.
-- Do NOT use expected values to decide unclear characters.
+- Your job is VISUAL TRANSCRIPTION ONLY.
+- Never infer from the correct pattern.
+- Never infer from expected values.
+- Never repair a date to look correct.
+- Never normalize a date.
+- Never change one digit into another because it looks more likely.
+- Never add missing digits.
+- Never remove extra digits.
+- Never add leading zero.
+- Never remove leading zero.
+
+CRITICAL DIGIT RULES:
+- Read every digit one by one from left to right.
+- If the image shows 220026, return 220026 exactly. Do NOT return 220626.
+- If the image shows 2200626, return 2200626 exactly. Do NOT return 220626.
+- If the image shows 220626, return 220626 only when every digit is clearly visible as 2 2 0 6 2 6.
+- If the middle digit is unclear between 0 and 6, return 220?26 or UNCLEAR, not 220626.
+- If a digit is broken, faint, smeared, or ambiguous, use ? for that digit.
+
+CHARACTER RULES:
 - If a character looks like IR, return IR. Do not change it to XR.
-- If a character looks damaged or unclear, return UNCLEAR or ?.
-- If a digit string has 4 digits, return 4 digits. Never add a digit.
-- If a digit string has 7 digits, return 7 digits. Never remove a digit.
-- If any character is unclear, broken, smeared, faint, incomplete, partially missing, hidden, or visually ambiguous, return "UNCLEAR" for that character/field.
-- If the whole field is unclear, return "UNCLEAR".
-- For suffix QR:
-  - Return "QR" ONLY when both Q and R are clearly visible.
-  - If Q is unclear, return "UNCLEAR R" or "UNCLEAR".
-  - If R is unclear, return "Q UNCLEAR" or "UNCLEAR".
-  - If only R is visible, return "R".
-  - If only Q is visible, return "Q".
-  - Never return "QR" just because expected suffix is QR.
-- For Running No.:
-  - Read exact number of digits as printed.
-  - Never add leading zero.
-  - 0001 must remain 0001, not 00001.
-- For MFG/EXP:
-  - Never add missing words MFG or EXP.
-  - If MFG or EXP text is not clearly visible, return exactly what is visible or UNCLEAR.
-- If confidence is not high, choose UNCLEAR, not the expected value.
+- If a character looks like O, return O. Do not change it to Q.
+- If only R is visible, return R. Do not change it to QR.
+- Return QR only when both Q and R are clearly visible.
+- If Q or R is unclear, return Q? / ?R / UNCLEAR.
 
-Additional visual inspection requirement:
-- Identify abnormal point if visible.
-- Do not guess or correct characters.
-- If a character/word is unclear, broken, smeared, missing, or incomplete, mark it as UNCLEAR.
-- Return abnormal_points only for visible abnormal items.
-- position_hint must describe where it is on the lot code, such as "before Running No.", "before MFG date", "after Building No.", "MFG line", or "EXP line".
-"""
+WORD RULES:
+- Never add missing words MFG or EXP.
+- If MFG or EXP text is not clearly visible, return exactly what is visible or UNCLEAR.
 
-    prompt += """
-Time validation rule:
-- Time must be in 24-hour format from 00:00 to 23:59 only.
-- 24:00, 25:15, 29:59, or any hour greater than 23 is invalid.
+TIME RULES:
 - If the printed time is 25:15, return "time":"25:15" exactly. Do not correct it.
+- Do not convert invalid time into a valid time.
+
+UNCLEAR RULE:
+- If confidence is not high, choose ? or UNCLEAR instead of the most likely correct value.
+- The safest output for unclear text is UNCLEAR, not a guessed correction.
+
+OUTPUT RULE:
+- Return JSON only.
+- Do not explain.
 """
 
     response = client.responses.create(
@@ -1573,7 +1458,6 @@ Time validation rule:
     )
 
     return response.output_text
-
 
 def build_abnormal_points(details):
     abnormal_points = []
