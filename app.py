@@ -910,6 +910,19 @@ def normalize(text):
     return text
 
 
+
+
+def has_unclear_text(value):
+    """Return True when OCR/AI is not confident. In strict inspection, unclear text must be NG."""
+    raw = normalize(value)
+    return (
+        "?" in raw
+        or "UNCLEAR" in raw
+        or "UNKNOWN" in raw
+        or "NOT CLEAR" in raw
+        or "NOT READABLE" in raw
+    )
+
 def clean_json_text(text):
     text = text.replace("```json", "").replace("```", "").strip()
     start = text.find("{")
@@ -1504,10 +1517,15 @@ Important: If the image does not show the words MFG or EXP, do not add them your
 
     prompt += """
 
-STRICT INSPECTION MODE:
+STRICT OCR / NO GUESSING MODE:
+- Your job is visual transcription only, not correction.
 - Read ONLY what is clearly visible in the image.
-- Do NOT infer, guess, complete, correct, or normalize any character from the expected value.
+- Do NOT infer, guess, complete, correct, normalize, or repair any character from the expected value.
 - Do NOT use expected values to decide unclear characters.
+- If a character looks like IR, return IR. Do not change it to XR.
+- If a character looks damaged or unclear, return UNCLEAR or ?.
+- If a digit string has 4 digits, return 4 digits. Never add a digit.
+- If a digit string has 7 digits, return 7 digits. Never remove a digit.
 - If any character is unclear, broken, smeared, faint, incomplete, partially missing, hidden, or visually ambiguous, return "UNCLEAR" for that character/field.
 - If the whole field is unclear, return "UNCLEAR".
 - For suffix QR:
@@ -1580,20 +1598,20 @@ def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_
     for i in range(1, 7):
         actual = lines[i - 1] if i <= len(lines) else ""
 
-        # Safety rule:
-        # Pouch lot must contain the printed word MFG.
-        # If this product/market requires EXP, it must also contain the printed word EXP.
         has_mfg_word = "MFG" in actual
         has_exp_word = "EXP" in actual
+        unclear = has_unclear_text(actual)
 
         if skip_exp:
-            expected = f"MFG {expected_mfg} {expected_line} {i}"
-            status = "PASS" if (expected in actual and has_mfg_word) else "NG"
-            expected_show = expected + " / ต้องมีคำว่า MFG / ไม่ตรวจ EXP"
+            expected = f"MFG {expected_mfg} {expected_line} {i}".upper()
+            # Strict: exact full line only. Do not pass when extra/missing characters exist.
+            status = "PASS" if (actual == expected and has_mfg_word and not unclear) else "NG"
+            expected_show = expected + " / ต้องมีคำว่า MFG / ไม่ตรวจ EXP / ห้ามมีตัวอักษรเกินหรือขาด"
         else:
-            expected = f"MFG {expected_mfg} {expected_line} {i} EXP {expected_exp}"
-            status = "PASS" if (actual == expected and has_mfg_word and has_exp_word) else "NG"
-            expected_show = expected + " / ต้องมีคำว่า MFG และ EXP"
+            expected = f"MFG {expected_mfg} {expected_line} {i} EXP {expected_exp}".upper()
+            # Strict: exact full line only. Do not pass when extra/missing characters exist.
+            status = "PASS" if (actual == expected and has_mfg_word and has_exp_word and not unclear) else "NG"
+            expected_show = expected + " / ต้องมีคำว่า MFG และ EXP / ห้ามมีตัวอักษรเกินหรือขาด"
 
         if status == "NG":
             overall = False
@@ -1653,12 +1671,13 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         if invalid_time_match:
             time_found = invalid_time_match.group(1)
 
-    # Safety rule:
-    # Pouch/Linapack must contain the printed word MFG.
-    # If this product/market requires EXP, it must also contain the printed word EXP.
-    mfg_ok = (expected_mfg_part in mfg_line) and has_mfg_word
+    # Strict rule:
+    # Pouch/Linapack must match the visible printed line exactly.
+    # Do not pass by substring matching because it hides extra/missing characters.
     time_ok = is_valid_time_hhmm(time_found)
-    exp_ok = True if skip_exp else ((expected_exp_part in exp_line or expected_exp_part in all_text) and has_exp_word)
+    expected_mfg_line = f"{expected_mfg_part} {time_found}".strip().upper() if time_ok else f"{expected_mfg_part} TT:TT".strip().upper()
+    mfg_ok = (mfg_line == expected_mfg_line) and has_mfg_word and not has_unclear_text(mfg_line)
+    exp_ok = True if skip_exp else (exp_line == expected_exp_part and has_exp_word and not has_unclear_text(exp_line))
 
     if not mfg_ok:
         overall = False
@@ -1666,7 +1685,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         "item": "MFG / Line / Mix",
         "status": "PASS" if mfg_ok else "NG",
         "actual": mfg_line,
-        "expected": expected_mfg_part + " TT:TT / ต้องมีคำว่า MFG"
+        "expected": expected_mfg_line + " / ต้องมีคำว่า MFG / ห้ามมีตัวอักษรเกินหรือขาด"
     })
 
     if not time_ok:
@@ -1692,7 +1711,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
             "item": "EXP",
             "status": "PASS" if exp_ok else "NG",
             "actual": exp_line,
-            "expected": expected_exp_part + " / ต้องมีคำว่า EXP"
+            "expected": expected_exp_part + " / ต้องมีคำว่า EXP / ห้ามมีตัวอักษรเกินหรือขาด"
         })
 
     # Extra explicit warning rows for missing printed words
@@ -2069,31 +2088,37 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
 
         return overall, details
 
-    # Do not trust AI boolean alone for carton key positions.
-    # Shipping Mark = before Running No.
-    # Prefix = before MFG Date.
-    has_shipping_mark = shipping_mark_before_running_ok(all_text, shipping_mark)
-    has_alpha_code = prefix_before_mfg_ok(all_text, carton_alpha_code, expected_mfg)
-    has_mfg = expected_mfg in all_text
-    has_exp = bool(ai_json.get("has_exp", False))
+    # Strict verification by extracted fields only.
+    # Do not use substring matching such as expected_mfg in all_text.
+    # This prevents cases like expected 220626 passing when actual is 2200626.
+    actual_shipping = field_actual.get("shipping_mark", "").strip().upper()
+    actual_prefix = field_actual.get("prefix", "").strip().upper()
+    actual_mfg = field_actual.get("mfg", "").strip().upper()
+    actual_exp = field_actual.get("exp", "").strip().upper()
 
-    if expected_exp:
-        has_exp = has_exp or (expected_exp in all_text)
-    else:
-        has_exp = True
+    expected_shipping = str(shipping_mark or "").strip().upper()
+    expected_prefix = str(carton_alpha_code or "").strip().upper()
+    expected_mfg_clean = str(expected_mfg or "").strip().upper()
+    expected_exp_clean = str(expected_exp or "").strip().upper()
 
-    # OL pattern has no separate Running No.
+    has_shipping_mark = True if not expected_shipping else (actual_shipping == expected_shipping and not has_unclear_text(actual_shipping))
+    has_alpha_code = True if not expected_prefix else (actual_prefix == expected_prefix and not has_unclear_text(actual_prefix))
+    has_mfg = (actual_mfg == expected_mfg_clean and not has_unclear_text(actual_mfg))
+    has_exp = True if not expected_exp_clean else (actual_exp == expected_exp_clean and not has_unclear_text(actual_exp))
+
+    # OL pattern has no separate Running No. Normal export must have exactly 5 printed digits.
     actual_run_no, run_ok = extract_export_running_no(all_text, carton_alpha_code)
+    run_ok = run_ok and (not actual_run_no or not has_unclear_text(actual_run_no))
 
     building_ok, expected_building_full = building_suffix_strict_ok(all_text, building_no, building_suffix)
 
     checks = [
-        ("Shipping Mark before Running No.", has_shipping_mark, field_actual.get("shipping_mark") or "NOT FOUND", shipping_mark or "ไม่ต้องมี Shipping Mark"),
-        ("Running No.", run_ok, actual_run_no or field_actual.get("running_no") or "NOT FOUND", "ตัวเลข 5 หลัก เช่น 00001"),
-        ("Prefix before MFG date", has_alpha_code, field_actual.get("prefix") or "NOT FOUND", carton_alpha_code or "ไม่บังคับ Prefix"),
-        ("MFG date", has_mfg, field_actual.get("mfg") or "NOT FOUND", expected_mfg),
+        ("Shipping Mark before Running No.", has_shipping_mark, actual_shipping or "NOT FOUND", expected_shipping or "ไม่ต้องมี Shipping Mark"),
+        ("Running No.", run_ok, actual_run_no or field_actual.get("running_no") or "NOT FOUND", "ตัวเลข 5 หลัก เช่น 00001 / ห้ามเติมเลขเอง"),
+        ("Prefix before MFG date", has_alpha_code, actual_prefix or "NOT FOUND", expected_prefix or "ไม่บังคับ Prefix"),
+        ("MFG date", has_mfg, actual_mfg or "NOT FOUND", expected_mfg_clean),
         ("Building No. + Suffix", building_ok, field_actual.get("building_suffix") or "NOT FOUND", expected_building_full or "ถ้าไม่เลือก Suffix ต้องไม่มีตัวอักษรต่อท้าย เช่น QR/N"),
-        ("EXP", has_exp, field_actual.get("exp") or ("ไม่ต้องมี EXP" if not expected_exp else "NOT FOUND"), expected_exp if expected_exp else "ไม่ต้องมี EXP"),
+        ("EXP", has_exp, actual_exp or ("ไม่ต้องมี EXP" if not expected_exp_clean else "NOT FOUND"), expected_exp_clean if expected_exp_clean else "ไม่ต้องมี EXP"),
     ]
 
     for item, ok, actual_value, expected_value in checks:
