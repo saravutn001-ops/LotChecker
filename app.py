@@ -1606,39 +1606,161 @@ def append_field_check(details, item, actual, expected, overall_ref=None, allow_
     })
     return ok
 
+
+def parse_pouch_lot_fields(line, exp_line=""):
+    """
+    Parse pouch/sachet/linapack lot fields:
+    MFG / DDMMYY / machine_or_mix / time / EXP / expiry date
+    """
+    text = normalize(line)
+    exp_text = normalize(exp_line)
+    tokens = text.split()
+
+    result = {
+        "mfg_word": "",
+        "mfg_date": "",
+        "mix_code": "",
+        "machine": "",
+        "time": "",
+        "exp_word": "",
+        "exp_date": "",
+        "raw": text,
+        "exp_raw": exp_text,
+    }
+
+    # MFG
+    if "MFG" in tokens:
+        idx = tokens.index("MFG")
+        result["mfg_word"] = "MFG"
+        if idx + 1 < len(tokens):
+            result["mfg_date"] = tokens[idx + 1]
+        if idx + 2 < len(tokens):
+            v = tokens[idx + 2]
+            if re.fullmatch(r"(LP|MS)\d{1,2}", v):
+                result["machine"] = v
+            else:
+                result["mix_code"] = v
+        if idx + 3 < len(tokens):
+            v = tokens[idx + 3]
+            if re.fullmatch(r"(LP|MS)\d{1,2}", v):
+                result["machine"] = v
+
+    # fallback date
+    if not result["mfg_date"]:
+        m = re.search(r"\b\d{6}\b", text)
+        if m:
+            result["mfg_date"] = m.group(0)
+
+    # fallback machine
+    if not result["machine"]:
+        m = re.search(r"\b(?:LP|MS)\d{1,2}\b", text)
+        if m:
+            result["machine"] = m.group(0)
+
+    # time
+    m = re.search(r"\b([0-2]?\d:[0-5]\d)\b", text)
+    if m:
+        result["time"] = m.group(1)
+
+    # EXP line
+    exp_source = exp_text if exp_text else text
+    exp_tokens = exp_source.split()
+    if "EXP" in exp_tokens:
+        idx = exp_tokens.index("EXP")
+        result["exp_word"] = "EXP"
+        if idx + 1 < len(exp_tokens):
+            result["exp_date"] = exp_tokens[idx + 1]
+    else:
+        # fallback: if EXP appears joined or date exists in exp line
+        if "EXP" in exp_source:
+            result["exp_word"] = "EXP"
+        m = re.search(r"\b\d{6}\b", exp_source)
+        if m:
+            result["exp_date"] = m.group(0)
+
+    return result
+
+
+def check_time_field(actual_time):
+    actual_time = str(actual_time or "").strip()
+    if not actual_time:
+        return False
+    m = re.fullmatch(r"([0-2]?\d):([0-5]\d)", actual_time)
+    if not m:
+        return False
+    return 0 <= int(m.group(1)) <= 23 and 0 <= int(m.group(2)) <= 59
+
 def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_line, expected_exp):
+    """
+    Field-by-field Sachet verification:
+    - MFG
+    - วันผลิต DDMMYY
+    - เลขเครื่อง/รหัสเครื่อง
+    - เวลา (ถ้ามีในภาพ)
+    - EXP
+    - วันหมดอายุ
+    """
     details = []
     overall = True
     skip_exp = no_exp_required(product_type, market_type)
     lines = [normalize(x) for x in lines]
 
+    # Sachet usually has 6 lanes/rows
     for i in range(1, 7):
-        actual = lines[i - 1] if i <= len(lines) else ""
+        actual_line = lines[i - 1] if i <= len(lines) else ""
+        fields = parse_pouch_lot_fields(actual_line)
 
-        has_mfg_word = "MFG" in actual
-        has_exp_word = "EXP" in actual
-        unclear = has_unclear_text(actual)
+        expected_machine = str(expected_line or "").strip().upper()
+        # If sachet expected_line is like MS11, row may be MS11 + lane no. in the same line.
+        # Keep machine check as prefix-compatible only for lane number at the end.
+        machine_actual = fields.get("machine", "")
 
+        row_ok = True
+
+        checks = []
+        checks.append(("แถว %s - MFG" % i, fields.get("mfg_word"), "MFG"))
+        checks.append(("แถว %s - วันผลิต" % i, fields.get("mfg_date"), expected_mfg))
+        checks.append(("แถว %s - เลขเครื่อง" % i, machine_actual, expected_machine))
+
+        # Lane number check
+        lane_actual = str(i) if re.search(rf"\b{i}\b", actual_line) else ""
+        checks.append(("แถว %s - เลขแถว" % i, lane_actual, str(i)))
+
+        for item, actual, expected in checks:
+            ok = append_field_check(details, item, actual, expected)
+            if not ok:
+                row_ok = False
+                overall = False
+
+        # เวลา: ถ้าระบบอ่านเวลาได้ ให้ตรวจว่า valid; ถ้าไม่มี ไม่บังคับสำหรับ Sachet
+        actual_time = fields.get("time")
+        if actual_time:
+            time_ok = check_time_field(actual_time)
+            if not time_ok:
+                overall = False
+            details.append({
+                "item": "แถว %s - เวลา" % i,
+                "status": "PASS" if time_ok else "NG",
+                "actual": actual_time,
+                "expected": "เวลา valid 00:00-23:59"
+            })
+
+        # EXP / วันหมดอายุ
         if skip_exp:
-            expected = f"MFG {expected_mfg} {expected_line} {i}".upper()
-            # Strict: exact full line only. Do not pass when extra/missing characters exist.
-            status = "PASS" if (actual == expected and has_mfg_word and not unclear) else "NG"
-            expected_show = expected + " / ต้องมีคำว่า MFG / ไม่ตรวจ EXP / ห้ามมีตัวอักษรเกินหรือขาด"
+            exp_ok = "EXP" not in actual_line
+            if not exp_ok:
+                overall = False
+            details.append({
+                "item": "แถว %s - EXP" % i,
+                "status": "PASS" if exp_ok else "NG",
+                "actual": "พบ EXP" if not exp_ok else "ไม่ต้องมี EXP",
+                "expected": "ไม่ควรมี EXP"
+            })
         else:
-            expected = f"MFG {expected_mfg} {expected_line} {i} EXP {expected_exp}".upper()
-            # Strict: exact full line only. Do not pass when extra/missing characters exist.
-            status = "PASS" if (actual == expected and has_mfg_word and has_exp_word and not unclear) else "NG"
-            expected_show = expected + " / ต้องมีคำว่า MFG และ EXP / ห้ามมีตัวอักษรเกินหรือขาด"
-
-        if status == "NG":
-            overall = False
-
-        details.append({
-            "item": f"แถว {i}",
-            "status": status,
-            "actual": actual,
-            "expected": expected_show
-        })
+            exp_word_ok = append_field_check(details, "แถว %s - EXP" % i, fields.get("exp_word"), "EXP")
+            exp_date_ok = append_field_check(details, "แถว %s - วันหมดอายุ" % i, fields.get("exp_date"), expected_exp)
+            if not exp_word_ok or not exp_date_ok:
+                overall = False
 
     return overall, details
 
@@ -1658,14 +1780,14 @@ def extract_time(text):
 
 def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time=""):
     """
-    Field-by-field Linapack verification.
-    ไม่เทียบยาวทั้งชุด แต่แยกตรวจ:
-    - MFG word
-    - DDMMYY
-    - วันผสม / Mix code
-    - เลขเครื่อง
+    Field-by-field Linapack verification for every product/market:
+    งานไทยต้องตรวจ:
+    - MFG
+    - วันผลิต
+    - เลขเครื่อง / หรือวันผสมสำหรับ EPW TH
     - เวลา
     - EXP
+    - วันหมดอายุ
     """
     details = []
     overall = True
@@ -1677,85 +1799,70 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
     mfg_line = lines[0] if len(lines) > 0 else ""
     exp_line = lines[1] if len(lines) > 1 else ""
 
-    fields = parse_linapack_lot_fields(mfg_line)
+    fields = parse_pouch_lot_fields(mfg_line, exp_line)
 
-    # Expected fields
-    expected_mfg_word = "MFG"
-    expected_date = str(expected_mfg or "").strip().upper()
-
-    # EPW TH uses mix code. Other Linapack uses LP machine as the field after MFG date.
-    need_mix = (product_type == "EPW" and market_type == "TH")
-    expected_mix = str(mix_code or "").strip().upper() if need_mix else ""
-    expected_machine = str(expected_line or "").strip().upper()
-
-    # 1) MFG word
-    if not append_field_check(details, "MFG", fields.get("mfg_word"), expected_mfg_word):
+    # 1) MFG
+    if not append_field_check(details, "MFG", fields.get("mfg_word"), "MFG"):
         overall = False
 
-    # 2) DDMMYY
-    if not append_field_check(details, "DDMMYY", fields.get("mfg_date"), expected_date):
+    # 2) วันผลิต
+    if not append_field_check(details, "วันผลิต", fields.get("mfg_date"), expected_mfg):
         overall = False
 
-    # 3) วันผสม / Mix code
-    if need_mix:
-        if not append_field_check(details, "วันผสม / Mix Code", fields.get("mix_code"), expected_mix):
+    # 3) วันผสม / เลขเครื่อง
+    if product_type == "EPW" and market_type == "TH":
+        if not append_field_check(details, "วันผสม", fields.get("mix_code"), mix_code):
             overall = False
+        # EPW TH may not always have LP machine after mix, but if expected_line is configured and printed, check it when present
+        if fields.get("machine"):
+            if not append_field_check(details, "เลขเครื่อง", fields.get("machine"), expected_line):
+                overall = False
+        else:
+            details.append({
+                "item": "เลขเครื่อง",
+                "status": "PASS",
+                "actual": "ไม่พบ/ไม่บังคับสำหรับ EPW TH",
+                "expected": "ไม่ตรวจ"
+            })
     else:
-        details.append({
-            "item": "วันผสม / Mix Code",
-            "status": "PASS",
-            "actual": "ไม่ต้องมี",
-            "expected": "ไม่ตรวจ"
-        })
+        if not append_field_check(details, "เลขเครื่อง", fields.get("machine"), expected_line):
+            overall = False
 
-    # 4) เลขเครื่อง
-    if not append_field_check(details, "เลขเครื่อง", fields.get("machine"), expected_machine):
-        overall = False
-
-    # 5) เวลา
+    # 4) เวลา
     actual_time = fields.get("time") or extract_best_time_from_text(all_text, ai_time)
-    time_ok = False
-    time_expected = "เวลา valid 00:00-23:59 เช่น 07:45"
-    if actual_time:
-        m = re.fullmatch(r"([0-2]?\d):([0-5]\d)", actual_time)
-        if m:
-            hour = int(m.group(1))
-            minute = int(m.group(2))
-            time_ok = (0 <= hour <= 23 and 0 <= minute <= 59)
-
+    time_ok = check_time_field(actual_time)
     if not time_ok:
         overall = False
     details.append({
         "item": "เวลา",
         "status": "PASS" if time_ok else "NG",
         "actual": actual_time if actual_time else "NOT FOUND",
-        "expected": time_expected
+        "expected": "เวลา valid 00:00-23:59 เช่น 07:45"
     })
 
-    # 6) EXP
-    has_exp_word = "EXP" in all_text
+    # 5) EXP + 6) วันหมดอายุ
     if skip_exp:
-        exp_ok = not has_exp_word
+        has_exp = "EXP" in all_text
+        exp_ok = not has_exp
+        if not exp_ok:
+            overall = False
         details.append({
             "item": "EXP",
             "status": "PASS" if exp_ok else "NG",
-            "actual": "พบ EXP" if has_exp_word else "ไม่ต้องมี EXP",
-            "expected": "ไม่ควรมีหมดอายุ"
+            "actual": "พบ EXP" if has_exp else "ไม่ต้องมี EXP",
+            "expected": "ไม่ควรมี EXP"
         })
-        if not exp_ok:
-            overall = False
+        details.append({
+            "item": "วันหมดอายุ",
+            "status": "PASS",
+            "actual": "ไม่ต้องมี",
+            "expected": "ไม่ตรวจ"
+        })
     else:
-        expected_exp_part = f"EXP {expected_exp}".upper()
-        exp_actual = exp_line if exp_line else (" ".join([x for x in lines if "EXP" in x]) if any("EXP" in x for x in lines) else "")
-        exp_ok = (exp_actual.strip().upper() == expected_exp_part)
-        if not exp_ok:
+        if not append_field_check(details, "EXP", fields.get("exp_word"), "EXP"):
             overall = False
-        details.append({
-            "item": "EXP",
-            "status": "PASS" if exp_ok else "NG",
-            "actual": exp_actual if exp_actual else "NOT FOUND",
-            "expected": expected_exp_part
-        })
+        if not append_field_check(details, "วันหมดอายุ", fields.get("exp_date"), expected_exp):
+            overall = False
 
     return overall, details
 
