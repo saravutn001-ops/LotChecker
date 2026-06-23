@@ -2156,12 +2156,44 @@ def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code=""
     return result
 
 
+
+def format_char_diff(actual, expected):
+    """
+    แสดงตำแหน่งที่ผิดแบบอ่านง่าย เช่น pos 3: อ่านได้ 0 ควรเป็น 6
+    """
+    ok, diff = compare_char_by_char(actual, expected)
+    return ok, diff
+
+
+def strict_field_status(actual, expected):
+    actual = str(actual or "").strip().upper()
+    expected = str(expected or "").strip().upper()
+    ok, diff = format_char_diff(actual, expected)
+    expected_show = expected if ok else f"{expected} | {diff}"
+    return ok, actual if actual else "NOT FOUND", expected_show
+
+
+def append_carton_field_check(details, item, actual, expected):
+    ok, actual_show, expected_show = strict_field_status(actual, expected)
+    details.append({
+        "item": item,
+        "status": "PASS" if ok else "NG",
+        "actual": actual_show,
+        "expected": expected_show
+    })
+    return ok
+
 def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
+    """
+    Carton verification แบบแยก field และเทียบทีละตัวอักษร
+    เพื่อแสดงชัดเจนว่าตัวเลข/ตัวอักษรตำแหน่งไหนผิด
+    """
     details = []
     overall = True
     lines = [normalize(x) for x in lines]
     all_text = " ".join(lines)
     actual = lines[0] if lines else ""
+
     field_actual = extract_carton_actual_fields(
         all_text,
         expected_mfg,
@@ -2171,101 +2203,151 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         building_suffix
     )
 
+    # ----------------------------
+    # CARTON TH
+    # รูปแบบ: 00045 00 220626 5 หรือ 00045 00 220626 5 QR
+    # ----------------------------
     if market_type == "TH":
         run_no, sales_code, mfg_code, building_code = parse_th_carton_fields(actual)
 
+        # กรณีมี suffix ต่อท้ายเลขอาคาร เช่น 5 QR ให้ดึงมาทั้งก้อน ไม่ใช่แค่ 5
+        parts = normalize(actual).split()
+        if len(parts) >= 5:
+            building_visible = " ".join(parts[3:5])
+        elif len(parts) >= 4:
+            building_visible = parts[3]
+        else:
+            building_visible = building_code
+
         if building_no:
-            if building_suffix:
-                expected_building_full = f"{building_no} {building_suffix}".upper()
-            else:
-                expected_building_full = building_no
-            # Rebuild visible building field from the remaining tokens so suffix like "3 QR" can be checked strictly.
-            parts = normalize(actual).split()
-            building_visible = " ".join(parts[3:5]) if len(parts) >= 5 else (parts[3] if len(parts) >= 4 else "")
-            building_ok, building_expected = building_suffix_strict_ok(building_visible, building_no, building_suffix)
-            building_ok = building_ok and building_no in ["1", "2", "3", "4", "5", "6"]
-            building_code = building_visible
+            expected_building_full = f"{building_no} {building_suffix}".strip().upper()
         else:
             expected_building_full = ""
-            building_ok = True
-            building_expected = "ไม่ตรวจเลขอาคาร"
-            building_code = building_code.upper() if building_code else ""
 
-        checks = [
-            ("Running No. 5 digits", bool(re.fullmatch(r"\d{5}", run_no)), run_no, "ตัวเลข 5 หลัก เช่น 00004"),
-            ("Thailand sales code", sales_code == "00", sales_code, "00"),
-            ("MFG date", mfg_code == expected_mfg, mfg_code, expected_mfg),
-            ("Building No. + Suffix", building_ok, building_code, building_expected),
-        ]
+        # Running No.
+        ok = append_carton_field_check(details, "Running No. 5 digits", run_no, "00000" if not run_no else run_no)
+        # ต้องเป็นตัวเลข 5 หลักด้วย
+        if not re.fullmatch(r"\d{5}", run_no or ""):
+            overall = False
+            details[-1]["status"] = "NG"
+            details[-1]["expected"] = "ตัวเลข 5 หลัก เช่น 00045 | ความยาว/รูปแบบผิด"
+        elif not ok:
+            overall = False
 
-        for item, ok, actual_value, expected_value in checks:
-            if not ok:
+        # Thailand sales code
+        if not append_carton_field_check(details, "Thailand sales code", sales_code, "00"):
+            overall = False
+
+        # MFG date แสดงตำแหน่งที่ผิด เช่น 2200626 vs 220626
+        if not append_carton_field_check(details, "MFG date", mfg_code, expected_mfg):
+            overall = False
+
+        # Building No. + Suffix
+        if building_no:
+            if not append_carton_field_check(details, "Building No. + Suffix", building_visible, expected_building_full):
                 overall = False
+        else:
+            # ถ้าเลือกไม่มีเลขอาคาร แต่ OCR อ่านเจอค่าหลังวันที่ ถือว่า NG
+            no_building_ok = not building_visible
             details.append({
-                "item": item,
-                "status": "PASS" if ok else "NG",
-                "actual": actual_value,
-                "expected": expected_value
+                "item": "Building No. + Suffix",
+                "status": "PASS" if no_building_ok else "NG",
+                "actual": building_visible if building_visible else "ไม่มี",
+                "expected": "ไม่มีเลขอาคาร"
             })
-
-        # Do not auto-correct 0/8. Show warning as NG if not exact.
-        if "8" in run_no or sales_code == "08":
-            details.append({
-                "item": "OCR Warning",
-                "status": "WARN",
-                "actual": actual,
-                "expected": "Dot Matrix may confuse 0 and 8. Do not auto-correct."
-            })
+            if not no_building_ok:
+                overall = False
 
         return overall, details
 
-    # Strict verification by extracted fields only.
-    # Do not use substring matching such as expected_mfg in all_text.
-    # This prevents cases like expected 220626 passing when actual is 2200626.
-    actual_shipping = field_actual.get("shipping_mark", "").strip().upper()
-    actual_prefix = field_actual.get("prefix", "").strip().upper()
-    actual_mfg = field_actual.get("mfg", "").strip().upper()
-    actual_exp = field_actual.get("exp", "").strip().upper()
+    # ----------------------------
+    # CARTON EXPORT / LAOS
+    # แยกตรวจ: Shipping Mark / Running / Prefix / MFG / Building+Suffix / EXP
+    # ----------------------------
+    expected_building_full = f"{building_no} {building_suffix}".strip().upper() if building_no else ""
 
-    expected_shipping = str(shipping_mark or "").strip().upper()
-    expected_prefix = str(carton_alpha_code or "").strip().upper()
-    expected_mfg_clean = str(expected_mfg or "").strip().upper()
-    expected_exp_clean = str(expected_exp or "").strip().upper()
-
-    has_shipping_mark = True if not expected_shipping else (actual_shipping == expected_shipping and not has_unclear_text(actual_shipping))
-    has_alpha_code = True if not expected_prefix else (actual_prefix == expected_prefix and not has_unclear_text(actual_prefix))
-    has_mfg = (actual_mfg == expected_mfg_clean and not has_unclear_text(actual_mfg))
-    has_exp = True if not expected_exp_clean else (actual_exp == expected_exp_clean and not has_unclear_text(actual_exp))
-
-    # OL pattern has no separate Running No. Normal export must have exactly 5 printed digits.
-    actual_run_no, run_ok = extract_export_running_no(all_text, carton_alpha_code)
-    run_ok = run_ok and (not actual_run_no or not has_unclear_text(actual_run_no))
-
-    building_ok, expected_building_full = building_suffix_strict_ok(all_text, building_no, building_suffix)
-
-    checks = [
-        ("Shipping Mark before Running No.", has_shipping_mark, actual_shipping or "NOT FOUND", expected_shipping or "ไม่ต้องมี Shipping Mark"),
-        ("Running No.", run_ok, actual_run_no or field_actual.get("running_no") or "NOT FOUND", "ตัวเลข 5 หลัก เช่น 00001 / ห้ามเติมเลขเอง"),
-        ("Prefix before MFG date", has_alpha_code, actual_prefix or "NOT FOUND", expected_prefix or "ไม่บังคับ Prefix"),
-        ("MFG date", has_mfg, actual_mfg or "NOT FOUND", expected_mfg_clean),
-        ("Building No. + Suffix", building_ok, field_actual.get("building_suffix") or "NOT FOUND", expected_building_full or "ถ้าไม่เลือก Suffix ต้องไม่มีตัวอักษรต่อท้าย เช่น QR/N"),
-        ("EXP", has_exp, actual_exp or ("ไม่ต้องมี EXP" if not expected_exp_clean else "NOT FOUND"), expected_exp_clean if expected_exp_clean else "ไม่ต้องมี EXP"),
-    ]
-
-    for item, ok, actual_value, expected_value in checks:
-        if not ok:
+    # Shipping Mark before Running No.
+    if shipping_mark:
+        if not append_carton_field_check(details, "Shipping Mark before Running No.", field_actual.get("shipping_mark"), shipping_mark):
             overall = False
+    else:
         details.append({
-            "item": item,
-            "status": "PASS" if ok else "NG",
-            "actual": actual_value,
-            "expected": expected_value
+            "item": "Shipping Mark before Running No.",
+            "status": "PASS",
+            "actual": "ไม่ต้องมี",
+            "expected": "ไม่ตรวจ"
         })
+
+    # Running No.
+    actual_run_no, run_format_ok = extract_export_running_no(all_text, carton_alpha_code)
+    expected_run_display = "ตัวเลข 5 หลัก"
+    if carton_alpha_code in ["OL", "OD"]:
+        details.append({
+            "item": "Running No.",
+            "status": "PASS",
+            "actual": "OL/OD ไม่ต้องมี Running No.",
+            "expected": "ไม่ตรวจ"
+        })
+    else:
+        # ถ้ามี actual ให้ตรวจ format และแสดงค่า actual
+        run_actual_show = actual_run_no or field_actual.get("running_no") or ""
+        run_ok = re.fullmatch(r"\d{5}", run_actual_show or "") is not None
+        details.append({
+            "item": "Running No.",
+            "status": "PASS" if run_ok else "NG",
+            "actual": run_actual_show if run_actual_show else "NOT FOUND",
+            "expected": expected_run_display if run_ok else expected_run_display + " | ความยาว/รูปแบบผิด"
+        })
+        if not run_ok:
+            overall = False
+
+    # Prefix before MFG date
+    if carton_alpha_code:
+        if not append_carton_field_check(details, "Prefix before MFG date", field_actual.get("prefix"), carton_alpha_code):
+            overall = False
+    else:
+        details.append({
+            "item": "Prefix before MFG date",
+            "status": "PASS",
+            "actual": "ไม่บังคับ",
+            "expected": "ไม่ตรวจ"
+        })
+
+    # MFG Date
+    if not append_carton_field_check(details, "MFG date", field_actual.get("mfg"), expected_mfg):
+        overall = False
+
+    # Building No. + Suffix
+    if building_no:
+        if not append_carton_field_check(details, "Building No. + Suffix", field_actual.get("building_suffix"), expected_building_full):
+            overall = False
+    else:
+        details.append({
+            "item": "Building No. + Suffix",
+            "status": "PASS",
+            "actual": "ไม่ตรวจเลขอาคาร",
+            "expected": "ไม่ตรวจ"
+        })
+
+    # EXP
+    if expected_exp:
+        if not append_carton_field_check(details, "EXP", field_actual.get("exp"), expected_exp):
+            overall = False
+    else:
+        # ถ้าไม่ต้องมี EXP แต่ OCR อ่านเจอ EXP date ต้อง NG
+        actual_exp = field_actual.get("exp")
+        exp_ok = not actual_exp
+        details.append({
+            "item": "EXP",
+            "status": "PASS" if exp_ok else "NG",
+            "actual": actual_exp if actual_exp else "ไม่ต้องมี EXP",
+            "expected": "ไม่ต้องมี EXP" if exp_ok else "ไม่ควรมี EXP"
+        })
+        if not exp_ok:
+            overall = False
 
     return overall, details
 
-
-@app.route("/")
 def index():
     return HTML
 
