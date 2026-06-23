@@ -991,19 +991,20 @@ def exp_date_plus_days(ddmmyy, days):
         return str(ddmmyy or "")
 
 def no_exp_required(product_type, market_type):
-    """
-    True = ไม่ต้องมี EXP
-    False = ต้องมี EXP
 
-    EPW LAOS ต้องมี EXP เสมอ:
-      MFG 230626 22F LP4 TT:TT
-      EXP 230629
-    """
     product_type = str(product_type or "").upper()
     market_type = str(market_type or "").upper()
 
-    if product_type == "EPW" and market_type == "LAOS":
+    # EPW ทุกประเทศต้องมี EXP
+    if product_type == "EPW":
         return False
+
+    # EPC ไทยไม่ต้องมี EXP
+    if product_type == "EPC" and market_type == "TH":
+        return True
+
+    # ที่เหลือต้องมี EXP
+    return False
 
     # กฎเดิม: งานไทยทั่วไปไม่ต้องมี EXP
     if market_type == "TH":
