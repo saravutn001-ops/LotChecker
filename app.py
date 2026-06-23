@@ -366,7 +366,7 @@ pre {
         <div id="mixCodeBox">
             <label>รหัสวันที่ผสม / Mix Code</label>
             <input id="mixCode" value="08F" placeholder="เช่น 08F">
-            <p class="small">ใช้กับ EPW งานไทย เช่น MFG 080626 08F 09:40</p>
+            <p class="small">ใช้กับ EPW งานไทย/ลาว เช่น MFG 230626 22F LP4 07:45</p>
         </div>
 
         <label>EXP</label>
@@ -971,12 +971,39 @@ def calculate_exp(product_type, market_type, mfg):
     return ""
 
 
-def no_exp_required(product_type, market_type):
-    if product_type == "EPC":
-        return market_type == "EXPORT"
+def exp_date_plus_years(ddmmyy, years):
+    try:
+        d = datetime.strptime(str(ddmmyy), "%d%m%y")
+        try:
+            new_d = d.replace(year=d.year + int(years))
+        except ValueError:
+            # handles 29 Feb -> 28 Feb on non-leap year
+            new_d = d.replace(month=2, day=28, year=d.year + int(years))
+        return new_d.strftime("%d%m%y")
+    except Exception:
+        return str(ddmmyy or "")
 
-    if product_type == "EPW":
-        return market_type in ["TH", "EXPORT"]
+def exp_date_plus_days(ddmmyy, days):
+    try:
+        d = datetime.strptime(str(ddmmyy), "%d%m%y")
+        return (d + timedelta(days=int(days))).strftime("%d%m%y")
+    except Exception:
+        return str(ddmmyy or "")
+
+def no_exp_required(product_type, market_type):
+    """
+    EPW LAOS must have EXP and mix code:
+      MFG 230626 22F LP4 TT:TT
+      EXP 230629
+    """
+    product_type = str(product_type or "").upper()
+    market_type = str(market_type or "").upper()
+
+    if product_type == "EPW" and market_type == "LAOS":
+        return False
+
+    if market_type == "TH":
+        return True
 
     return False
 
@@ -1810,7 +1837,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         overall = False
 
     # 3) วันผสม / เลขเครื่อง
-    if product_type == "EPW" and market_type == "TH":
+    if product_type == "EPW" and market_type in ["TH", "LAOS"]:
         if not append_field_check(details, "วันผสม", fields.get("mix_code"), mix_code):
             overall = False
         # EPW TH may not always have LP machine after mix, but if expected_line is configured and printed, check it when present
@@ -2381,6 +2408,12 @@ def check():
         expected_mfg = data.get("mfg", "").strip()
         expected_line = data.get("line", "").strip().upper()
         expected_exp = data.get("exp", "").strip()
+        # EPW LAOS: must have mix code and EXP = MFG + 3 years (230626 -> 230629)
+        try:
+            if str(product_type).upper() == "EPW" and str(market_type).upper() == "LAOS":
+                expected_exp = exp_date_plus_years(expected_mfg, 3)
+        except NameError:
+            pass
         mix_code = data.get("mixCode", "").strip().upper()
         image_data = data.get("image", "")
 
