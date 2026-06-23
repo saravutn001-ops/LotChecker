@@ -992,7 +992,10 @@ def exp_date_plus_days(ddmmyy, days):
 
 def no_exp_required(product_type, market_type):
     """
-    EPW LAOS must have EXP and mix code:
+    True = ไม่ต้องมี EXP
+    False = ต้องมี EXP
+
+    EPW LAOS ต้องมี EXP เสมอ:
       MFG 230626 22F LP4 TT:TT
       EXP 230629
     """
@@ -1002,9 +1005,11 @@ def no_exp_required(product_type, market_type):
     if product_type == "EPW" and market_type == "LAOS":
         return False
 
+    # กฎเดิม: งานไทยทั่วไปไม่ต้องมี EXP
     if market_type == "TH":
         return True
 
+    # งานต่างประเทศ/ลาวทั่วไปให้มี EXP
     return False
 
 
@@ -2408,11 +2413,11 @@ def check():
         expected_mfg = data.get("mfg", "").strip()
         expected_line = data.get("line", "").strip().upper()
         expected_exp = data.get("exp", "").strip()
-        # EPW LAOS: must have mix code and EXP = MFG + 3 years (230626 -> 230629)
+        # EPW LAOS FORCE EXP 3 YEARS: MFG 230626 -> EXP 230629
         try:
             if str(product_type).upper() == "EPW" and str(market_type).upper() == "LAOS":
                 expected_exp = exp_date_plus_years(expected_mfg, 3)
-        except NameError:
+        except Exception:
             pass
         mix_code = data.get("mixCode", "").strip().upper()
         image_data = data.get("image", "")
