@@ -995,21 +995,22 @@ def no_exp_required(product_type, market_type):
     True = ไม่ต้องมี EXP
     False = ต้องมี EXP
 
-    EPW LAOS ต้องมี EXP เสมอ:
-      MFG 230626 22F LP4 TT:TT
-      EXP 230629
+    EPW ทุกงานต้องมี EXP
+    - EPW TH: ต้องมี EXP
+    - EPW LAOS: ต้องมี EXP + วันผสม
+    - EPW EXPORT: ต้องมี EXP
+
+    EPC งานไทยยังไม่ต้องมี EXP
     """
     product_type = str(product_type or "").upper()
     market_type = str(market_type or "").upper()
 
-    if product_type == "EPW" and market_type == "LAOS":
+    if product_type == "EPW":
         return False
 
-    # กฎเดิม: งานไทยทั่วไปไม่ต้องมี EXP
-    if market_type == "TH":
+    if product_type == "EPC" and market_type == "TH":
         return True
 
-    # งานต่างประเทศ/ลาวทั่วไปให้มี EXP
     return False
 
 
