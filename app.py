@@ -704,9 +704,7 @@ function changeProduct() {
     const hint = document.getElementById("linapackHint");
 
     const noExp = (
-        (product === "EPC" && market === "EXPORT") ||
-        (product === "EPW" && market === "TH") ||
-        (product === "EPW" && market === "EXPORT")
+        (product === "EPC" && market === "TH")
     );
 
     sachetExp.disabled = noExp;
@@ -723,8 +721,8 @@ function changeProduct() {
             mixCodeBox.style.display = "block";
             hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา เช่น MFG 080626 08F 09:40";
         } else if (product === "EPW" && market === "LAOS") {
-            mixCodeBox.style.display = "none";
-            hint.innerHTML = "EPW งานต่างประเทศ ลาว: ตรวจ MFG + เวลา + EXP 3 ปี";
+            mixCodeBox.style.display = "block";
+            hint.innerHTML = "EPW งานต่างประเทศ ลาว: ตรวจ MFG + Mix Code + LP + เวลา + EXP 3 ปี เช่น MFG 230626 22F LP4 07:45 / EXP 230629";
         } else if (product === "EPW" && market === "EXPORT") {
             mixCodeBox.style.display = "none";
             hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เวลา ไม่มีวันผสม และไม่มี EXP";
@@ -995,12 +993,8 @@ def no_exp_required(product_type, market_type):
     True = ไม่ต้องมี EXP
     False = ต้องมี EXP
 
-    EPW ทุกงานต้องมี EXP
-    - EPW TH: ต้องมี EXP
-    - EPW LAOS: ต้องมี EXP + วันผสม
-    - EPW EXPORT: ต้องมี EXP
-
-    EPC งานไทยยังไม่ต้องมี EXP
+    EPW ทุกงานต้องมี EXP และ EPW ไทย/ลาวต้องตรวจวันผสม
+    EPC งานไทยไม่ต้องมี EXP
     """
     product_type = str(product_type or "").upper()
     market_type = str(market_type or "").upper()
