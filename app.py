@@ -1473,6 +1473,30 @@ def build_abnormal_points(details):
     return abnormal_points
 
 
+
+def digits_hamming_distance(a, b):
+    a = str(a or "").strip()
+    b = str(b or "").strip()
+    if len(a) != len(b):
+        return 999
+    return sum(1 for x, y in zip(a, b) if x != y)
+
+
+def same_date_with_one_unclear_digit(actual, expected):
+    actual = str(actual or "").strip()
+    expected = str(expected or "").strip()
+    return (
+        re.fullmatch(r"\d{6}", actual or "") is not None
+        and re.fullmatch(r"\d{6}", expected or "") is not None
+        and digits_hamming_distance(actual, expected) == 1
+    )
+
+
+def extract_best_time_from_text(text, ai_time=""):
+    txt = normalize(" ".join([str(text or ""), str(ai_time or "")]))
+    m = re.search(r"\b([01]\d|2[0-3]):[0-5]\d\b", txt)
+    return m.group(0) if m else ""
+
 def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_line, expected_exp):
     details = []
     overall = True
@@ -1561,6 +1585,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
     time_ok = is_valid_time_hhmm(time_found)
     expected_mfg_line = f"{expected_mfg_part} {time_found}".strip().upper() if time_ok else f"{expected_mfg_part} TT:TT".strip().upper()
     mfg_ok = (mfg_line == expected_mfg_line) and has_mfg_word and not has_unclear_text(mfg_line)
+    mfg_uncertain = False
     exp_ok = True if skip_exp else (exp_line == expected_exp_part and has_exp_word and not has_unclear_text(exp_line))
 
     if not mfg_ok:
