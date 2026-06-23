@@ -2357,6 +2357,18 @@ def stamped_file(filename):
     return send_from_directory(STAMP_DIR, filename)
 
 
+
+
+@app.route("/")
+def index():
+    return HTML
+
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
 @app.route("/check", methods=["POST"])
 def check():
     try:
