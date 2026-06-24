@@ -1712,6 +1712,141 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
     #previewPouch,#previewCarton{height:240px!important;}
 }
 
+
+
+/* ===== FINAL FIX 2026-06-24: mobile fields complete + remove light-blue info panels ===== */
+#autoExpInfo,
+#linkedLotInfo{
+    display:none !important;
+}
+
+/* make carton lot fields never overflow/cut off */
+#cartonSection,
+#cartonTHBox,
+#cartonExportBox,
+.carton-field-grid{
+    overflow:visible !important;
+    max-width:100% !important;
+}
+
+#cartonTHBox,
+#cartonExportBox,
+.carton-field-grid{
+    display:grid !important;
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    gap:14px !important;
+}
+
+#cartonTHBox.hidden-market,
+#cartonExportBox.hidden-market{
+    display:none !important;
+}
+
+#cartonSection .field-card,
+#cartonSection .field-card input,
+#cartonSection .field-card select{
+    min-width:0 !important;
+    width:100% !important;
+    max-width:100% !important;
+}
+
+@media (max-width:768px){
+    html, body{
+        width:100% !important;
+        max-width:100% !important;
+        overflow-x:hidden !important;
+    }
+    .box{
+        width:100% !important;
+        max-width:100% !important;
+        overflow:visible !important;
+        padding:8px !important;
+    }
+
+    /* all setup fields one per row on phone, so no value is cut */
+    .setup-field-grid,
+    #pouchHeader .mobile-field-grid,
+    #cartonTHBox,
+    #cartonExportBox,
+    .carton-field-grid{
+        display:grid !important;
+        grid-template-columns:1fr !important;
+        gap:14px !important;
+        width:100% !important;
+        max-width:100% !important;
+        overflow:visible !important;
+    }
+
+    #cartonTHBox.hidden-market,
+    #cartonExportBox.hidden-market{
+        display:none !important;
+    }
+
+    .field-card{
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        overflow:visible !important;
+    }
+
+    .field-card label{
+        display:block !important;
+        width:100% !important;
+        white-space:normal !important;
+        overflow:visible !important;
+        text-overflow:clip !important;
+        font-size:15px !important;
+        line-height:1.35 !important;
+        margin-bottom:7px !important;
+    }
+
+    .field-card input,
+    .field-card select,
+    #page1 input,
+    #page1 select{
+        display:block !important;
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        height:54px !important;
+        font-size:17px !important;
+        padding:0 14px !important;
+        border-radius:16px !important;
+    }
+
+    #cartonSection{
+        padding:16px !important;
+        border-radius:22px !important;
+    }
+
+    #cartonSection .section-title{
+        font-size:22px !important;
+        margin-bottom:16px !important;
+    }
+
+    /* remove the light-blue formula/linked-info blocks completely */
+    #autoExpInfo,
+    #linkedLotInfo{
+        display:none !important;
+    }
+
+    /* image cards remain full width and show upload button clearly */
+    #page2.photo-grid{
+        display:grid !important;
+        grid-template-columns:1fr !important;
+        gap:14px !important;
+    }
+    #page2.photo-grid > *{
+        grid-column:1 / -1 !important;
+        width:100% !important;
+        max-width:100% !important;
+    }
+    .photo-card{
+        width:100% !important;
+        max-width:100% !important;
+        overflow:visible !important;
+    }
+}
 </style>
 </head>
 <body>
