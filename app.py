@@ -1582,7 +1582,8 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
 .check-row{grid-column:1 / -1!important;display:block!important;margin:12px 0!important;}
 .check-row .btn-secondary{display:none!important;}
 .check-row .btn-success{background:linear-gradient(135deg,#16a34a,#15803d)!important;width:100%!important;height:62px!important;font-size:19px!important;}
-.camera-overlay{position:fixed!important;inset:0!important;background:#000!important;z-index:99999!important;display:flex!important;flex-direction:column!important;padding:0!important;}
+.camera-overlay{position:fixed!important;inset:0!important;background:#000!important;z-index:99999!important;display:none!important;flex-direction:column!important;padding:0!important;}
+.camera-overlay.show{display:flex!important;}
 .camera-live-wrap{position:relative!important;flex:1!important;min-height:0!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#000!important;}
 #video{width:100vw!important;height:100%!important;max-height:none!important;object-fit:contain!important;background:#000!important;border:0!important;border-radius:0!important;margin:0!important;}
 .camera-toolbar{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:8px!important;padding:10px!important;background:#111827!important;padding-bottom:calc(10px + env(safe-area-inset-bottom))!important;}
@@ -2406,7 +2407,7 @@ async function startCamera() {
         video.srcObject = cameraStream;
         await video.play();
         if (cameraCard) cameraCard.classList.add("camera-active");
-        if (cameraOverlay) cameraOverlay.style.display = "flex";
+        if (cameraOverlay) cameraOverlay.classList.add("show");
     } catch (err) {
         document.getElementById("result").innerHTML = '<div class="ng">เปิดกล้องไม่ได้</div><p>' + err + '</p>';
     }
@@ -2422,7 +2423,7 @@ function stopCamera() {
     const cameraCard = document.querySelector(".camera-card");
     const cameraOverlay = document.getElementById("cameraOverlay");
     if (cameraCard) cameraCard.classList.remove("camera-active");
-    if (cameraOverlay) cameraOverlay.style.display = "none";
+    if (cameraOverlay) cameraOverlay.classList.remove("show");
 }
 
 function captureImage(kind) {
