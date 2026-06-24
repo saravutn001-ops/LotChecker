@@ -744,7 +744,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     background:#f8fafc !important;
     border:1px solid var(--border) !important;
     border-radius:16px !important;
-    padding:14px !important;
+    padding:12px !important;
 }
 #result { margin:0 !important; }
 .result-hero {
@@ -825,20 +825,42 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 }
 .result-main-grid {
     display:grid;
-    grid-template-columns: 1.1fr .9fr;
-    gap:12px;
+    grid-template-columns: minmax(620px, 1.65fr) minmax(360px, .85fr);
+    gap:14px;
+    align-items:start;
 }
 .result-image-card img {
     width:100%;
-    max-height:470px !important;
+    height:auto !important;
+    max-height:720px !important;
     object-fit:contain;
     background:#0f172a;
     border-radius:14px;
     margin:0 !important;
+    display:block;
 }
 .result-table table { margin-top:0 !important; }
 .result-table th,
 .result-table td { font-size:13px !important; padding:8px 9px !important; }
+.result-ok-box {
+    background:#ecfdf5;
+    border:1px solid #bbf7d0;
+    color:#047857;
+    font-weight:900;
+    padding:14px;
+    border-radius:12px;
+    text-align:center;
+}
+.result-ng-note {
+    background:#fff7ed;
+    border:1px solid #fed7aa;
+    color:#9a3412;
+    font-size:12px;
+    font-weight:800;
+    padding:8px 10px;
+    border-radius:10px;
+    margin-bottom:8px;
+}
 .result-json {
     margin-top:12px;
 }
@@ -1643,15 +1665,20 @@ async function sendCheck() {
         html += `</div>`;
 
         html += `<div class="result-card result-table">`;
-        html += `<div class="result-section-title">สรุปรายการตรวจ</div>`;
+        html += `<div class="result-section-title">รายการที่ NG</div>`;
         if (data.expectedPouchLot) html += `<div class="meta-item" style="margin-bottom:8px;"><div class="meta-label">Lot ซองที่ควรเป็น</div><div class="meta-value">${data.expectedPouchLot}</div></div>`;
         if (data.expectedCartonLot) html += `<div class="meta-item" style="margin-bottom:8px;"><div class="meta-label">Lot กล่องที่ควรเป็น</div><div class="meta-value">${data.expectedCartonLot}</div></div>`;
-        html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
-        data.details.forEach(row => {
-            const cls = row.status === "PASS" ? "status-pass" : (row.status === "NG" ? "status-ng" : "");
-            html += `<tr><td>${row.item}</td><td class="${cls}">${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
-        });
-        html += `</table>`;
+        const ngRows = (data.details || []).filter(row => row.status === "NG");
+        if (ngRows.length === 0) {
+            html += `<div class="result-ok-box">✓ ไม่พบรายการ NG</div>`;
+        } else {
+            html += `<div class="result-ng-note">แสดงเฉพาะรายการที่ NG เพื่อลดความรกของหน้าจอ</div>`;
+            html += `<table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+            ngRows.forEach(row => {
+                html += `<tr><td>${row.item}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
+            });
+            html += `</table>`;
+        }
         html += `</div>`;
         html += `</div>`;
 
