@@ -1847,6 +1847,225 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
         overflow:visible !important;
     }
 }
+
+
+/* ===== HARD MOBILE FINAL FIX: no cut-off, no blue panels, full-width cards ===== */
+#autoExpInfo, #linkedLotInfo { display:none !important; height:0 !important; padding:0 !important; margin:0 !important; border:0 !important; overflow:hidden !important; }
+
+@media (max-width: 920px) {
+  html, body {
+    width:100% !important;
+    max-width:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow-x:hidden !important;
+    background:#eef5fb !important;
+  }
+  * { box-sizing:border-box !important; }
+  .box {
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:8px !important;
+    border-radius:0 !important;
+    overflow-x:hidden !important;
+  }
+  .header-logo {
+    width:100% !important;
+    max-width:100% !important;
+    margin:0 0 10px 0 !important;
+    padding:10px !important;
+    border-radius:14px !important;
+  }
+  .header-logo img { width:44px !important; min-width:44px !important; }
+  .header-logo h1 { font-size:20px !important; line-height:1.1 !important; }
+  .header-logo p { font-size:11px !important; }
+
+  #page1,
+  #pouchHeader,
+  #cartonSection,
+  #pouchSection,
+  #page2,
+  #page3,
+  .section-card,
+  .photo-card,
+  .camera-card {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    overflow:visible !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
+  }
+
+  #page1, #page2, #page3 {
+    padding:0 !important;
+    background:transparent !important;
+    border:0 !important;
+  }
+
+  #pouchHeader,
+  #cartonSection,
+  .photo-card,
+  .camera-card {
+    background:#ffffff !important;
+    border:1px solid #dbe7f3 !important;
+    border-radius:18px !important;
+    padding:14px !important;
+    margin:0 0 12px 0 !important;
+    box-shadow:0 4px 12px rgba(15,23,42,.04) !important;
+  }
+
+  .section-title {
+    display:block !important;
+    width:100% !important;
+    font-size:21px !important;
+    line-height:1.25 !important;
+    margin:0 0 14px 0 !important;
+    color:#0f172a !important;
+    white-space:normal !important;
+  }
+
+  .setup-field-grid,
+  .carton-field-grid,
+  #pouchHeader .mobile-field-grid,
+  #cartonTHBox,
+  #cartonExportBox,
+  .mobile-field-grid,
+  .config-grid,
+  .config-grid.grid-2,
+  .config-grid.grid-3,
+  .config-grid.grid-4,
+  .config-grid.grid-5,
+  .config-grid.grid-9 {
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:12px !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    overflow:visible !important;
+  }
+  #cartonTHBox.hidden-market,
+  #cartonExportBox.hidden-market,
+  .hidden-market { display:none !important; }
+
+  .field-card,
+  .mobile-field {
+    display:flex !important;
+    flex-direction:column !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    gap:7px !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:visible !important;
+  }
+  .field-card label,
+  .mobile-field label,
+  #page1 label {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    font-size:14px !important;
+    line-height:1.35 !important;
+    font-weight:800 !important;
+    color:#334155 !important;
+    white-space:normal !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+  }
+  .field-card input,
+  .field-card select,
+  .mobile-field input,
+  .mobile-field select,
+  #page1 input,
+  #page1 select {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    height:52px !important;
+    min-height:52px !important;
+    margin:0 !important;
+    padding:0 14px !important;
+    border-radius:15px !important;
+    border:1px solid #d5e1ee !important;
+    background:#f8fbff !important;
+    color:#1e293b !important;
+    font-size:17px !important;
+    font-weight:700 !important;
+    overflow:visible !important;
+  }
+
+  #autoExpInfo, #linkedLotInfo { display:none !important; }
+  .info:not(.compact-mode-info) { display:none !important; }
+  .compact-mode-info { display:none !important; }
+
+  #page2.photo-grid,
+  #page2 {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    overflow:visible !important;
+  }
+  .photo-card h3 { font-size:22px !important; margin:0 0 8px 0 !important; }
+  .photo-card .small { font-size:16px !important; line-height:1.45 !important; margin:0 0 10px 0 !important; color:#64748b !important; }
+  .photo-card input[type="file"] { position:absolute !important; left:-9999px !important; opacity:0 !important; width:1px !important; height:1px !important; }
+  .static-mobile-file-btn, .mobile-file-btn {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    height:56px !important;
+    border-radius:16px !important;
+    margin:12px 0 !important;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8) !important;
+    color:white !important;
+    font-size:18px !important;
+    font-weight:900 !important;
+  }
+  .static-upload-placeholder, .upload-placeholder {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    height:180px !important;
+    border:2px dashed #cbd5e1 !important;
+    border-radius:18px !important;
+    background:#ffffff !important;
+    color:#2563eb !important;
+    font-size:52px !important;
+    margin:10px 0 0 !important;
+  }
+  #previewPouch, #previewCarton {
+    display:block !important;
+    width:100% !important;
+    height:auto !important;
+    max-height:360px !important;
+    object-fit:contain !important;
+    border-radius:16px !important;
+    margin:12px 0 0 !important;
+    background:#0f172a !important;
+  }
+  #previewPouch[style*="display:none"], #previewCarton[style*="display:none"] { display:none !important; }
+  #openCameraBtn, button[onclick="sendCheck()"], .check-row .btn-success {
+    width:100% !important;
+    height:60px !important;
+    border-radius:16px !important;
+    font-size:18px !important;
+    font-weight:900 !important;
+    margin:8px 0 12px 0 !important;
+  }
+  .check-row { display:block !important; width:100% !important; }
+  .check-row .btn-secondary { display:none !important; }
+}
+
 </style>
 </head>
 <body>
@@ -2021,8 +2240,9 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
     </div>
 </div>
 
-<div id="autoExpInfo" class="info"></div>
-<div id="linkedLotInfo" class="info"></div>
+
+<div id="autoExpInfo" class="info" style="display:none"></div>
+<div id="linkedLotInfo" class="info" style="display:none"></div>
 
 <div class="nav-row">
     
