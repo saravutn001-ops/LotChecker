@@ -3449,8 +3449,8 @@ window.onload = function() {
     setTodayDefault();
     updateShippingMarkByPrefix();
     changeCheckType();
-    changeMode();
-    updateExpectedLinkedLots();
+    // Do not call changeMode() here because old logic auto-selects LP7/MS11.
+    if (typeof updateExpectedLinkedLots === "function") updateExpectedLinkedLots();
     goPage(1);
 };
 
@@ -4760,6 +4760,160 @@ input[type="date"]{
   });
 })();
 </script>
+
+
+
+<script>
+/* ===== ABSOLUTE FINAL FIX: popup close/share + no machine default ===== */
+(function(){
+  const SACHET_FINAL = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
+  const LP_FINAL = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
+  let userSelectedMachine = false;
+
+  function el(id){ return document.getElementById(id); }
+  function v(id){ return (el(id)?.value || '').trim(); }
+  function optionsHtml(list){
+    return '<option value="" selected disabled>เลือกเครื่อง</option>' +
+      list.map(x => `<option value="${x}">${x}</option>`).join('');
+  }
+
+  function setMachineNoDefault(forceClear){
+    const mode = v('mode');
+    const machine = el('lpMachine');
+    const label = el('machineHeaderLabel');
+    if(!machine) return;
+
+    if(!mode){
+      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
+      machine.value = '';
+      if(label) label.textContent = 'เครื่อง';
+      userSelectedMachine = false;
+      return;
+    }
+
+    const list = mode === 'sachet' ? SACHET_FINAL : LP_FINAL;
+    const current = machine.value;
+    machine.innerHTML = optionsHtml(list);
+
+    if(!forceClear && userSelectedMachine && list.includes(current)) {
+      machine.value = current;
+    } else {
+      machine.value = '';
+      userSelectedMachine = false;
+    }
+
+    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
+    const sachetLine = el('sachetLine');
+    if(sachetLine) sachetLine.value = (mode === 'sachet' && machine.value) ? machine.value : '';
+  }
+
+  // Override old global functions that used to auto-select LP7/MS11.
+  window.setMachineOptionsForMode = function(mode){ setMachineNoDefault(true); };
+  window.applyMachineByModeFinal = function(){ setMachineNoDefault(true); };
+  window.setMachineList = function(){ setMachineNoDefault(true); };
+  window.fillMachineUser = function(){ setMachineNoDefault(true); };
+  window.setMachineOptions = function(){ setMachineNoDefault(true); };
+
+  const oldChangeModeSafe = window.changeMode;
+  window.changeMode = function(){
+    try { if(typeof oldChangeModeSafe === 'function') oldChangeModeSafe(); } catch(e) {}
+    setMachineNoDefault(true);
+    try { if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots(); } catch(e) {}
+  };
+
+  // Make popup close reliable on iPhone/Safari.
+  window.closeResultPopup = function(event){
+    if(event){ event.preventDefault(); event.stopPropagation(); }
+    const popup = el('resultPopup');
+    if(popup) popup.classList.remove('show');
+  };
+
+  function shareMessage(){
+    const machine = (v('lpMachine') || window.latestShareMachine || '-').trim();
+    const resultText = (window.latestShareResultText || '-').toUpperCase();
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2,'0');
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const yyyy = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mi = String(now.getMinutes()).padStart(2,'0');
+    const ss = String(now.getSeconds()).padStart(2,'0');
+    return `ไลน์ ${machine} ตรวจสอบความถูกต้องของ Lot แล้ว (${resultText})\n\nวันที่ ${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+  }
+
+  // Share button: try image file share first, then URL/text share, then download.
+  window.shareResultImage = async function(imageUrl){
+    if(!imageUrl){ alert('ยังไม่มีรูปผลตรวจสำหรับแชร์'); return; }
+    const absoluteUrl = new URL(imageUrl, window.location.href).href;
+    const text = shareMessage();
+    try{
+      if(navigator.share){
+        try{
+          const res = await fetch(absoluteUrl, {cache:'no-store'});
+          if(res.ok){
+            const blob = await res.blob();
+            const file = new File([blob], 'Lot_Check_Result.jpg', {type: blob.type || 'image/jpeg'});
+            if(!navigator.canShare || navigator.canShare({files:[file]})){
+              await navigator.share({title:'IP ONE Lot Check Result', text, files:[file]});
+              return;
+            }
+          }
+        }catch(fileErr){}
+        await navigator.share({title:'IP ONE Lot Check Result', text, url:absoluteUrl});
+        return;
+      }
+      const a=document.createElement('a');
+      a.href=absoluteUrl; a.download='Lot_Check_Result.jpg'; document.body.appendChild(a); a.click(); a.remove();
+      alert('เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน\n\n' + text);
+    }catch(err){
+      if(err && err.name === 'AbortError') return;
+      alert('แชร์รูปไม่สำเร็จ: ' + (err && err.message ? err.message : err));
+    }
+  };
+
+  function initFinal(){
+    const mode = el('mode');
+    const machine = el('lpMachine');
+    if(machine){
+      machine.setAttribute('autocomplete','off');
+      machine.addEventListener('change', function(){
+        userSelectedMachine = !!machine.value;
+        const sachetLine = el('sachetLine');
+        if(sachetLine) sachetLine.value = (v('mode') === 'sachet' && machine.value) ? machine.value : '';
+        try { if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots(); } catch(e) {}
+      });
+    }
+    if(mode){
+      mode.setAttribute('autocomplete','off');
+      // Do not clear selected line; clear only machine after line changes.
+      mode.addEventListener('change', function(){ setMachineNoDefault(true); }, true);
+    }
+    setMachineNoDefault(true);
+
+    // Delegated close handler for dynamically rendered popup close button.
+    document.addEventListener('click', function(e){
+      if(e.target && e.target.closest && e.target.closest('.result-popup-close')){
+        window.closeResultPopup(e);
+      }
+    }, true);
+
+    const popup = el('resultPopup');
+    if(popup){
+      popup.addEventListener('click', function(e){ if(e.target === popup) window.closeResultPopup(e); }, true);
+    }
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFinal);
+  else initFinal();
+  window.addEventListener('pageshow', function(){ setTimeout(()=>setMachineNoDefault(true), 0); });
+})();
+</script>
+
+<style>
+/* Make popup close always tappable on mobile */
+.result-popup-close{ position:relative !important; z-index:1000001 !important; touch-action:manipulation; }
+.result-popup-overlay.show{ z-index:1000000 !important; }
+</style>
 
 </body>
 </html>
