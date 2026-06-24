@@ -352,6 +352,155 @@ pre {
     #page2 > h3:nth-of-type(2), #page2 > p:nth-of-type(2), #fileInputCarton, #page2 button[onclick="setCaptureTarget('carton')"], #previewCarton { grid-column:1 / -1; }
 }
 
+
+
+/* ===== Horizontal compact UI override ===== */
+body { padding:8px; background:#eef3f8; }
+.box {
+    max-width:1540px;
+    padding:10px;
+    border-radius:16px;
+    box-shadow:0 10px 28px rgba(15,23,42,.12);
+}
+.header-logo {
+    justify-content:flex-start;
+    background:#071f38;
+    color:white;
+    padding:10px 14px;
+    border-radius:14px;
+    margin:0 0 10px;
+}
+.header-logo img { width:54px; background:white; border-radius:10px; padding:4px; margin-top:0; border:0; }
+.header-logo h1 { font-size:24px; color:white; letter-spacing:.3px; }
+.header-logo p { color:#cbd5e1; font-size:12px; margin-top:0; }
+
+label { font-size:13px; margin-top:6px; }
+input, select { font-size:14px; padding:8px 10px; border-radius:10px; margin-top:4px; }
+button { font-size:14px; padding:9px 10px; border-radius:10px; margin-top:6px; box-shadow:none; }
+h3 { font-size:16px; margin:4px 0; }
+.small { font-size:12px; margin:4px 0; }
+.info, .warn { padding:8px 10px; border-radius:10px; margin-top:6px; font-size:13px; }
+.pass, .ng { font-size:30px; padding:12px; border-radius:14px; margin-top:8px; }
+table { margin-top:8px; border-radius:10px; }
+th, td { font-size:12px; padding:6px 7px; }
+hr { margin:8px 0; }
+
+.step-tabs { display:none !important; }
+.step-page, .step-page.active { display:block !important; animation:none !important; }
+#page1, #page2, #page3 {
+    margin-top:8px;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px;
+}
+
+#page1 {
+    display:grid !important;
+    grid-template-columns: 1.05fr 1.05fr .9fr .9fr 1fr 1fr;
+    gap:8px 10px;
+    align-items:end;
+}
+#page1 > .info:first-of-type { display:none !important; }
+#page1 > label, #page1 > input, #page1 > select { margin:0; }
+#page1 > label { align-self:end; }
+#pouchHeader {
+    grid-column:1 / span 2;
+    display:grid !important;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    padding:0 !important;
+    border:0 !important;
+    background:transparent !important;
+    margin:0 !important;
+}
+#pouchHeader label { margin:0; }
+#pouchHeader select { margin:4px 0 0; }
+#pouchSection {
+    grid-column:1 / span 3;
+    display:grid !important;
+    grid-template-columns:1fr;
+    gap:8px;
+    padding:8px !important;
+    margin:0 !important;
+    border-radius:12px !important;
+}
+#cartonSection {
+    grid-column:4 / span 3;
+    display:grid !important;
+    grid-template-columns:1fr;
+    gap:8px;
+    padding:8px !important;
+    margin:0 !important;
+    border-radius:12px !important;
+}
+#sachetBox, #linapackBox, #cartonTHBox, #cartonExportBox {
+    padding:8px !important;
+    border-radius:12px !important;
+    margin:0 !important;
+}
+#linapackBox, #cartonTHBox, #cartonExportBox {
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0,1fr));
+    gap:6px 8px;
+    align-items:end;
+}
+#mixCodeBox { display:grid; grid-template-columns:1fr 1fr; gap:6px; grid-column:span 2; }
+#mixCodeBox .small, #linapackHint, #cartonTHBox .small, #cartonExportBox .small { display:none; }
+#autoExpInfo, #linkedLotInfo { grid-column:1 / -1; margin:0; }
+#page1 .nav-row { display:none !important; }
+
+#page2 {
+    display:grid !important;
+    grid-template-columns: 1fr 1fr 300px;
+    gap:10px;
+    align-items:start;
+}
+#page2 > h3:nth-of-type(1), #page2 > p:nth-of-type(1), #fileInputPouch, #page2 button[onclick="setCaptureTarget('pouch')"], #previewPouch { grid-column:1; }
+#page2 > h3:nth-of-type(2), #page2 > p:nth-of-type(2), #fileInputCarton, #page2 button[onclick="setCaptureTarget('carton')"], #previewCarton { grid-column:2; }
+#page2 > h3:nth-of-type(3), #captureTargetText, #page2 button[onclick="startCamera()"], #video, #page2 button[onclick="captureImage()"], #canvas { grid-column:3; }
+#page2 > hr { display:none; }
+#page2 h3, #page2 p, #page2 input, #page2 button, #page2 img, #page2 video { margin-top:4px; }
+#previewPouch, #previewCarton, #video {
+    height:250px;
+    max-height:250px;
+    object-fit:contain;
+    background:#0f172a;
+    border-radius:12px;
+}
+#page2 .nav-row {
+    grid-column:1 / -1;
+    display:grid !important;
+    grid-template-columns:1fr;
+    margin-top:0;
+}
+#page2 .nav-row .btn-secondary { display:none !important; }
+#page2 .nav-row .btn-success { font-size:18px; padding:12px; }
+
+#page3 { padding:10px; }
+#page3 .nav-row { display:none !important; }
+#result { margin-top:0; }
+#detail { display:grid; grid-template-columns: 1.05fr 1.05fr .9fr; gap:10px; align-items:start; }
+#detail > img, #detail .download { max-width:100%; }
+#detail img { max-height:260px; object-fit:contain; background:#f8fafc; border-radius:12px; }
+pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
+.download { font-size:14px; padding:10px; border-radius:10px; margin-top:8px; }
+
+@media (max-width:1100px) {
+    #page1 { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    #pouchHeader, #pouchSection, #cartonSection, #autoExpInfo, #linkedLotInfo { grid-column:1 / -1; }
+    #page2 { grid-template-columns:1fr 1fr; }
+    #page2 > h3:nth-of-type(3), #captureTargetText, #page2 button[onclick="startCamera()"], #video, #page2 button[onclick="captureImage()"], #canvas { grid-column:1 / -1; }
+    #detail { grid-template-columns:1fr; }
+}
+@media (max-width:720px) {
+    .box { padding:8px; }
+    .header-logo h1 { font-size:20px; }
+    #page1, #page2, #linapackBox, #cartonTHBox, #cartonExportBox, #mixCodeBox { grid-template-columns:1fr !important; }
+    #page2 > * { grid-column:1 / -1 !important; }
+    #previewPouch, #previewCarton, #video { height:220px; max-height:220px; }
+}
+
 </style>
 </head>
 <body>
