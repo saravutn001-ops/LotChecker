@@ -2892,11 +2892,19 @@ function addMonths(date, months) {
 }
 
 function updateMFGFromDate() {
-    const dateValue = document.getElementById("mfgDate").value;
-    if (!dateValue) return;
+    const mfgDateEl = document.getElementById("mfgDate");
+    const dateValue = mfgDateEl ? mfgDateEl.value : "";
+    if (!dateValue) {
+        // บาง browser มือถือแสดงวันที่แล้ว แต่ value ยังไม่พร้อม ให้คงค่า MFG เดิมไว้
+        if (typeof autoExp === "function") autoExp();
+        if (typeof updateExpectedLinkedLots === "function") updateExpectedLinkedLots();
+        return;
+    }
     const parts = dateValue.split("-");
-    const mfg = parts[2] + parts[1] + parts[0].slice(-2);
-    document.getElementById("mfg").value = mfg;
+    if (parts.length === 3) {
+        const mfg = parts[2] + parts[1] + parts[0].slice(-2);
+        document.getElementById("mfg").value = mfg;
+    }
     autoExp();
     updateExpectedLinkedLots();
 }
@@ -4077,7 +4085,7 @@ input[type="date"]{
     if(mode && !machine) missing.push('เครื่อง');
     if(!product) missing.push('ประเภทผลิตภัณฑ์');
     if(!market) missing.push('ประเภทงาน');
-    if(!mfgDate) missing.push('วันที่ผลิต');
+    if(!mfgDate && !document.getElementById('mfg')?.value) missing.push('วันที่ผลิต');
     if((market === 'EXPORT' || market === 'LAOS') && !document.getElementById('cartonPrefix')?.value) missing.push('Prefix');
 
     const needMix = product === 'EPW' && (market === 'TH' || market === 'LAOS');
@@ -4281,7 +4289,7 @@ input[type="date"]{
     if(mode && !machine) missing.push('เครื่อง');
     if(!product) missing.push('ประเภทผลิตภัณฑ์');
     if(!market) missing.push('ประเภทงาน');
-    if(!mfgDate) missing.push('วันที่ผลิต');
+    if(!mfgDate && !document.getElementById('mfg')?.value) missing.push('วันที่ผลิต');
     if((market === 'EXPORT' || market === 'LAOS') && !getValue('cartonPrefix')) missing.push('Prefix');
 
     const needMix = product === 'EPW' && (market === 'TH' || market === 'LAOS');
@@ -4393,6 +4401,8 @@ input[type="date"]{
     const resultDiv = document.getElementById('result');
     const detailDiv = document.getElementById('detail');
     try{
+      if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
+      if(typeof autoExp === 'function') { try{ autoExp(); }catch(e){} }
       if(!validateReady()) return;
       const payload = buildPayload();
       if(resultDiv) resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
@@ -4422,6 +4432,139 @@ input[type="date"]{
     if(prefix) prefix.addEventListener('change', window.updateShippingMarkByPrefix);
     setTimeout(window.updateShippingMarkByPrefix, 300);
     setTimeout(window.updateShippingMarkByPrefix, 900);
+  });
+})();
+</script>
+
+
+
+<script>
+/* ===== USER FIX: no default machine, date validation fallback, mobile-safe check ===== */
+(function(){
+  const SACHET_LIST_USER = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
+  const LP_LIST_USER = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
+  let lastModeUser = "";
+
+  function fillMachineUser(forceReset){
+    const modeEl = document.getElementById('mode');
+    const machine = document.getElementById('lpMachine');
+    const label = document.getElementById('machineHeaderLabel');
+    if(!modeEl || !machine) return;
+    const mode = modeEl.value || '';
+    const old = machine.value || '';
+
+    if(!mode){
+      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
+      machine.value = '';
+      if(label) label.textContent = 'เครื่อง';
+      lastModeUser = '';
+      return;
+    }
+
+    const list = mode === 'sachet' ? SACHET_LIST_USER : LP_LIST_USER;
+    machine.innerHTML = '<option value="" selected disabled>เลือกเครื่อง</option>' + list.map(v => `<option value="${v}">${v}</option>`).join('');
+    if(!forceReset && list.includes(old)) machine.value = old;
+    else machine.value = '';
+    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
+
+    const sachetLine = document.getElementById('sachetLine');
+    if(sachetLine) sachetLine.value = (mode === 'sachet' && machine.value) ? machine.value : '';
+    lastModeUser = mode;
+  }
+
+  function deriveMfgIfNeeded(){
+    const mfgEl = document.getElementById('mfg');
+    const dateEl = document.getElementById('mfgDate');
+    if(!mfgEl) return;
+    if(mfgEl.value) return;
+    const v = dateEl ? dateEl.value : '';
+    if(/^\d{4}-\d{2}-\d{2}$/.test(v)){
+      const p = v.split('-');
+      mfgEl.value = p[2] + p[1] + p[0].slice(-2);
+    }
+  }
+
+  function validateMobileReady(){
+    deriveMfgIfNeeded();
+    const get = id => (document.getElementById(id)?.value || '').trim();
+    const missing = [];
+    const mode = get('mode');
+    const machine = get('lpMachine');
+    const product = get('productType');
+    const market = get('marketType');
+    const mfg = get('mfg');
+    const date = get('mfgDate');
+    if(!mode) missing.push('ประเภทไลน์');
+    if(mode && !machine) missing.push('เครื่อง');
+    if(!product) missing.push('ประเภทผลิตภัณฑ์');
+    if(!market) missing.push('ประเภทงาน');
+    if(!mfg && !date) missing.push('วันที่ผลิต');
+    if((market === 'EXPORT' || market === 'LAOS') && !get('cartonPrefix')) missing.push('Prefix');
+    if(product === 'EPW' && (market === 'TH' || market === 'LAOS') && !get('mixDate')) missing.push('วันที่ผสม');
+    const hasPouch = !!(window.pouchImageData || (typeof pouchImageData !== 'undefined' && pouchImageData));
+    const hasCarton = !!(window.cartonImageData || (typeof cartonImageData !== 'undefined' && cartonImageData));
+    if(!hasPouch) missing.push('รูปซอง');
+    if(!hasCarton) missing.push('รูปกล่อง');
+    return missing;
+  }
+
+  const originalSendCheckUser = window.sendCheck;
+  window.sendCheck = async function(){
+    try{
+      deriveMfgIfNeeded();
+      if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
+      if(typeof updateShippingMarkByPrefix === 'function') { try{ updateShippingMarkByPrefix(); }catch(e){} }
+      const missing = validateMobileReady();
+      if(missing.length){
+        const msg = 'กรุณาเลือก/กรอก: ' + missing.join(', ');
+        if(typeof showToast === 'function') showToast(msg, 'error');
+        const resultDiv = document.getElementById('result');
+        if(resultDiv) resultDiv.innerHTML = `<div class="ng">${msg}</div>`;
+        return;
+      }
+      return await originalSendCheckUser.apply(this, arguments);
+    }catch(e){
+      const msg = 'ตรวจสอบไม่ได้: ' + (e && e.message ? e.message : e);
+      if(typeof showToast === 'function') showToast(msg, 'error');
+      const resultDiv = document.getElementById('result');
+      if(resultDiv) resultDiv.innerHTML = `<div class="ng">${msg}</div>`;
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const modeEl = document.getElementById('mode');
+    const machine = document.getElementById('lpMachine');
+    const dateEl = document.getElementById('mfgDate');
+    if(modeEl){
+      modeEl.addEventListener('change', function(){
+        fillMachineUser(true); // เปลี่ยนประเภทไลน์แล้วต้องให้ผู้ใช้เลือกเครื่องเอง ไม่ default LP7/MS11
+        if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots();
+      });
+    }
+    if(machine){
+      machine.addEventListener('change', function(){
+        const sachetLine = document.getElementById('sachetLine');
+        if(sachetLine && document.getElementById('mode')?.value === 'sachet') sachetLine.value = machine.value;
+        if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots();
+      });
+    }
+    if(dateEl){
+      dateEl.addEventListener('change', function(){
+        deriveMfgIfNeeded();
+        if(typeof updateMFGFromDate === 'function') updateMFGFromDate();
+      });
+    }
+    setTimeout(function(){
+      const mode = modeEl ? modeEl.value : '';
+      // ถ้ายังไม่ได้เลือกไลน์ แสดง placeholder; ถ้าเลือกแล้วแต่เครื่องเป็น default เดิม ให้ล้างให้เลือกใหม่
+      if(!mode) fillMachineUser(true);
+      else {
+        const val = (machine?.value || '').trim();
+        const isDefault = (mode === 'linapack' && (val === 'LP7' || val === 'LP1')) || (mode === 'sachet' && val === 'MS11');
+        fillMachineUser(isDefault);
+      }
+      deriveMfgIfNeeded();
+    }, 300);
   });
 })();
 </script>
