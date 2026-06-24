@@ -887,6 +887,147 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     .result-title { font-size:30px; }
 }
 
+
+
+/* ===== Result popup modal override ===== */
+.result-popup-overlay {
+    position:fixed;
+    inset:0;
+    background:rgba(15,23,42,.72);
+    z-index:9999;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:18px;
+}
+.result-popup-overlay.show { display:flex; }
+.result-popup {
+    width:min(1180px, 96vw);
+    max-height:94vh;
+    overflow:auto;
+    background:#ffffff;
+    border-radius:24px;
+    box-shadow:0 28px 80px rgba(0,0,0,.35);
+    border:1px solid #dbe4ef;
+}
+.result-popup-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:14px;
+    padding:18px 22px;
+    background:#071f38;
+    color:white;
+    position:sticky;
+    top:0;
+    z-index:1;
+}
+.result-popup-title {
+    font-size:40px;
+    font-weight:900;
+    line-height:1;
+}
+.result-popup-subtitle {
+    font-size:16px;
+    margin-top:6px;
+    color:#dbeafe;
+    font-weight:700;
+}
+.result-popup-close {
+    width:auto !important;
+    min-width:44px;
+    padding:8px 12px !important;
+    margin:0 !important;
+    background:#111827 !important;
+    color:white !important;
+    border:1px solid rgba(255,255,255,.25) !important;
+    border-radius:12px !important;
+    font-size:22px !important;
+    box-shadow:none !important;
+}
+.result-popup-body { padding:18px 22px 22px; }
+.result-popup-meta {
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:10px;
+    margin-bottom:14px;
+}
+.result-popup-image-wrap {
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#f8fafc;
+    border:1px solid #dbe4ef;
+    border-radius:18px;
+    padding:12px;
+}
+.result-popup-image-wrap img {
+    width:auto !important;
+    max-width:100% !important;
+    max-height:68vh !important;
+    object-fit:contain !important;
+    margin:0 !important;
+    border-radius:14px !important;
+    background:#0f172a !important;
+}
+.result-popup-bottom {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-top:14px;
+    align-items:start;
+}
+.result-popup-lot-box {
+    background:#eef6ff;
+    border:1px solid #bfdbfe;
+    border-radius:14px;
+    padding:12px 14px;
+}
+.result-popup-lot-title {
+    font-size:12px;
+    color:#475569;
+    font-weight:800;
+    margin-bottom:4px;
+}
+.result-popup-lot-value {
+    font-size:18px;
+    color:#0f172a;
+    font-weight:900;
+    word-break:break-word;
+}
+.result-popup-ng-box {
+    grid-column:1 / -1;
+    background:#fff7ed;
+    border:1px solid #fed7aa;
+    border-radius:14px;
+    padding:12px;
+}
+.result-popup-ok-box {
+    grid-column:1 / -1;
+    background:#ecfdf5;
+    border:1px solid #bbf7d0;
+    color:#047857;
+    font-size:20px;
+    font-weight:900;
+    padding:16px;
+    border-radius:14px;
+    text-align:center;
+}
+.result-popup-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+}
+.result-popup-actions a { margin:0 !important; }
+.result-popup-ng-box table { margin-top:8px !important; }
+.result-popup-ng-box th, .result-popup-ng-box td { font-size:13px !important; padding:8px 9px !important; }
+@media (max-width:900px) {
+    .result-popup-meta, .result-popup-bottom, .result-popup-actions { grid-template-columns:1fr; }
+    .result-popup-title { font-size:32px; }
+    .result-popup-image-wrap img { max-height:58vh !important; }
+}
+
 </style>
 </head>
 <body>
@@ -1085,11 +1226,30 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 </div>
 </div>
 
+<div id="resultPopup" class="result-popup-overlay" onclick="closeResultPopup(event)">
+    <div class="result-popup" onclick="event.stopPropagation()">
+        <div id="resultPopupContent"></div>
+    </div>
+</div>
+
 <script>
 let pouchImageData = "";
 let cartonImageData = "";
 let captureTarget = "pouch";
 let cameraStream = null;
+
+function closeResultPopup(event) {
+    const popup = document.getElementById("resultPopup");
+    if (popup) popup.classList.remove("show");
+}
+
+function openResultPopup(html) {
+    const popup = document.getElementById("resultPopup");
+    const content = document.getElementById("resultPopupContent");
+    if (content) content.innerHTML = html;
+    if (popup) popup.classList.add("show");
+}
+
 
 function goPage(page) {
     // Single-page layout: keep every section visible.
@@ -1648,58 +1808,53 @@ async function sendCheck() {
             </div>
         `;
 
-        let html = ``;
-        html += `<div class="result-main-grid">`;
-
-        html += `<div class="result-card result-image-card">`;
-        html += `<div class="result-section-title">รูปหลักฐานการตรวจ</div>`;
-        if (data.stampedImageUrl) {
-            html += `<img src="${data.stampedImageUrl}">`;
-            html += `<div class="result-actions">
-                <a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a>
-                <a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a>
-            </div>`;
-        } else {
-            html += `<div class="warn">ไม่มีรูปแสตมป์</div>`;
-        }
-        html += `</div>`;
-
-        html += `<div class="result-card result-table">`;
-        html += `<div class="result-section-title">รายการที่ NG</div>`;
-        if (data.expectedPouchLot) html += `<div class="meta-item" style="margin-bottom:8px;"><div class="meta-label">Lot ซองที่ควรเป็น</div><div class="meta-value">${data.expectedPouchLot}</div></div>`;
-        if (data.expectedCartonLot) html += `<div class="meta-item" style="margin-bottom:8px;"><div class="meta-label">Lot กล่องที่ควรเป็น</div><div class="meta-value">${data.expectedCartonLot}</div></div>`;
         const ngRows = (data.details || []).filter(row => row.status === "NG");
+        let ngHtml = "";
         if (ngRows.length === 0) {
-            html += `<div class="result-ok-box">✓ ไม่พบรายการ NG</div>`;
+            ngHtml = `<div class="result-popup-ok-box">✓ ไม่พบรายการ NG</div>`;
         } else {
-            html += `<div class="result-ng-note">แสดงเฉพาะรายการที่ NG เพื่อลดความรกของหน้าจอ</div>`;
-            html += `<table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+            ngHtml = `<div class="result-popup-ng-box"><div class="result-section-title">รายการที่ NG</div>`;
+            ngHtml += `<table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
             ngRows.forEach(row => {
-                html += `<tr><td>${row.item}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
+                ngHtml += `<tr><td>${row.item}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
             });
-            html += `</table>`;
-        }
-        html += `</div>`;
-        html += `</div>`;
-
-        if (data.abnormalPoints && data.abnormalPoints.length > 0) {
-            html += `<div class="result-card" style="margin-top:12px;">`;
-            html += `<div class="result-section-title">จุดผิดปกติที่พบ</div>`;
-            html += `<table><tr><th>จุดที่ผิด</th><th>ปัญหา</th><th>อ่านได้</th><th>ควรเป็น</th><th>ตำแหน่งในรูป/ล็อต</th></tr>`;
-            data.abnormalPoints.forEach(p => {
-                html += `<tr>
-                    <td>${p.item || ""}</td>
-                    <td>${p.problem || ""}</td>
-                    <td>${p.actual || ""}</td>
-                    <td>${p.expected || ""}</td>
-                    <td>${p.position_hint || ""}</td>
-                </tr>`;
-            });
-            html += `</table></div>`;
+            ngHtml += `</table></div>`;
         }
 
-        html += `<div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines, null, 2)}</pre></details></div>`;
-        detailDiv.innerHTML = html;
+        const popupHtml = `
+            <div class="result-popup-header">
+                <div>
+                    <div class="result-popup-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+                    <div class="result-popup-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'} | ${data.time || '-'}</div>
+                </div>
+                <button class="result-popup-close" onclick="closeResultPopup(event)">×</button>
+            </div>
+            <div class="result-popup-body">
+                <div class="result-popup-meta">
+                    <div class="meta-item"><div class="meta-label">โหมด</div><div class="meta-value">${data.checkType || '-'}</div></div>
+                    <div class="meta-item"><div class="meta-label">ประเภทงาน</div><div class="meta-value">${data.marketType || '-'}</div></div>
+                    <div class="meta-item"><div class="meta-label">Expected EXP</div><div class="meta-value">${data.expectedExp || '-'}</div></div>
+                    <div class="meta-item"><div class="meta-label">เวลา</div><div class="meta-value">${data.time || '-'}</div></div>
+                </div>
+                <div class="result-popup-image-wrap">
+                    ${data.stampedImageUrl ? `<img src="${data.stampedImageUrl}">` : `<div class="warn">ไม่มีรูปแสตมป์</div>`}
+                </div>
+                <div class="result-popup-bottom">
+                    ${data.expectedPouchLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot ซองที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedPouchLot}</div></div>` : ``}
+                    ${data.expectedCartonLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot กล่องที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedCartonLot}</div></div>` : ``}
+                    ${ngHtml}
+                </div>
+                ${data.stampedImageUrl ? `<div class="result-popup-actions"><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ``}
+                <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines, null, 2)}</pre></details></div>
+            </div>`;
+        openResultPopup(popupHtml);
+
+        detailDiv.innerHTML = `
+            <div class="result-card" style="text-align:center; padding:18px;">
+                <div class="result-section-title">ผลตรวจแสดงใน Pop-up</div>
+                <button onclick='openResultPopup(${JSON.stringify(popupHtml)})' class="btn-success" style="max-width:360px;">เปิดผลตรวจอีกครั้ง</button>
+            </div>
+        `;
 
     } catch (err) {
         resultDiv.innerHTML = `<div class="ng">ERROR</div><p>${err}</p>`;
@@ -3586,7 +3741,7 @@ def check():
         if market_type == "TH":
             expected_carton_lot = f"00001 00 {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
         else:
-            expected_carton_lot = f"00001 {carton_alpha_code} {expected_mfg}".strip()
+            expected_carton_lot = f"{shipping_mark} 00001 {carton_alpha_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
 
         return jsonify({
             "summary": summary,
