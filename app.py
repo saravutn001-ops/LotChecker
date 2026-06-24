@@ -667,8 +667,15 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 }
 #cartonTHBox.config-grid,
 #cartonExportBox.config-grid {
-    display:grid !important;
     grid-template-columns:repeat(4, minmax(170px, 1fr)) !important;
+}
+#cartonTHBox.config-grid:not(.hidden-market),
+#cartonExportBox.config-grid:not(.hidden-market) {
+    display:grid !important;
+}
+#cartonTHBox.hidden-market,
+#cartonExportBox.hidden-market {
+    display:none !important;
 }
 #pouchHeader .config-grid label,
 #cartonSection .config-grid label {
@@ -706,6 +713,17 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     #cartonTHBox.config-grid,
     #cartonExportBox.config-grid { grid-template-columns:1fr !important; }
 }
+
+
+/* ===== Carton market visibility fix: TH shows only 00 prefix, Export shows selectable prefix ===== */
+#cartonSection .hidden-market { display:none !important; }
+#cartonTHBox:not(.hidden-market),
+#cartonExportBox:not(.hidden-market) {
+    display:grid !important;
+    grid-template-columns:repeat(4, minmax(170px, 1fr)) !important;
+}
+#cartonSection { gap:8px !important; }
+#cartonTHBox, #cartonExportBox { margin-top:0 !important; }
 
 </style>
 </head>
@@ -794,7 +812,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
         <p class="small full-span">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
     </div>
 
-    <div id="cartonExportBox" class="config-grid grid-4" style="display:none;">
+    <div id="cartonExportBox" class="config-grid grid-4 hidden-market">
         <label>Shipping Mark</label>
         <label>Prefix</label>
         <label>เลขอาคาร</label>
@@ -1254,9 +1272,16 @@ function changeProduct() {
     const needMix = (mode === "linapack" && product === "EPW" && (market === "TH" || market === "LAOS"));
     [mixDate, mixCode, mixDateLabel, mixCodeLabel].forEach(el => { if (el) el.classList.toggle("hidden-field", !needMix); });
 
-    cartonTHBox.style.display = market === "TH" ? "block" : "none";
-    cartonExportBox.style.display = (market === "EXPORT" || market === "LAOS") ? "block" : "none";
-    if (market === "EXPORT" || market === "LAOS") updateShippingMarkByPrefix();
+    const isThaiMarket = market === "TH";
+    const isExportMarket = (market === "EXPORT" || market === "LAOS");
+
+    cartonTHBox.classList.toggle("hidden-market", !isThaiMarket);
+    cartonExportBox.classList.toggle("hidden-market", !isExportMarket);
+
+    // งานไทย: Prefix บังคับเป็น 00 และไม่แสดงตัวเลือก Prefix ต่างประเทศ
+    // งานต่างประเทศ/ลาว: แสดง Prefix ต่างประเทศ และระบบเติม Shipping Mark อัตโนมัติ
+    if (isExportMarket) updateShippingMarkByPrefix();
+    else updateExpectedLinkedLots();
 
     if (mode === "linapack") {
         const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
