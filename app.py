@@ -2315,6 +2315,10 @@ button,
     .box { max-width:760px !important; }
 }
 
+
+/* Force hide Mix Date / Mix Code cards when product does not need mix code */
+.mix-field.hidden-field { display:none !important; }
+
 </style>
 </head>
 <body>
@@ -3003,8 +3007,15 @@ function changeProduct() {
     sachetExp.disabled = noExp;
     linapackExp.disabled = noExp;
 
-    const needMix = (mode === "linapack" && product === "EPW" && (market === "TH" || market === "LAOS"));
+    // แสดงวันผสมเฉพาะกรณีที่ต้องใช้จริงเท่านั้น
+    // EPC ไม่ต้องแสดงช่องวันที่ผสม / Mix Code เด็ดขาด
+    const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
     [mixDate, mixCode, mixDateLabel, mixCodeLabel].forEach(el => { if (el) el.classList.toggle("hidden-field", !needMix); });
+    document.querySelectorAll(".mix-field").forEach(el => el.classList.toggle("hidden-field", !needMix));
+    if (!needMix) {
+        if (mixDate) mixDate.value = "";
+        if (mixCode) mixCode.value = "";
+    }
 
     const isThaiMarket = market === "TH";
     const isExportMarket = (market === "EXPORT" || market === "LAOS");
@@ -3897,14 +3908,16 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         if summary == "PASS":
             title = "LOT CHECK PASS"
             line2 = "POUCH + CARTON VERIFIED"
-            color = (0, 150, 0)
+            color = (255, 255, 255)
+            stamp_bg = (22, 163, 74)   # green
         else:
             title = "LOT CHECK NG"
             line2 = "POUCH + CARTON VERIFICATION FAILED"
-            color = (220, 0, 0)
+            color = (255, 255, 255)
+            stamp_bg = (220, 38, 38)   # red
 
-        # Header
-        draw.rectangle([0, 0, canvas_w, header_h], fill=(12, 37, 64))
+        # Header: PASS = green, NG = red
+        draw.rectangle([0, 0, canvas_w, header_h], fill=stamp_bg)
         draw.text((margin, 30), title, font=title_font, fill=color)
         draw.text((margin, 96), line2, font=body_font, fill=(255, 255, 255))
         time_text = f"By Lot Checker | {checked_time}"
@@ -3928,7 +3941,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
         # Footer stamp
         footer_y = header_h + image_area_h + 10
-        draw.rectangle([0, footer_y, canvas_w, canvas_h], fill=(12, 37, 64))
+        draw.rectangle([0, footer_y, canvas_w, canvas_h], fill=stamp_bg)
         draw_text_with_shadow(draw, (margin, footer_y + 28), title, title_font, color)
         draw_text_with_shadow(draw, (margin, footer_y + 96), f"POUCH + CARTON | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
     else:
@@ -3943,11 +3956,13 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         if summary == "PASS":
             title = "LOT CHECK PASS"
             line2 = "LOT VERIFIED"
-            color = (0, 180, 0)
+            color = (255, 255, 255)
+            stamp_bg = (22, 163, 74)   # green
         else:
             title = "LOT CHECK NG"
             line2 = "LOT VERIFICATION FAILED"
-            color = (255, 0, 0)
+            color = (255, 255, 255)
+            stamp_bg = (220, 38, 38)   # red
 
         check_type_en = str(check_type)
         if check_type_en == "ซอง":
@@ -3957,12 +3972,15 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
         x = max(20, int(w * 0.035))
 
-        # Put stamp at bottom-left, no background box
+        # Stamp banner at bottom: PASS = green, NG = red
         line_count = 4
         line_height_title = int(title_font.size * 1.25)
         line_height_body = int(body_font.size * 1.25)
         total_text_height = line_height_title + (line_count - 1) * line_height_body
-        y = max(20, h - total_text_height - max(30, int(h * 0.035)))
+        pad_y = max(16, int(h * 0.018))
+        banner_h = total_text_height + pad_y * 2
+        y = max(0, h - banner_h + pad_y)
+        draw.rectangle([0, h - banner_h, w, h], fill=stamp_bg)
 
         draw_text_with_shadow(draw, (x, y), title, title_font, color)
         y += int(title_font.size * 1.25)
