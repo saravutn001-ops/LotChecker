@@ -1856,7 +1856,7 @@ def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_
                 "item": "แถว %s - เวลา" % i,
                 "status": "PASS" if time_ok else "NG",
                 "actual": actual_time,
-                "expected": "เวลา valid 00:00-23:59"
+                "expected": "00:00-23:59"
             })
 
         # EXP / วันหมดอายุ
@@ -1961,7 +1961,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         "item": "เวลา",
         "status": "PASS" if time_ok else "NG",
         "actual": actual_time if actual_time else "NOT FOUND",
-        "expected": "เวลา valid 00:00-23:59 เช่น 07:45"
+        "expected": "00:00-23:59"
     })
 
     has_exp = "EXP" in all_text
