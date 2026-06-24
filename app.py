@@ -2417,9 +2417,11 @@ body.product-epc #mixCodeHeaderLabel {
         <div class="field-card">
             <label id="machineHeaderLabel">เครื่อง (MFG)</label>
             <select id="lpMachine" onchange="updateExpectedLinkedLots()">
-                <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
-                <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
-                <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
+                <option value="MS1">MS1</option><option value="MS2">MS2</option><option value="MS3">MS3</option>
+                <option value="MS4">MS4</option><option value="MS5">MS5</option><option value="MS6">MS6</option>
+                <option value="MS7">MS7</option><option value="MS8">MS8</option><option value="MS9">MS9</option>
+                <option value="MS10">MS10</option><option value="MS11" selected>MS11</option><option value="MS12">MS12</option>
+                <option value="AS1">AS1</option><option value="AS2">AS2</option>
             </select>
         </div>
         <div class="field-card">
@@ -3554,6 +3556,106 @@ window.addEventListener('load', () => {
     hardApplyMixVisibility();
     setTimeout(hardApplyMixVisibility, 50);
   };
+})();
+</script>
+
+
+
+<script>
+/* ===== FINAL FIX: line machine options + carton prefix by market ===== */
+(function(){
+  const SACHET_MACHINES = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
+  const LINAPACK_MACHINES = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
+
+  function setOptions(select, options, fallback){
+    if(!select) return;
+    const current = (select.value || '').trim().toUpperCase();
+    select.innerHTML = options.map(v => `<option value="${v}">${v}</option>`).join('');
+    select.value = options.includes(current) ? current : fallback;
+  }
+
+  function finalApplyLineMachine(){
+    const mode = document.getElementById('mode')?.value || 'sachet';
+    const machine = document.getElementById('lpMachine');
+    const label = document.getElementById('machineHeaderLabel');
+    if(mode === 'sachet'){
+      setOptions(machine, SACHET_MACHINES, 'MS11');
+      if(label) label.textContent = 'เครื่อง Sachet';
+      const sachetLine = document.getElementById('sachetLine');
+      if(sachetLine && machine) sachetLine.value = machine.value;
+    }else{
+      setOptions(machine, LINAPACK_MACHINES, 'LP7');
+      if(label) label.textContent = 'เครื่อง Linapack';
+    }
+  }
+
+  function finalApplyCartonMarket(){
+    const market = document.getElementById('marketType')?.value || 'TH';
+    const thBox = document.getElementById('cartonTHBox');
+    const exportBox = document.getElementById('cartonExportBox');
+    const prefix = document.getElementById('cartonPrefix');
+    const shipping = document.getElementById('shippingMark');
+    const isExport = market === 'EXPORT' || market === 'LAOS';
+
+    if(thBox){
+      thBox.classList.toggle('hidden-market', isExport);
+      thBox.style.setProperty('display', isExport ? 'none' : 'grid', 'important');
+    }
+    if(exportBox){
+      exportBox.classList.toggle('hidden-market', !isExport);
+      exportBox.style.setProperty('display', isExport ? 'grid' : 'none', 'important');
+    }
+    if(prefix){
+      prefix.disabled = !isExport ? true : false;
+      if(isExport){
+        prefix.removeAttribute('disabled');
+        prefix.style.pointerEvents = 'auto';
+        prefix.style.opacity = '1';
+      }
+    }
+    if(isExport && typeof updateShippingMarkByPrefix === 'function'){
+      try { updateShippingMarkByPrefix(); } catch(e) {}
+    }else if(!isExport && shipping){
+      shipping.value = '-';
+    }
+  }
+
+  function finalApplyAll(){
+    finalApplyLineMachine();
+    finalApplyCartonMarket();
+    if(typeof autoExp === 'function') { try { autoExp(); } catch(e) {} }
+    if(typeof updateExpectedLinkedLots === 'function') { try { updateExpectedLinkedLots(); } catch(e) {} }
+    if(typeof hardApplyMixVisibility === 'function') { try { hardApplyMixVisibility(); } catch(e) {} }
+  }
+
+  // Override after all old scripts so no earlier script can force LP list or hide export prefix.
+  window.finalApplyLineMachine = finalApplyLineMachine;
+  window.finalApplyCartonMarket = finalApplyCartonMarket;
+  window.finalApplyAll = finalApplyAll;
+
+  const oldChangeMode = window.changeMode;
+  window.changeMode = function(){
+    if(typeof oldChangeMode === 'function') { try { oldChangeMode.apply(this, arguments); } catch(e) {} }
+    finalApplyAll();
+    setTimeout(finalApplyAll, 50);
+  };
+
+  const oldChangeProduct = window.changeProduct;
+  window.changeProduct = function(){
+    if(typeof oldChangeProduct === 'function') { try { oldChangeProduct.apply(this, arguments); } catch(e) {} }
+    finalApplyAll();
+    setTimeout(finalApplyAll, 50);
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ['mode','lpMachine','marketType','productType','cartonPrefix','buildingNo','buildingNoExport','buildingSuffixTH','buildingSuffixExport'].forEach(function(id){
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('change', function(){ setTimeout(finalApplyAll, 0); setTimeout(finalApplyAll, 80); });
+    });
+    finalApplyAll();
+    setTimeout(finalApplyAll, 100);
+    setTimeout(finalApplyAll, 500);
+  });
 })();
 </script>
 
