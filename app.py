@@ -311,11 +311,8 @@ pre {
 
 <div id="page1" class="step-page active">
 
-<label>ประเภทการตรวจ</label>
-<select id="checkType" onchange="changeCheckType()">
-    <option value="pouch">ตรวจล็อตซอง</option>
-    <option value="carton">ตรวจล็อตกล่อง</option>
-</select>
+<input type="hidden" id="checkType" value="both">
+<div class="info"><b>โหมดตรวจรวม:</b> ตรวจล็อตซองและล็อตกล่องพร้อมกัน โดยใช้ MFG เดียวกันเป็นตัวกลาง</div>
 
 <div id="pouchHeader">
     <label>ประเภทไลน์</label>
@@ -379,7 +376,7 @@ pre {
     </div>
 </div>
 
-<div id="cartonSection" style="display:none;">
+<div id="cartonSection">
     <div id="cartonTHBox">
         <p class="small">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
         <p class="small">เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก / รหัสงานไทยต้องเป็น 00 / เลขอาคารเลือกได้ 1-6 หรือ ไม่มี</p>
@@ -469,24 +466,33 @@ pre {
 </div>
 
 <div id="page2" class="step-page">
-<h3>อัปโหลดรูป</h3>
-<input type="file" id="fileInput" accept="image/*">
+<h3>รูปที่ 1: ซอง</h3>
+<p class="small">ต้องถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP ตามประเภทงาน</p>
+<input type="file" id="fileInputPouch" accept="image/*">
+<button onclick="setCaptureTarget('pouch')">เลือกถ่ายรูปซอง</button>
+<img id="previewPouch" style="display:none;">
 
 <hr>
 
-<h3>หรือถ่ายจากกล้อง</h3>
+<h3>รูปที่ 2: กล่อง</h3>
+<p class="small">ต้องถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
+<input type="file" id="fileInputCarton" accept="image/*">
+<button onclick="setCaptureTarget('carton')">เลือกถ่ายรูปกล่อง</button>
+<img id="previewCarton" style="display:none;">
+
+<hr>
+
+<h3>ถ่ายจากกล้อง</h3>
+<p id="captureTargetText" class="info">เลือกก่อนว่าจะถ่ายรูปซองหรือรูปกล่อง</p>
 <button onclick="startCamera()">เปิดกล้อง</button>
 <video id="video" autoplay playsinline></video>
-<button onclick="captureImage()">ถ่ายรูปจากกล้อง</button>
+<button onclick="captureImage()">ถ่ายรูปตามที่เลือก</button>
 
 <canvas id="canvas" style="display:none;"></canvas>
 
-<h3>รูปตัวอย่าง</h3>
-<img id="preview" style="display:none;">
-
 <div class="nav-row">
     <button class="btn-secondary" onclick="goPage(1)">ย้อนกลับ</button>
-    <button class="btn-success" onclick="sendCheck()">ตรวจสอบล็อต</button>
+    <button class="btn-success" onclick="sendCheck()">ตรวจสอบล็อตซอง + กล่อง</button>
 </div>
 </div>
 
@@ -501,7 +507,9 @@ pre {
 </div>
 
 <script>
-let imageData = "";
+let pouchImageData = "";
+let cartonImageData = "";
+let captureTarget = "pouch";
 
 function goPage(page) {
     for (let i = 1; i <= 3; i++) {
@@ -718,6 +726,11 @@ function autoExp() {
         }
     }
 
+    try {
+        const cartonExp = document.getElementById("cartonExp");
+        if (cartonExp) cartonExp.value = (market === "TH") ? "" : (document.getElementById("linapackExp").value || document.getElementById("sachetExp").value || "");
+    } catch(e) {}
+
     // LINAPACK_RULE_EXP_FIX
     try {
         const product = document.getElementById("productType").value;
@@ -789,7 +802,6 @@ function updateExpectedLinkedLots() {
     const box = document.getElementById("linkedLotInfo");
     if (!box) return;
     const mfg = document.getElementById("mfg").value.trim();
-    const checkType = document.getElementById("checkType").value;
     if (!/^\d{6}$/.test(mfg)) {
         box.innerHTML = "Lot ซองและ Lot กล่องจะเชื่อมกันหลังเลือกวันที่ผลิต";
         return;
@@ -803,22 +815,12 @@ function updateExpectedLinkedLots() {
 }
 
 function changeCheckType() {
-    const checkType = document.getElementById("checkType").value;
-    const marketType = document.getElementById("marketType");
+    document.getElementById("checkType").value = "both";
+    document.getElementById("pouchHeader").style.display = "block";
+    document.getElementById("pouchSection").style.display = "block";
+    document.getElementById("cartonSection").style.display = "block";
     const laosOption = document.getElementById("marketLaosOption");
-
-    document.getElementById("pouchHeader").style.display = checkType === "pouch" ? "block" : "none";
-    document.getElementById("pouchSection").style.display = checkType === "pouch" ? "block" : "none";
-    document.getElementById("cartonSection").style.display = checkType === "carton" ? "block" : "none";
-
-    // Carton lot does not separate Laos. Laos is treated as normal Export for carton mode.
-    if (checkType === "carton") {
-        if (laosOption) laosOption.style.display = "none";
-        if (marketType.value === "LAOS") marketType.value = "EXPORT";
-    } else {
-        if (laosOption) laosOption.style.display = "block";
-    }
-
+    if (laosOption) laosOption.style.display = "block";
     changeProduct();
 }
 
@@ -830,7 +832,6 @@ function changeMode() {
 }
 
 function changeProduct() {
-    const checkType = document.getElementById("checkType").value;
     const product = document.getElementById("productType").value;
     const market = document.getElementById("marketType").value;
     const mode = document.getElementById("mode").value;
@@ -850,13 +851,11 @@ function changeProduct() {
     sachetExp.disabled = noExp;
     linapackExp.disabled = noExp;
 
-    if (checkType === "carton") {
-        cartonTHBox.style.display = market === "TH" ? "block" : "none";
-        cartonExportBox.style.display = (market === "EXPORT" || market === "LAOS") ? "block" : "none";
-        if (market === "EXPORT" || market === "LAOS") updateShippingMarkByPrefix();
-    }
+    cartonTHBox.style.display = market === "TH" ? "block" : "none";
+    cartonExportBox.style.display = (market === "EXPORT" || market === "LAOS") ? "block" : "none";
+    if (market === "EXPORT" || market === "LAOS") updateShippingMarkByPrefix();
 
-    if (checkType === "pouch" && mode === "linapack") {
+    if (mode === "linapack") {
         const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
         mixCodeBox.style.display = needMix ? "block" : "none";
         if (needMix) updateMixCodeFromDate();
@@ -882,16 +881,40 @@ function changeProduct() {
     updateExpectedLinkedLots();
 }
 
-document.getElementById("fileInput").addEventListener("change", function(e) {
+function setImage(kind, dataUrl) {
+    if (kind === "carton") {
+        cartonImageData = dataUrl;
+        const preview = document.getElementById("previewCarton");
+        preview.src = dataUrl;
+        preview.style.display = "block";
+    } else {
+        pouchImageData = dataUrl;
+        const preview = document.getElementById("previewPouch");
+        preview.src = dataUrl;
+        preview.style.display = "block";
+    }
+}
+
+function setCaptureTarget(kind) {
+    captureTarget = kind === "carton" ? "carton" : "pouch";
+    document.getElementById("captureTargetText").innerHTML = captureTarget === "carton"
+        ? "ตอนนี้เลือก: ถ่ายรูปกล่อง"
+        : "ตอนนี้เลือก: ถ่ายรูปซอง";
+}
+
+document.getElementById("fileInputPouch").addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = function(event) {
-        imageData = event.target.result;
-        const preview = document.getElementById("preview");
-        preview.src = imageData;
-        preview.style.display = "block";
-    };
+    reader.onload = function(event) { setImage("pouch", event.target.result); };
+    reader.readAsDataURL(file);
+});
+
+document.getElementById("fileInputCarton").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) { setImage("carton", event.target.result); };
     reader.readAsDataURL(file);
 });
 
@@ -908,7 +931,6 @@ async function startCamera() {
 function captureImage() {
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    const preview = document.getElementById("preview");
 
     if (!video.videoWidth) {
         document.getElementById("result").innerHTML = '<div class="ng">กรุณาเปิดกล้องก่อน</div>';
@@ -918,21 +940,20 @@ function captureImage() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
-    imageData = canvas.toDataURL("image/jpeg", 0.9);
-    preview.src = imageData;
-    preview.style.display = "block";
+    const captured = canvas.toDataURL("image/jpeg", 0.9);
+    setImage(captureTarget, captured);
 }
 
 async function sendCheck() {
     const resultDiv = document.getElementById("result");
     const detailDiv = document.getElementById("detail");
 
-    if (!imageData) {
-        resultDiv.innerHTML = '<div class="ng">กรุณาอัปโหลดรูปหรือถ่ายรูปก่อน</div>';
+    if (!pouchImageData || !cartonImageData) {
+        resultDiv.innerHTML = '<div class="ng">กรุณาถ่าย/อัปโหลดให้ครบทั้งรูปซองและรูปกล่อง</div>';
         return;
     }
 
-    const checkType = document.getElementById("checkType").value;
+    const checkType = "both";
     const mode = document.getElementById("mode").value;
     const productType = document.getElementById("productType").value;
     const marketType = document.getElementById("marketType").value;
@@ -943,35 +964,32 @@ async function sendCheck() {
         productType: productType,
         marketType: marketType,
         mfg: document.getElementById("mfg").value,
-        image: imageData
+        pouchImage: pouchImageData,
+        cartonImage: cartonImageData,
+        image: pouchImageData,
+        buildingNo: marketType === "TH" ? document.getElementById("buildingNo").value : document.getElementById("buildingNoExport").value,
+        buildingSuffix: marketType === "TH" ? document.getElementById("buildingSuffixTH").value : document.getElementById("buildingSuffixExport").value,
+        shippingMark: (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("shippingMark").value : "",
+        cartonAlphaCode: (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("cartonPrefix").value : ""
     };
 
-    if (checkType === "pouch") {
-        if (mode === "sachet") {
-            payload.line = document.getElementById("sachetLine").value;
-            payload.exp = document.getElementById("sachetExp").value;
-            payload.mixCode = "";
-        } else {
-            payload.line = document.getElementById("lpMachine").value;
-            payload.exp = document.getElementById("linapackExp").value;
-            updateMixCodeFromDate();
-            const needMix = (productType === "EPW" && (marketType === "TH" || marketType === "LAOS"));
-            if (needMix && !document.getElementById("mixCode").value) {
-                resultDiv.innerHTML = '<div class="ng">กรุณาเลือกวันที่ผสม</div>';
-                goPage(1);
-                return;
-            }
-            payload.mixCode = document.getElementById("mixCode").value;
-        }
-    } else {
-        payload.line = "";
-        payload.exp = marketType === "TH" ? "" : document.getElementById("cartonExp").value;
+    if (mode === "sachet") {
+        payload.line = document.getElementById("sachetLine").value;
+        payload.exp = document.getElementById("sachetExp").value;
         payload.mixCode = "";
-        payload.buildingNo = marketType === "TH" ? document.getElementById("buildingNo").value : document.getElementById("buildingNoExport").value;
-        payload.buildingSuffix = marketType === "TH" ? document.getElementById("buildingSuffixTH").value : document.getElementById("buildingSuffixExport").value;
-        payload.shippingMark = (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("shippingMark").value : "";
-        payload.cartonAlphaCode = (marketType === "EXPORT" || marketType === "LAOS") ? document.getElementById("cartonPrefix").value : "";
+    } else {
+        payload.line = document.getElementById("lpMachine").value;
+        payload.exp = document.getElementById("linapackExp").value;
+        updateMixCodeFromDate();
+        const needMix = (productType === "EPW" && (marketType === "TH" || marketType === "LAOS"));
+        if (needMix && !document.getElementById("mixCode").value) {
+            resultDiv.innerHTML = '<div class="ng">กรุณาเลือกวันที่ผสม</div>';
+            goPage(1);
+            return;
+        }
+        payload.mixCode = document.getElementById("mixCode").value;
     }
+
 
     goPage(3);
     resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
@@ -996,7 +1014,9 @@ async function sendCheck() {
             : `<div class="ng">NG ❌</div>`;
 
         let html = `<p><b>เวลา:</b> ${data.time}</p>`;
-        html += `<p><b>ประเภทการตรวจ:</b> ${data.checkType}</p>`;
+        html += `<p><b>โหมด:</b> ${data.checkType}</p>`;
+        if (data.expectedPouchLot) html += `<p><b>Lot ซองที่ควรเป็น:</b> ${data.expectedPouchLot}</p>`;
+        if (data.expectedCartonLot) html += `<p><b>Lot กล่องที่ควรเป็น:</b> ${data.expectedCartonLot}</p>`;
         html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
         html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
 if (data.stampedImageUrl) {
@@ -1565,7 +1585,20 @@ def read_lot_with_ai(image_base64, check_type, mode, product_type, market_type, 
     The model must only transcribe visible text. Verification is done later by Python logic.
     """
 
-    if check_type == "carton":
+    if check_type == "both":
+        prompt = """
+You are an OCR transcriber for a factory lot check image.
+The image may show pouch lot code, carton lot code, or both in the same photo.
+Read ONLY the printed lot/batch/MFG/EXP text visible in the image.
+Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits.
+
+Return JSON only:
+{
+  "lines": ["every visible pouch/carton lot line exactly as seen"],
+  "time": "HH:MM exactly as seen if visible"
+}
+"""
+    elif check_type == "carton":
         if market_type == "TH":
             prompt = """
 You are an OCR transcriber for a factory carton lot code.
@@ -2624,7 +2657,9 @@ def check():
         except Exception:
             pass
         mix_code = data.get("mixCode", "").strip().upper()
-        image_data = data.get("image", "")
+        pouch_image_data = data.get("pouchImage", "")
+        carton_image_data = data.get("cartonImage", "")
+        image_data = data.get("image", "")  # fallback for old clients
 
         building_no = data.get("buildingNo", "").strip()
         building_suffix = data.get("buildingSuffix", "").strip().upper()
@@ -2640,7 +2675,10 @@ def check():
         if not expected_mfg:
             return jsonify({"error": "กรุณาเลือกวันที่ผลิต"}), 400
 
-        if not image_data:
+        if check_type == "both":
+            if not pouch_image_data or not carton_image_data:
+                return jsonify({"error": "กรุณาถ่าย/อัปโหลดรูปซองและรูปกล่องให้ครบ"}), 400
+        elif not image_data:
             return jsonify({"error": "กรุณาอัปโหลดรูปหรือถ่ายรูปก่อน"}), 400
 
         if not os.getenv("OPENAI_API_KEY"):
@@ -2652,37 +2690,75 @@ def check():
 
         skip_exp = no_exp_required(product_type, market_type)
 
-        if check_type == "pouch" and not skip_exp and not expected_exp:
+        if check_type in ["pouch", "both"] and not skip_exp and not expected_exp:
             return jsonify({"error": "กรุณากรอก EXP หรือเลือกประเภทงานที่ไม่ต้องมี EXP"}), 400
 
-        if check_type == "carton":
+        if check_type in ["carton", "both"]:
             if building_no and building_no not in ["1", "2", "3", "4", "5", "6"]:
                 return jsonify({"error": "เลขอาคารต้องเป็น 1-6"}), 400
             if building_suffix and not re.fullmatch(r"[A-Z0-9]{1,5}", building_suffix):
                 return jsonify({"error": "Suffix ต้องเป็นตัวอักษร/ตัวเลข 1-5 ตัว เช่น N หรือ QR"}), 400
 
-        image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
+        if check_type == "both":
+            pouch_base64 = pouch_image_data.split(",", 1)[1] if "," in pouch_image_data else pouch_image_data
+            carton_base64 = carton_image_data.split(",", 1)[1] if "," in carton_image_data else carton_image_data
 
-        raw_ai = read_lot_with_ai(
-            image_base64,
-            check_type,
-            mode,
-            product_type,
-            market_type,
-            expected_mfg,
-            expected_line,
-            expected_exp,
-            mix_code,
-            building_no,
-            building_suffix,
-            shipping_mark,
-            carton_alpha_code
-        )
+            raw_pouch_ai = read_lot_with_ai(
+                pouch_base64, "pouch", mode, product_type, market_type, expected_mfg, expected_line,
+                expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
+            )
+            pouch_json = json.loads(clean_json_text(raw_pouch_ai))
+            pouch_lines = pouch_json.get("lines", [])
 
-        result_json = json.loads(clean_json_text(raw_ai))
-        lines = result_json.get("lines", [])
+            carton_market_type = "EXPORT" if market_type == "LAOS" else market_type
+            raw_carton_ai = read_lot_with_ai(
+                carton_base64, "carton", mode, product_type, carton_market_type, expected_mfg, expected_line,
+                expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
+            )
+            carton_json = json.loads(clean_json_text(raw_carton_ai))
+            carton_lines = carton_json.get("lines", [])
 
-        if check_type == "carton":
+            if mode == "sachet":
+                pouch_overall, pouch_details = check_pouch_sachet(
+                    pouch_lines, product_type, market_type, expected_mfg, expected_line, expected_exp
+                )
+                mode_name = "Sachet + Carton"
+            else:
+                ai_time = pouch_json.get("time", "")
+                pouch_overall, pouch_details = check_pouch_linapack(
+                    pouch_lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time
+                )
+                mode_name = "Linapack + Carton"
+
+            carton_overall, carton_details = check_carton(
+                carton_lines, carton_market_type, expected_mfg, expected_exp, building_no, building_suffix,
+                shipping_mark, carton_alpha_code, carton_json
+            )
+
+            details = []
+            for d in pouch_details:
+                d = dict(d)
+                d["item"] = "ซอง - " + str(d.get("item", ""))
+                details.append(d)
+            for d in carton_details:
+                d = dict(d)
+                d["item"] = "กล่อง - " + str(d.get("item", ""))
+                details.append(d)
+
+            overall = bool(pouch_overall and carton_overall)
+            check_type_name = "POUCH + CARTON"
+            lines = {"pouch": pouch_lines, "carton": carton_lines}
+            image_data = pouch_image_data
+        else:
+            image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
+            raw_ai = read_lot_with_ai(
+                image_base64, check_type, mode, product_type, market_type, expected_mfg, expected_line,
+                expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
+            )
+            result_json = json.loads(clean_json_text(raw_ai))
+            lines = result_json.get("lines", [])
+
+        if check_type != "both" and check_type == "carton":
             overall, details = check_carton(
                 lines,
                 market_type,
@@ -2696,7 +2772,7 @@ def check():
             )
             mode_name = "Carton"
             check_type_name = "CARTON"
-        elif mode == "sachet":
+        elif check_type != "both" and mode == "sachet":
             overall, details = check_pouch_sachet(
                 lines,
                 product_type,
@@ -2707,7 +2783,7 @@ def check():
             )
             mode_name = "Sachet"
             check_type_name = "POUCH"
-        else:
+        elif check_type != "both":
             ai_time = result_json.get("time", "")
             overall, details = check_pouch_linapack(
                 lines,
@@ -2738,8 +2814,19 @@ def check():
             checked_time
         )
 
-        expected_pouch_lot = ""
-        expected_carton_lot = f"00001 00 {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip() if market_type == "TH" else ""
+        if mode == "sachet":
+            expected_pouch_lot = f"MFG {expected_mfg} {expected_line} 1" + (f" EXP {expected_exp}" if expected_exp else "")
+        else:
+            line1 = f"MFG {expected_mfg}"
+            if mix_code:
+                line1 += f" {mix_code}"
+            line1 += f" {expected_line} เวลา"
+            expected_pouch_lot = line1 + (f" / EXP {expected_exp}" if expected_exp else "")
+
+        if market_type == "TH":
+            expected_carton_lot = f"00001 00 {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
+        else:
+            expected_carton_lot = f"00001 {carton_alpha_code} {expected_mfg}".strip()
 
         return jsonify({
             "summary": summary,
