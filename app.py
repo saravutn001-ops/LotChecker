@@ -607,6 +607,28 @@ function updateMFGFromDate() {
     autoExp();
 }
 
+
+function addMonthsYY(ddmmyy, months) {
+    if (!ddmmyy || ddmmyy.length !== 6) return "";
+    const dd = parseInt(ddmmyy.slice(0,2), 10);
+    const mm = parseInt(ddmmyy.slice(2,4), 10) - 1;
+    const yy = 2000 + parseInt(ddmmyy.slice(4,6), 10);
+    const d = new Date(yy, mm, dd);
+    d.setMonth(d.getMonth() + months);
+    const outDD = String(d.getDate()).padStart(2, "0");
+    const outMM = String(d.getMonth() + 1).padStart(2, "0");
+    const outYY = String(d.getFullYear()).slice(-2);
+    return outDD + outMM + outYY;
+}
+
+function addYearsYY(ddmmyy, years) {
+    if (!ddmmyy || ddmmyy.length !== 6) return "";
+    const dd = parseInt(ddmmyy.slice(0,2), 10);
+    const mm = parseInt(ddmmyy.slice(2,4), 10);
+    const yy = 2000 + parseInt(ddmmyy.slice(4,6), 10) + years;
+    return String(dd).padStart(2, "0") + String(mm).padStart(2, "0") + String(yy).slice(-2);
+}
+
 function autoExp() {
     const checkType = document.getElementById("checkType").value;
     const product = document.getElementById("productType").value;
@@ -661,6 +683,25 @@ function autoExp() {
             info.innerHTML = "EPW งานต่างประเทศ: ไม่มีวันผสม และไม่มี EXP";
         }
     }
+
+    // LINAPACK_RULE_EXP_FIX
+    try {
+        const product = document.getElementById("productType").value;
+        const market = document.getElementById("marketType").value;
+        const mfg = document.getElementById("mfg").value;
+        const linapackExp = document.getElementById("linapackExp");
+
+        if (product === "EPC" && market === "TH") {
+            linapackExp.value = addMonthsYY(mfg, 15);
+            linapackExp.disabled = false;
+        } else if (product === "EPW" && market === "LAOS") {
+            linapackExp.value = addYearsYY(mfg, 3);
+            linapackExp.disabled = false;
+        } else {
+            linapackExp.value = "";
+            linapackExp.disabled = true;
+        }
+    } catch(e) {}
 }
 
 function changeCheckType() {
@@ -703,10 +744,9 @@ function changeProduct() {
     const sachetExp = document.getElementById("sachetExp");
     const hint = document.getElementById("linapackHint");
 
-    const noExp = (
-        (product === "EPC" && market === "EXPORT") ||
-        (product === "EPW" && market === "TH") ||
-        (product === "EPW" && market === "EXPORT")
+    const noExp = !(
+        (product === "EPC" && market === "TH") ||
+        (product === "EPW" && market === "LAOS")
     );
 
     sachetExp.disabled = noExp;
@@ -719,20 +759,21 @@ function changeProduct() {
     }
 
     if (checkType === "pouch" && mode === "linapack") {
-        if (product === "EPW" && market === "TH") {
-            mixCodeBox.style.display = "block";
-            hint.innerHTML = "EPW ไทย: ตรวจ MFG + Mix Code + เวลา ไม่ต้องมี EXP เช่น MFG 190626 18F LP4 23:28";
-        } else if (product === "EPW" && market === "LAOS") {
-            mixCodeBox.style.display = "block";
-            hint.innerHTML = "EPW งานต่างประเทศ ลาว: ตรวจ MFG + Mix Code + LP + เวลา + EXP 3 ปี เช่น MFG 230626 22F LP4 07:45 / EXP 230629";
+        const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
+        mixCodeBox.style.display = needMix ? "block" : "none";
+
+        if (product === "EPC" && market === "TH") {
+            hint.innerHTML = "EPC ไทย: ตรวจ MFG + เลขเครื่อง + เวลา + EXP อายุ 1 ปี 3 เดือน";
+        } else if (product === "EPC" && market === "EXPORT") {
+            hint.innerHTML = "EPC ต่างประเทศ: ตรวจ MFG + เลขเครื่อง + เวลา ไม่มี EXP";
+        } else if (product === "EPW" && market === "TH") {
+            hint.innerHTML = "EPW ไทย: ตรวจ MFG + วันผสม + เลขเครื่อง + เวลา ไม่มี EXP";
         } else if (product === "EPW" && market === "EXPORT") {
-            mixCodeBox.style.display = "none";
-            hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เวลา ไม่มีวันผสม และไม่มี EXP";
+            hint.innerHTML = "EPW ต่างประเทศ: ตรวจ MFG + เลขเครื่อง + เวลา ไม่มี EXP";
+        } else if (product === "EPW" && market === "LAOS") {
+            hint.innerHTML = "EPW ลาว: ตรวจ MFG + วันผสม + เลขเครื่อง + เวลา + EXP อายุ 3 ปี";
         } else {
-            mixCodeBox.style.display = "none";
-            if (market === "TH") hint.innerHTML = "EPC ไทย: ตรวจ MFG + LP1-9 + เวลา + EXP";
-            else if (market === "LAOS") hint.innerHTML = "EPC งานต่างประเทศ ลาว: ตรวจ MFG + LP1-9 + เวลา + EXP 2 ปี";
-            else hint.innerHTML = "EPC ต่างประเทศ: ตรวจ MFG + LP1-9 + เวลา ไม่มี EXP";
+            hint.innerHTML = "";
         }
     }
 
@@ -990,30 +1031,68 @@ def exp_date_plus_days(ddmmyy, days):
     except Exception:
         return str(ddmmyy or "")
 
+def exp_date_plus_months(ddmmyy, months):
+    try:
+        d = datetime.strptime(str(ddmmyy), "%d%m%y")
+        month = d.month - 1 + int(months)
+        year = d.year + month // 12
+        month = month % 12 + 1
+        day = min(d.day, monthrange(year, month)[1])
+        return datetime(year, month, day).strftime("%d%m%y")
+    except Exception:
+        return str(ddmmyy or "")
+
+
+def exp_date_plus_years(ddmmyy, years):
+    try:
+        d = datetime.strptime(str(ddmmyy), "%d%m%y")
+        try:
+            new_d = d.replace(year=d.year + int(years))
+        except ValueError:
+            new_d = d.replace(month=2, day=28, year=d.year + int(years))
+        return new_d.strftime("%d%m%y")
+    except Exception:
+        return str(ddmmyy or "")
+
+
+def linapack_requires_mix(product_type, market_type):
+    product_type = str(product_type or "").upper()
+    market_type = str(market_type or "").upper()
+    return product_type == "EPW" and market_type in ["TH", "LAOS"]
+
+
+def linapack_requires_exp(product_type, market_type):
+    product_type = str(product_type or "").upper()
+    market_type = str(market_type or "").upper()
+    if product_type == "EPC" and market_type == "TH":
+        return True
+    if product_type == "EPW" and market_type == "LAOS":
+        return True
+    return False
+
+
+def expected_linapack_exp(product_type, market_type, expected_mfg):
+    product_type = str(product_type or "").upper()
+    market_type = str(market_type or "").upper()
+    if product_type == "EPC" and market_type == "TH":
+        return exp_date_plus_months(expected_mfg, 15)
+    if product_type == "EPW" and market_type == "LAOS":
+        return exp_date_plus_years(expected_mfg, 3)
+    return ""
+
 def no_exp_required(product_type, market_type):
     """
     True = ไม่ต้องมี EXP
     False = ต้องมี EXP
 
-    กฎล่าสุด:
-    - EPW TH: ไม่ต้องมี EXP แต่ต้องมี Mix Code
-    - EPW LAOS: ต้องมี EXP 3 ปี และต้องมี Mix Code
-    - EPW EXPORT: ไม่ต้องมี EXP
-    - EPC: ไม่ต้องมี EXP
+    Linapack rules:
+    EPC TH      : MFG DDMMYY เลขเครื่อง เวลา + EXP DDMMYY อายุ 1 ปี 3 เดือน
+    EPC EXPORT  : MFG DDMMYY เลขเครื่อง เวลา
+    EPW TH      : MFG DDMMYY วันผสม เลขเครื่อง เวลา
+    EPW EXPORT  : MFG DDMMYY เลขเครื่อง เวลา
+    EPW LAOS    : MFG DDMMYY วันผสม เลขเครื่อง เวลา + EXP DDMMYY อายุ 3 ปี
     """
-    product_type = str(product_type or "").upper()
-    market_type = str(market_type or "").upper()
-
-    if product_type == "EPW" and market_type == "LAOS":
-        return False
-
-    if product_type == "EPW" and market_type in ["TH", "EXPORT"]:
-        return True
-
-    if product_type == "EPC":
-        return True
-
-    return True
+    return not linapack_requires_exp(product_type, market_type)
 
 
 def get_font(size):
@@ -1815,18 +1894,13 @@ def extract_time(text):
 
 def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time=""):
     """
-    Field-by-field Linapack verification for every product/market:
-    งานไทยต้องตรวจ:
-    - MFG
-    - วันผลิต
-    - เลขเครื่อง / หรือวันผสมสำหรับ EPW TH
-    - เวลา
-    - EXP
-    - วันหมดอายุ
+    Linapack field-by-field verification with fixed master rules.
     """
     details = []
     overall = True
-    skip_exp = no_exp_required(product_type, market_type)
+
+    product_type = str(product_type or "").upper()
+    market_type = str(market_type or "").upper()
 
     lines = [normalize(x) for x in lines]
     all_text = " ".join(lines)
@@ -1836,34 +1910,49 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
 
     fields = parse_pouch_lot_fields(mfg_line, exp_line)
 
-    # 1) MFG
+    require_mix = linapack_requires_mix(product_type, market_type)
+    require_exp = linapack_requires_exp(product_type, market_type)
+
+    expected_exp_calc = expected_linapack_exp(product_type, market_type, expected_mfg)
+    if expected_exp_calc:
+        expected_exp = expected_exp_calc
+        # LINAPACK_RULE_EXPECTED_EXP_OVERRIDE
+        try:
+            if str(mode).lower() == "linapack":
+                expected_exp = expected_linapack_exp(product_type, market_type, expected_mfg)
+        except Exception:
+            pass
+
     if not append_field_check(details, "MFG", fields.get("mfg_word"), "MFG"):
         overall = False
 
-    # 2) วันผลิต
     if not append_field_check(details, "วันผลิต", fields.get("mfg_date"), expected_mfg):
         overall = False
 
-    # 3) วันผสม / เลขเครื่อง
-    if product_type == "EPW" and market_type in ["TH", "LAOS"]:
+    if require_mix:
         if not append_field_check(details, "วันผสม", fields.get("mix_code"), mix_code):
             overall = False
-        # EPW TH may not always have LP machine after mix, but if expected_line is configured and printed, check it when present
-        if fields.get("machine"):
-            if not append_field_check(details, "เลขเครื่อง", fields.get("machine"), expected_line):
-                overall = False
+    else:
+        actual_mix = str(fields.get("mix_code") or "").strip().upper()
+        if actual_mix:
+            details.append({
+                "item": "วันผสม",
+                "status": "NG",
+                "actual": actual_mix,
+                "expected": "ไม่ต้องมีวันผสม"
+            })
+            overall = False
         else:
             details.append({
-                "item": "เลขเครื่อง",
+                "item": "วันผสม",
                 "status": "PASS",
-                "actual": "ไม่พบ/ไม่บังคับสำหรับ EPW TH",
+                "actual": "ไม่ต้องมี",
                 "expected": "ไม่ตรวจ"
             })
-    else:
-        if not append_field_check(details, "เลขเครื่อง", fields.get("machine"), expected_line):
-            overall = False
 
-    # 4) เวลา
+    if not append_field_check(details, "เลขเครื่อง", fields.get("machine"), expected_line):
+        overall = False
+
     actual_time = fields.get("time") or extract_best_time_from_text(all_text, ai_time)
     time_ok = check_time_field(actual_time)
     if not time_ok:
@@ -1875,12 +1964,14 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         "expected": "เวลา valid 00:00-23:59 เช่น 07:45"
     })
 
-    # 5) EXP + 6) วันหมดอายุ
-    if skip_exp:
-        has_exp = "EXP" in all_text
-        exp_ok = not has_exp
-        if not exp_ok:
+    has_exp = "EXP" in all_text
+    if require_exp:
+        if not append_field_check(details, "EXP", fields.get("exp_word"), "EXP"):
             overall = False
+        if not append_field_check(details, "วันหมดอายุ", fields.get("exp_date"), expected_exp):
+            overall = False
+    else:
+        exp_ok = not has_exp
         details.append({
             "item": "EXP",
             "status": "PASS" if exp_ok else "NG",
@@ -1889,14 +1980,11 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         })
         details.append({
             "item": "วันหมดอายุ",
-            "status": "PASS",
-            "actual": "ไม่ต้องมี",
+            "status": "PASS" if exp_ok else "NG",
+            "actual": fields.get("exp_date") if has_exp else "ไม่ต้องมี",
             "expected": "ไม่ตรวจ"
         })
-    else:
-        if not append_field_check(details, "EXP", fields.get("exp_word"), "EXP"):
-            overall = False
-        if not append_field_check(details, "วันหมดอายุ", fields.get("exp_date"), expected_exp):
+        if not exp_ok:
             overall = False
 
     return overall, details
