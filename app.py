@@ -2503,7 +2503,7 @@ body.product-epc #mixCodeHeaderLabel {
 </div>
 
 <div id="pouchSection" style="display:none;">
-    <input id="sachetLine" value="MS11" type="hidden">
+    <input id="sachetLine" value="" type="hidden">
     <input id="sachetExp" value="" type="hidden">
     <p id="linapackHint" class="small full-span"></p>
 </div>
@@ -3112,9 +3112,9 @@ function setMachineOptionsForMode(mode) {
     const options = mode === "sachet"
         ? ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"]
         : ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
-    machineSelect.innerHTML = options.map(v => `<option value="${v}">${v}</option>`).join("");
+    machineSelect.innerHTML = `<option value="" selected disabled>เลือกเครื่อง</option>` + options.map(v => `<option value="${v}">${v}</option>`).join("");
     if (options.includes(current)) machineSelect.value = current;
-    else machineSelect.value = mode === "sachet" ? "MS11" : "LP7";
+    else machineSelect.value = "";
     const sachetLine = document.getElementById("sachetLine");
     if (sachetLine && mode === "sachet") sachetLine.value = machineSelect.value;
 }
@@ -3481,238 +3481,17 @@ window.addEventListener('load', () => {
 
 </script>
 
-<script>
-(function(){
-  function directChildren(el, selector){
-    return Array.prototype.filter.call(el.children, function(n){ return n.matches && n.matches(selector); });
-  }
-  function polishConfigGrid(grid){
-    if(!grid || grid.dataset.polishedMobile === '1') return;
-    var labels = directChildren(grid, 'label');
-    if(!labels.length) return;
-    var controls = directChildren(grid, 'input:not([type="hidden"]), select, textarea');
-    if(!controls.length) return;
-    var others = Array.prototype.filter.call(grid.children, function(n){
-      return labels.indexOf(n) === -1 && controls.indexOf(n) === -1;
-    });
-    var frag = document.createDocumentFragment();
-    var count = Math.min(labels.length, controls.length);
-    for(var i=0;i<count;i++){
-      var wrap = document.createElement('div');
-      wrap.className = 'mobile-field';
-      wrap.appendChild(labels[i]);
-      wrap.appendChild(controls[i]);
-      frag.appendChild(wrap);
-    }
-    for(var j=count;j<labels.length;j++) frag.appendChild(labels[j]);
-    for(var k=count;k<controls.length;k++) frag.appendChild(controls[k]);
-    others.forEach(function(n){ frag.appendChild(n); });
-    grid.appendChild(frag);
-    grid.dataset.polishedMobile = '1';
-  }
-  function addUploadUI(inputId, labelText){
-    var input = document.getElementById(inputId);
-    if(!input || input.dataset.mobileUpload === '1') return;
-    input.dataset.mobileUpload = '1';
-    var ph = document.createElement('div');
-    ph.className = 'upload-placeholder';
-    input.parentNode.insertBefore(ph, input.nextSibling);
-    var lab = document.createElement('label');
-    lab.className = 'mobile-file-btn';
-    lab.htmlFor = input.id;
-    lab.textContent = labelText;
-    input.parentNode.insertBefore(lab, ph.nextSibling);
-    input.addEventListener('change', function(){ ph.style.display='none'; });
-  }
-  function addBottomNav(){
-    if(document.querySelector('.mobile-bottom-nav')) return;
-    var nav=document.createElement('div');
-    nav.className='mobile-bottom-nav';
-    nav.innerHTML='<button type="button" onclick="window.scrollTo({top:0,behavior:\'smooth\'})"><span class="nav-ico">🏠</span><span>ตรวจล็อต</span></button><button type="button" onclick="document.getElementById(\'page2\').scrollIntoView({behavior:\'smooth\'})"><span class="nav-ico">📷</span><span>รูปภาพ</span></button><button type="button" onclick="sendCheck()"><span class="nav-ico">🔍</span><span>ตรวจ</span></button><button type="button" onclick="document.getElementById(\'pouchHeader\').scrollIntoView({behavior:\'smooth\'})"><span class="nav-ico">⚙️</span><span>ตั้งค่า</span></button>';
-    document.body.appendChild(nav);
-  }
-  document.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('.config-grid').forEach(polishConfigGrid);
-    addUploadUI('fileInputPouch','เลือกไฟล์ / เปิดกล้อง');
-    addUploadUI('fileInputCarton','เลือกไฟล์ / เปิดกล้อง');
-    addBottomNav();
-  });
-})();
-</script>
-
-
-<script>
-(function(){
-  function hideStatic(inputId){
-    var input=document.getElementById(inputId);
-    if(!input) return;
-    input.addEventListener('change', function(){
-      var card=input.closest('.photo-card');
-      if(!card) return;
-      card.querySelectorAll('.static-upload-placeholder,.upload-placeholder').forEach(function(el){el.style.display='none';});
-    });
-  }
-  document.addEventListener('DOMContentLoaded', function(){hideStatic('fileInputPouch');hideStatic('fileInputCarton');});
-})();
-</script>
-
-
-<script>
-(function(){
-  function productNeedsMix(){
-    const p = document.getElementById('productType');
-    const m = document.getElementById('marketType');
-    if(!p || !m) return false;
-    return p.value === 'EPW' && (m.value === 'TH' || m.value === 'LAOS');
-  }
-  function hardApplyMixVisibility(){
-    const need = productNeedsMix();
-    document.body.classList.toggle('product-epc', !need);
-
-    document.querySelectorAll('.mix-field, #mixDate, #mixCode, #mixDateHeaderLabel, #mixCodeHeaderLabel').forEach(function(el){
-      if(!el) return;
-      el.classList.toggle('force-hidden', !need);
-      el.classList.toggle('hidden-field', !need);
-      el.style.setProperty('display', need ? '' : 'none', 'important');
-      if(!need && (el.id === 'mixDate' || el.id === 'mixCode')) el.value = '';
-    });
-
-    // If some mobile-polish script wrapped these fields, hide the wrapper too.
-    ['mixDate','mixCode','mixDateHeaderLabel','mixCodeHeaderLabel'].forEach(function(id){
-      const el = document.getElementById(id);
-      if(!el) return;
-      const wrap = el.closest('.mobile-field, .field-card, .mix-field');
-      if(wrap){
-        wrap.classList.toggle('force-hidden', !need);
-        wrap.style.setProperty('display', need ? '' : 'none', 'important');
-      }
-    });
-
-    if(typeof fixLotHeaderColumns === 'function') {
-      try { fixLotHeaderColumns(); } catch(e) {}
-    }
-  }
-
-  window.hardApplyMixVisibility = hardApplyMixVisibility;
-
-  document.addEventListener('DOMContentLoaded', function(){
-    ['productType','marketType','mode'].forEach(function(id){
-      const el = document.getElementById(id);
-      if(el) el.addEventListener('change', function(){ setTimeout(hardApplyMixVisibility, 0); setTimeout(hardApplyMixVisibility, 80); });
-    });
-    hardApplyMixVisibility();
-    setTimeout(hardApplyMixVisibility, 100);
-    setTimeout(hardApplyMixVisibility, 500);
-  });
-
-  const oldChangeProduct = window.changeProduct;
-  window.changeProduct = function(){
-    if(typeof oldChangeProduct === 'function') oldChangeProduct.apply(this, arguments);
-    hardApplyMixVisibility();
-    setTimeout(hardApplyMixVisibility, 50);
-  };
-})();
-</script>
 
 
 
-<script>
-/* ===== FINAL FIX: line machine options + carton prefix by market ===== */
-(function(){
-  const SACHET_MACHINES = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LINAPACK_MACHINES = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
 
-  function setOptions(select, options, fallback){
-    if(!select) return;
-    const current = (select.value || '').trim().toUpperCase();
-    select.innerHTML = options.map(v => `<option value="${v}">${v}</option>`).join('');
-    select.value = options.includes(current) ? current : fallback;
-  }
 
-  function finalApplyLineMachine(){
-    const mode = document.getElementById('mode')?.value || 'sachet';
-    const machine = document.getElementById('lpMachine');
-    const label = document.getElementById('machineHeaderLabel');
-    if(mode === 'sachet'){
-      setOptions(machine, SACHET_MACHINES, 'MS11');
-      if(label) label.textContent = 'เครื่อง Sachet';
-      const sachetLine = document.getElementById('sachetLine');
-      if(sachetLine && machine) sachetLine.value = machine.value;
-    }else{
-      setOptions(machine, LINAPACK_MACHINES, 'LP7');
-      if(label) label.textContent = 'เครื่อง Linapack';
-    }
-  }
 
-  function finalApplyCartonMarket(){
-    const market = document.getElementById('marketType')?.value || 'TH';
-    const thBox = document.getElementById('cartonTHBox');
-    const exportBox = document.getElementById('cartonExportBox');
-    const prefix = document.getElementById('cartonPrefix');
-    const shipping = document.getElementById('shippingMark');
-    const isExport = market === 'EXPORT' || market === 'LAOS';
 
-    if(thBox){
-      thBox.classList.toggle('hidden-market', isExport);
-      thBox.style.setProperty('display', isExport ? 'none' : 'grid', 'important');
-    }
-    if(exportBox){
-      exportBox.classList.toggle('hidden-market', !isExport);
-      exportBox.style.setProperty('display', isExport ? 'grid' : 'none', 'important');
-    }
-    if(prefix){
-      prefix.disabled = !isExport ? true : false;
-      if(isExport){
-        prefix.removeAttribute('disabled');
-        prefix.style.pointerEvents = 'auto';
-        prefix.style.opacity = '1';
-      }
-    }
-    if(isExport && typeof updateShippingMarkByPrefix === 'function'){
-      try { updateShippingMarkByPrefix(); } catch(e) {}
-    }else if(!isExport && shipping){
-      shipping.value = '-';
-    }
-  }
 
-  function finalApplyAll(){
-    finalApplyLineMachine();
-    finalApplyCartonMarket();
-    if(typeof autoExp === 'function') { try { autoExp(); } catch(e) {} }
-    if(typeof updateExpectedLinkedLots === 'function') { try { updateExpectedLinkedLots(); } catch(e) {} }
-    if(typeof hardApplyMixVisibility === 'function') { try { hardApplyMixVisibility(); } catch(e) {} }
-  }
 
-  // Override after all old scripts so no earlier script can force LP list or hide export prefix.
-  window.finalApplyLineMachine = finalApplyLineMachine;
-  window.finalApplyCartonMarket = finalApplyCartonMarket;
-  window.finalApplyAll = finalApplyAll;
 
-  const oldChangeMode = window.changeMode;
-  window.changeMode = function(){
-    if(typeof oldChangeMode === 'function') { try { oldChangeMode.apply(this, arguments); } catch(e) {} }
-    finalApplyAll();
-    setTimeout(finalApplyAll, 50);
-  };
 
-  const oldChangeProduct = window.changeProduct;
-  window.changeProduct = function(){
-    if(typeof oldChangeProduct === 'function') { try { oldChangeProduct.apply(this, arguments); } catch(e) {} }
-    finalApplyAll();
-    setTimeout(finalApplyAll, 50);
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    ['mode','lpMachine','marketType','productType','cartonPrefix','buildingNo','buildingNoExport','buildingSuffixTH','buildingSuffixExport'].forEach(function(id){
-      const el = document.getElementById(id);
-      if(el) el.addEventListener('change', function(){ setTimeout(finalApplyAll, 0); setTimeout(finalApplyAll, 80); });
-    });
-    finalApplyAll();
-    setTimeout(finalApplyAll, 100);
-    setTimeout(finalApplyAll, 500);
-  });
-})();
-</script>
 
 
 
@@ -3762,212 +3541,7 @@ select, input{
 }
 </style>
 
-<script>
-/* ===== FINAL HOTFIX: blank defaults, upload/camera, shipping mark ===== */
-(function(){
-  const SACHET_MACHINES_FINAL = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LINAPACK_MACHINES_FINAL = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
 
-  function fillSelect(select, options, placeholder){
-    if(!select) return;
-    const current = (select.value || '').trim().toUpperCase();
-    select.innerHTML = `<option value="" selected disabled>${placeholder}</option>` + options.map(v=>`<option value="${v}">${v}</option>`).join('');
-    if(options.includes(current)) select.value = current;
-    else select.value = '';
-  }
-
-  function applyMachineByModeFinal(){
-    const modeEl = document.getElementById('mode');
-    const machine = document.getElementById('lpMachine');
-    const label = document.getElementById('machineHeaderLabel');
-    const mode = modeEl ? modeEl.value : '';
-    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : (mode === 'linapack' ? 'เครื่อง Linapack' : 'เครื่อง');
-    if(!mode){
-      fillSelect(machine, [], 'เลือกประเภทไลน์ก่อน');
-      return;
-    }
-    fillSelect(machine, mode === 'sachet' ? SACHET_MACHINES_FINAL : LINAPACK_MACHINES_FINAL, 'เลือกเครื่อง');
-  }
-
-  function applyCartonMarketFinal(){
-    const market = document.getElementById('marketType')?.value || '';
-    const thBox = document.getElementById('cartonTHBox');
-    const exportBox = document.getElementById('cartonExportBox');
-    const prefix = document.getElementById('cartonPrefix');
-    const shipping = document.getElementById('shippingMark');
-    const isExport = market === 'EXPORT' || market === 'LAOS';
-    const isTH = market === 'TH';
-    if(thBox) thBox.style.setProperty('display', isTH ? 'grid' : 'none', 'important');
-    if(exportBox) exportBox.style.setProperty('display', isExport ? 'grid' : 'none', 'important');
-    if(prefix){
-      prefix.disabled = !isExport;
-      prefix.style.pointerEvents = isExport ? 'auto' : 'none';
-      prefix.style.opacity = isExport ? '1' : '.75';
-      if(!isExport) prefix.value = '';
-    }
-    if(shipping && !isExport) shipping.value = '-';
-    if(isExport && shipping && prefix && prefix.value && typeof PREFIX_SHIPPING_MAP !== 'undefined'){
-      shipping.value = PREFIX_SHIPPING_MAP[prefix.value] || '';
-    }
-  }
-
-  function applyBlankDefaultsOnce(){
-    ['mode','productType','marketType','lpMachine','cartonPrefix'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el) el.value='';
-    });
-    applyMachineByModeFinal();
-    applyCartonMarketFinal();
-    if(typeof hardApplyMixVisibility === 'function') try{hardApplyMixVisibility();}catch(e){}
-  }
-
-  function robustSetImage(kind, dataUrl){
-    if(kind === 'carton') window.cartonImageData = dataUrl;
-    else window.pouchImageData = dataUrl;
-    // Also update lexical variables when available in this script scope.
-    try { if(kind === 'carton') cartonImageData = dataUrl; else pouchImageData = dataUrl; } catch(e) {}
-    const preview = document.getElementById(kind === 'carton' ? 'previewCarton' : 'previewPouch');
-    if(preview){
-      preview.onload = function(){
-        preview.classList.add('has-image');
-        preview.style.setProperty('display','block','important');
-      };
-      preview.src = dataUrl;
-      preview.classList.add('has-image');
-      preview.removeAttribute('hidden');
-      preview.style.setProperty('display','block','important');
-    }
-    if(typeof updateCaptureTime === 'function') try{updateCaptureTime(kind);}catch(e){}
-  }
-  window.setImage = robustSetImage;
-
-  function attachFile(id, kind){
-    const input = document.getElementById(id);
-    if(!input) return;
-    input.removeAttribute('capture');
-    input.setAttribute('accept','image/*');
-    input.onchange = function(e){
-      const file = e.target.files && e.target.files[0];
-      if(!file) return;
-      const reader = new FileReader();
-      reader.onload = function(ev){
-        robustSetImage(kind, ev.target.result);
-        if(typeof showToast === 'function') showToast(kind === 'carton' ? '✅ เลือกรูปกล่องจากเครื่องเรียบร้อย' : '✅ เลือกรูปซองจากเครื่องเรียบร้อย');
-      };
-      reader.onerror = function(){ if(typeof showToast === 'function') showToast('อ่านไฟล์รูปไม่สำเร็จ','error'); };
-      reader.readAsDataURL(file);
-    };
-  }
-
-  window.updateShippingMarkByPrefix = function(){
-    const prefix = document.getElementById('cartonPrefix');
-    const shipping = document.getElementById('shippingMark');
-    if(!prefix || !shipping) return;
-    if(prefix.value === 'CUSTOM'){
-      shipping.readOnly = false;
-      shipping.value = '';
-      shipping.placeholder = 'กรอก Shipping Mark เอง';
-      return;
-    }
-    shipping.readOnly = true;
-    shipping.value = (typeof PREFIX_SHIPPING_MAP !== 'undefined' ? (PREFIX_SHIPPING_MAP[prefix.value] || '') : '');
-    if(typeof updateExpectedLinkedLots === 'function') try{ updateExpectedLinkedLots(); }catch(e){}
-  };
-
-  const originalStart = window.startCamera;
-  window.startCamera = async function(){
-    try{
-      const video = document.getElementById('video');
-      const overlay = document.getElementById('cameraOverlay');
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Browser นี้ไม่รองรับกล้อง หรือไม่ได้เปิดผ่าน HTTPS/localhost');
-      try { if(window.cameraStream) window.cameraStream.getTracks().forEach(t=>t.stop()); } catch(e) {}
-      try { if(typeof cameraStream !== 'undefined' && cameraStream) cameraStream.getTracks().forEach(t=>t.stop()); } catch(e) {}
-      const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}});
-      window.cameraStream = stream;
-      try { cameraStream = stream; } catch(e) {}
-      video.srcObject = stream;
-      await video.play();
-      if(overlay) overlay.classList.add('show');
-      document.querySelector('.camera-card')?.classList.add('camera-active');
-      if(typeof showToast === 'function') showToast('เปิดกล้องเรียบร้อย');
-    }catch(err){
-      if(typeof showToast === 'function') showToast('เปิดกล้องไม่ได้: '+err.message, 'error');
-      else alert('เปิดกล้องไม่ได้: '+err.message);
-    }
-  };
-
-  const originalStop = window.stopCamera;
-  window.stopCamera = function(){
-    try { if(window.cameraStream) window.cameraStream.getTracks().forEach(t=>t.stop()); } catch(e) {}
-    try { if(typeof cameraStream !== 'undefined' && cameraStream) cameraStream.getTracks().forEach(t=>t.stop()); } catch(e) {}
-    window.cameraStream = null;
-    try { cameraStream = null; } catch(e) {}
-    const video=document.getElementById('video');
-    if(video) video.srcObject = null;
-    document.getElementById('cameraOverlay')?.classList.remove('show');
-    document.querySelector('.camera-card')?.classList.remove('camera-active');
-  };
-
-  window.captureImage = function(kind){
-    const target = kind === 'carton' ? 'carton' : 'pouch';
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    if(!video || !canvas || !video.videoWidth){
-      if(typeof showToast === 'function') showToast('กรุณาเปิดกล้องก่อน', 'error');
-      return;
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    robustSetImage(target, canvas.toDataURL('image/jpeg', 0.92));
-    if(typeof showToast === 'function') showToast(target === 'carton' ? '✅ บันทึกรูปกล่องเรียบร้อย' : '✅ บันทึกรูปซองเรียบร้อย');
-  };
-
-  function validateRequiredBeforeCheck(){
-    const missing = [];
-    const mode = document.getElementById('mode')?.value;
-    const machine = document.getElementById('lpMachine')?.value;
-    const product = document.getElementById('productType')?.value;
-    const market = document.getElementById('marketType')?.value;
-    if(!mode) missing.push('ประเภทไลน์');
-    if(!machine) missing.push('เครื่อง');
-    if(!product) missing.push('ประเภทผลิตภัณฑ์');
-    if(!market) missing.push('ประเภทงาน');
-    if(market === 'EXPORT' || market === 'LAOS'){
-      if(!document.getElementById('cartonPrefix')?.value) missing.push('Prefix');
-    }
-    if(missing.length){
-      if(typeof showToast === 'function') showToast('กรุณาเลือก: '+missing.join(', '), 'error');
-      else alert('กรุณาเลือก: '+missing.join(', '));
-      return false;
-    }
-    return true;
-  }
-  const oldSendCheck = window.sendCheck;
-  window.sendCheck = async function(){
-    if(!validateRequiredBeforeCheck()) return;
-    return oldSendCheck.apply(this, arguments);
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    attachFile('fileInputPouch','pouch');
-    attachFile('fileInputCarton','carton');
-    const mode=document.getElementById('mode');
-    const market=document.getElementById('marketType');
-    const prefix=document.getElementById('cartonPrefix');
-    if(mode) mode.addEventListener('change', function(){ applyMachineByModeFinal(); if(typeof updateExpectedLinkedLots==='function') updateExpectedLinkedLots(); });
-    if(market) market.addEventListener('change', function(){ applyCartonMarketFinal(); if(typeof updateExpectedLinkedLots==='function') updateExpectedLinkedLots(); });
-    if(prefix) prefix.addEventListener('change', function(){ window.updateShippingMarkByPrefix(); });
-  });
-
-  window.addEventListener('load', function(){
-    // Old scripts set default selections on load; clear only requested dropdowns after them.
-    setTimeout(applyBlankDefaultsOnce, 0);
-    setTimeout(applyBlankDefaultsOnce, 150);
-    setTimeout(applyBlankDefaultsOnce, 600);
-  });
-})();
-</script>
 
 
 
@@ -4000,836 +3574,144 @@ input[type="date"]{
 }
 </style>
 
-<script>
-/* ===== FINAL PATCH: machine defaults after line selection, export prefix, and reliable check button ===== */
-(function(){
-  const SACHET_LIST = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LP_LIST = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
 
-  function optHtml(list, placeholder){
-    return `<option value="" selected disabled>${placeholder}</option>` + list.map(v=>`<option value="${v}">${v}</option>`).join("");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ===== ABSOLUTE CLEAN PATCH 2026-06-25: fixes popup close/share and machine select for real ===== -->
+
+<style>
+#resultPopup.result-popup-overlay{display:none;}
+#resultPopup.result-popup-overlay.show{display:flex!important;z-index:2147483640!important;}
+.result-popup{position:relative!important;z-index:2147483641!important;}
+.result-popup-close{pointer-events:auto!important;cursor:pointer!important;position:relative!important;z-index:2147483642!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(255,255,255,.25)!important;}
+.result-popup-actions button,.result-popup-actions a{pointer-events:auto!important;touch-action:manipulation!important;}
+#lpMachine{autocomplete:off;}
+</style>
+
+<script id="final-clean-controller">
+(function(){
+  'use strict';
+  const SACHET = ['MS1','MS2','MS3','MS4','MS5','MS6','MS7','MS8','MS9','MS10','MS11','MS12','AS1','AS2'];
+  const LP = ['LP1','LP2','LP3','LP4','LP5','LP6','LP7','LP8','LP9'];
+  const $ = (id) => document.getElementById(id);
+
+  function optionsHtml(placeholder, list){
+    return '<option value="" selected disabled>' + placeholder + '</option>' + list.map(v => '<option value="'+v+'">'+v+'</option>').join('');
   }
 
-  function setMachineList(){
-    const mode = document.getElementById('mode')?.value || '';
-    const machine = document.getElementById('lpMachine');
-    const label = document.getElementById('machineHeaderLabel');
+  function resetMachineForMode(){
+    const mode = $('mode');
+    const machine = $('lpMachine');
+    const label = $('machineHeaderLabel');
+    const sachetLine = $('sachetLine');
     if(!machine) return;
-
-    const old = (machine.value || '').trim().toUpperCase();
-    if(!mode){
-      machine.innerHTML = `<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>`;
-      if(label) label.textContent = 'เครื่อง';
-      return;
-    }
-
-    const list = mode === 'sachet' ? SACHET_LIST : LP_LIST;
-    machine.innerHTML = optHtml(list, 'เลือกเครื่อง');
-    // หลังเลือกประเภทไลน์ ให้รอผู้ใช้เลือกเครื่องเอง ไม่ตั้งค่า LP7/MS11 ให้อัตโนมัติ
-    machine.value = list.includes(old) ? old : '';
-    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
-
-    const sachetLine = document.getElementById('sachetLine');
-    if(sachetLine) sachetLine.value = (mode === 'sachet' && machine.value) ? machine.value : '';
-  }
-
-  function applyMarketPrefix(){
-    const market = document.getElementById('marketType')?.value || '';
-    const thBox = document.getElementById('cartonTHBox');
-    const exportBox = document.getElementById('cartonExportBox');
-    const prefix = document.getElementById('cartonPrefix');
-    const shipping = document.getElementById('shippingMark');
-    const isExport = market === 'EXPORT' || market === 'LAOS';
-    const isTH = market === 'TH';
-
-    if(thBox){
-      thBox.classList.toggle('hidden-market', !isTH);
-      thBox.style.setProperty('display', isTH ? 'grid' : 'none', 'important');
-    }
-    if(exportBox){
-      exportBox.classList.toggle('hidden-market', !isExport);
-      exportBox.style.setProperty('display', isExport ? 'grid' : 'none', 'important');
-    }
-    if(prefix){
-      prefix.disabled = !isExport;
-      prefix.style.setProperty('pointer-events', isExport ? 'auto' : 'none', 'important');
-      prefix.style.setProperty('opacity', isExport ? '1' : '.75', 'important');
-      if(!isExport) prefix.value = '';
-    }
-    if(shipping){
-      if(isExport && prefix && prefix.value && typeof PREFIX_SHIPPING_MAP !== 'undefined'){
-        shipping.value = PREFIX_SHIPPING_MAP[prefix.value] || '';
-      }else if(!isExport){
-        shipping.value = '-';
-      }else if(isExport && !prefix.value){
-        shipping.value = '';
-      }
-    }
-  }
-
-  function showCheckMessage(msg){
-    if(typeof showToast === 'function') showToast(msg, 'error');
-    const resultDiv = document.getElementById('result');
-    if(resultDiv) resultDiv.innerHTML = `<div class="ng">${msg}</div>`;
-  }
-
-  function validateBeforeCheckFinal(){
-    const missing = [];
-    const mode = document.getElementById('mode')?.value || '';
-    const machine = document.getElementById('lpMachine')?.value || '';
-    const product = document.getElementById('productType')?.value || '';
-    const market = document.getElementById('marketType')?.value || '';
-    const mfgDate = document.getElementById('mfgDate')?.value || '';
-
-    if(!mode) missing.push('ประเภทไลน์');
-    if(mode && !machine) missing.push('เครื่อง');
-    if(!product) missing.push('ประเภทผลิตภัณฑ์');
-    if(!market) missing.push('ประเภทงาน');
-    if(!mfgDate && !document.getElementById('mfg')?.value) missing.push('วันที่ผลิต');
-    if((market === 'EXPORT' || market === 'LAOS') && !document.getElementById('cartonPrefix')?.value) missing.push('Prefix');
-
-    const needMix = product === 'EPW' && (market === 'TH' || market === 'LAOS');
-    if(needMix && !document.getElementById('mixDate')?.value) missing.push('วันที่ผสม');
-
-    const hasPouch = !!(window.pouchImageData || (typeof pouchImageData !== 'undefined' && pouchImageData));
-    const hasCarton = !!(window.cartonImageData || (typeof cartonImageData !== 'undefined' && cartonImageData));
-    if(!hasPouch) missing.push('รูปซอง');
-    if(!hasCarton) missing.push('รูปกล่อง');
-
-    if(missing.length){
-      showCheckMessage('กรุณาเลือก/กรอก: ' + missing.join(', '));
-      return false;
-    }
-    return true;
-  }
-
-  function refreshAll(){
-    applyMarketPrefix();
-    if(typeof updateShippingMarkByPrefix === 'function'){
-      try { if(document.getElementById('marketType')?.value === 'EXPORT' || document.getElementById('marketType')?.value === 'LAOS') updateShippingMarkByPrefix(); } catch(e) {}
-    }
-    if(typeof hardApplyMixVisibility === 'function') { try { hardApplyMixVisibility(); } catch(e) {} }
-    if(typeof autoExp === 'function') { try { autoExp(); } catch(e) {} }
-    if(typeof updateExpectedLinkedLots === 'function') { try { updateExpectedLinkedLots(); } catch(e) {} }
-  }
-
-  const prevChangeMode = window.changeMode;
-  window.changeMode = function(){
-    try { if(typeof prevChangeMode === 'function') prevChangeMode.apply(this, arguments); } catch(e) {}
-    setMachineList();
-    refreshAll();
-    setTimeout(function(){ setMachineList(); refreshAll(); }, 50);
-  };
-
-  const prevChangeProduct = window.changeProduct;
-  window.changeProduct = function(){
-    try { if(typeof prevChangeProduct === 'function') prevChangeProduct.apply(this, arguments); } catch(e) {}
-    applyMarketPrefix();
-    refreshAll();
-    setTimeout(function(){ applyMarketPrefix(); refreshAll(); }, 50);
-  };
-
-  const prevSendCheck = window.sendCheck;
-  window.sendCheck = async function(){
-    try{
-      setMachineList();
-      applyMarketPrefix();
-      if(!validateBeforeCheckFinal()) return;
-      if(typeof updateMFGFromDate === 'function') { try { updateMFGFromDate(); } catch(e) {} }
-      if(typeof updateMixCodeFromDate === 'function') { try { updateMixCodeFromDate(); } catch(e) {} }
-      if(typeof prevSendCheck === 'function') return await prevSendCheck.apply(this, arguments);
-      showCheckMessage('ไม่พบฟังก์ชันตรวจสอบ');
-    }catch(err){
-      showCheckMessage('ตรวจสอบไม่ได้: ' + (err && err.message ? err.message : err));
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const mode = document.getElementById('mode');
-    const market = document.getElementById('marketType');
-    const prefix = document.getElementById('cartonPrefix');
-    const machine = document.getElementById('lpMachine');
-
-    if(mode) mode.addEventListener('change', function(){ setMachineList(); refreshAll(); });
-    if(market) market.addEventListener('change', function(){ applyMarketPrefix(); refreshAll(); });
-    if(prefix) prefix.addEventListener('change', function(){ applyMarketPrefix(); refreshAll(); });
-    if(machine) machine.addEventListener('change', function(){
-      const sachetLine = document.getElementById('sachetLine');
-      if(sachetLine && document.getElementById('mode')?.value === 'sachet') sachetLine.value = machine.value;
-      if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots();
-    });
-
-    // Keep initial fields blank as requested; machine stays as 'เลือกเครื่อง' after user selects line type.
-    setTimeout(function(){
-      if(!(document.getElementById('mode')?.value)) setMachineList();
-      applyMarketPrefix();
-    }, 700);
-  });
-})();
-</script>
-
-
-<script>
-/* ===== FINAL STABLE FIX: check button + real Shipping Mark ===== */
-(function(){
-  const REAL_PREFIX_SHIPPING_MAP = {
-    "00":"-",
-    "KC":"ZZZZZ",
-    "VN":"IPO VN",
-    "VT":"VN-MT",
-    "KK":"AKK",
-    "CT":"CDT",
-    "TS":"TS",
-    "AC":"AKC",
-    "SM":"SOMCHAICHALUEN",
-    "AX":"AKX",
-    "MM":"I.P. ONE-MYANMAR",
-    "ML":"ML",
-    "KT":"KT",
-    "MW":"MWD",
-    "MK":"MK",
-    "MY":"MDY",
-    "TG":"TG",
-    "MN":"MNJM",
-    "MA":"MLA",
-    "LM":"MT/LM+VY",
-    "DK":"DKSH",
-    "NT":"NTPL",
-    "XR":"XR",
-    "BU":"BUL",
-    "UK":"U,K,T-7",
-    "DB":"DBL INDUSTRIES PLC",
-    "OL":"IMPORTER:ORGANIC LINE CO., LTD",
-    "OD":"IMPORTER:ORGANIC LINE CO., LTD",
-    "MI":"ZZZZZ",
-    "WD":"WEDAR",
-    "CZ":"ZZZZZ",
-    "ND":"NDF",
-    "CS":"CSMS",
-    "FN":"FENIX",
-    "CD":"CDM",
-    "DT":"DBT",
-    "YP":"YPG",
-    "LB":"ZZZZZ",
-    "LQ":"ZZZZZ"
-  };
-
-  window.updateShippingMarkByPrefix = function(){
-    const market = document.getElementById('marketType')?.value || '';
-    const prefix = document.getElementById('cartonPrefix');
-    const shipping = document.getElementById('shippingMark');
-    if(!shipping) return;
-
-    if(market === 'TH'){
-      shipping.value = '-';
-      shipping.placeholder = '-';
-      shipping.readOnly = true;
-      if(prefix){
-        prefix.value = '';
-        prefix.disabled = true;
-        prefix.style.pointerEvents = 'none';
-        prefix.style.opacity = '.75';
-      }
-      return;
-    }
-
-    if(market === 'EXPORT' || market === 'LAOS'){
-      if(prefix){
-        prefix.disabled = false;
-        prefix.style.pointerEvents = 'auto';
-        prefix.style.opacity = '1';
-      }
-      const prefixValue = (prefix?.value || '').trim().toUpperCase();
-      shipping.value = prefixValue ? (REAL_PREFIX_SHIPPING_MAP[prefixValue] || '') : '';
-      shipping.placeholder = prefixValue ? 'ไม่พบ Shipping Mark ของ Prefix นี้' : 'เลือก Prefix ก่อน';
-      shipping.readOnly = true;
-      return;
-    }
-
-    shipping.value = '';
-    shipping.placeholder = 'เลือกประเภทงานก่อน';
-    shipping.readOnly = true;
-  };
-
-  function getImageData(kind){
-    try{
-      if(kind === 'pouch'){
-        if(typeof pouchImageData !== 'undefined' && pouchImageData) return pouchImageData;
-        if(window.pouchImageData) return window.pouchImageData;
-      }
-      if(kind === 'carton'){
-        if(typeof cartonImageData !== 'undefined' && cartonImageData) return cartonImageData;
-        if(window.cartonImageData) return window.cartonImageData;
-      }
-    }catch(e){}
-    return '';
-  }
-
-  function getValue(id){
-    return (document.getElementById(id)?.value || '').trim();
-  }
-
-  function showCheckError(message){
-    if(typeof showToast === 'function') showToast(message, 'error');
-    const resultDiv = document.getElementById('result');
-    if(resultDiv) resultDiv.innerHTML = `<div class="ng">${message}</div>`;
-    const page3 = document.getElementById('page3');
-    if(page3) page3.scrollIntoView({behavior:'smooth', block:'start'});
-  }
-
-  function validateReady(){
-    const missing = [];
-    const mode = getValue('mode');
-    const machine = getValue('lpMachine');
-    const product = getValue('productType');
-    const market = getValue('marketType');
-    const mfgDate = getValue('mfgDate');
-
-    if(!mode) missing.push('ประเภทไลน์');
-    if(mode && !machine) missing.push('เครื่อง');
-    if(!product) missing.push('ประเภทผลิตภัณฑ์');
-    if(!market) missing.push('ประเภทงาน');
-    if(!mfgDate && !document.getElementById('mfg')?.value) missing.push('วันที่ผลิต');
-    if((market === 'EXPORT' || market === 'LAOS') && !getValue('cartonPrefix')) missing.push('Prefix');
-
-    const needMix = product === 'EPW' && (market === 'TH' || market === 'LAOS');
-    if(needMix && !getValue('mixDate')) missing.push('วันที่ผสม');
-    if(!getImageData('pouch')) missing.push('รูปซอง');
-    if(!getImageData('carton')) missing.push('รูปกล่อง');
-
-    if(missing.length){
-      showCheckError('กรุณาเลือก/กรอก: ' + missing.join(', '));
-      return false;
-    }
-    return true;
-  }
-
-  function buildPayload(){
-    const marketType = getValue('marketType');
-    const productType = getValue('productType');
-    const mode = getValue('mode');
-    if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
-    if(typeof updateMixCodeFromDate === 'function') { try{ updateMixCodeFromDate(); }catch(e){} }
-    window.updateShippingMarkByPrefix();
-
-    const isExport = marketType === 'EXPORT' || marketType === 'LAOS';
-    const needMix = productType === 'EPW' && (marketType === 'TH' || marketType === 'LAOS');
-    const line = getValue('lpMachine');
-    const exp = mode === 'sachet' ? getValue('sachetExp') : getValue('linapackExp');
-
-    return {
-      checkType: 'both',
-      mode,
-      productType,
-      marketType,
-      mfg: getValue('mfg'),
-      pouchImage: getImageData('pouch'),
-      cartonImage: getImageData('carton'),
-      image: getImageData('pouch'),
-      buildingNo: marketType === 'TH' ? getValue('buildingNo') : getValue('buildingNoExport'),
-      buildingSuffix: marketType === 'TH' ? getValue('buildingSuffixTH') : getValue('buildingSuffixExport'),
-      shippingMark: isExport ? getValue('shippingMark') : '',
-      cartonAlphaCode: isExport ? getValue('cartonPrefix') : '',
-      line,
-      exp,
-      mixCode: needMix ? getValue('mixCode') : ''
-    };
-  }
-
-  function renderResult(data, payload){
-    const resultDiv = document.getElementById('result');
-    const detailDiv = document.getElementById('detail');
-    const pass = data.summary === 'PASS';
-    window.latestShareResultText = pass ? 'PASS' : 'NG';
-    window.latestShareMachine = payload.line || '-';
-
-    if(resultDiv){
-      resultDiv.innerHTML = `
-        <div class="result-hero">
-          <div class="result-status-card ${pass ? 'pass-card' : 'ng-card'}">
-            <div class="result-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div>
-            <p class="result-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</p>
-          </div>
-        </div>`;
-    }
-
-    const ngRows = (data.details || []).filter(row => row.status === 'NG');
-    let ngHtml = '';
-    if(ngRows.length === 0){
-      ngHtml = `<div class="result-popup-ok-box">✓ ไม่พบรายการ NG</div>`;
-    }else{
-      ngHtml = `<div class="result-popup-ng-box"><div class="result-section-title">รายการที่ NG</div><table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
-      ngRows.forEach(row => { ngHtml += `<tr><td>${row.item || '-'}</td><td>${row.actual || '-'}</td><td>${row.expected || '-'}</td></tr>`; });
-      ngHtml += `</table></div>`;
-    }
-
-    const popupHtml = `
-      <div class="result-popup-header ${pass ? 'popup-pass' : 'popup-ng'}">
-        <div>
-          <div class="result-popup-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
-          <div class="result-popup-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'} | ${data.time || '-'}</div>
-        </div>
-        <button class="result-popup-close" onclick="closeResultPopup(event)">×</button>
-      </div>
-      <div class="result-popup-body">
-        <div class="result-popup-image-wrap">
-          ${data.stampedImageUrl ? `<img src="${data.stampedImageUrl}">` : `<div class="warn">ไม่มีรูปแสตมป์</div>`}
-        </div>
-        <div class="result-popup-bottom">
-          ${data.expectedPouchLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot ซองที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedPouchLot}</div></div>` : ''}
-          ${data.expectedCartonLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot กล่องที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedCartonLot}</div></div>` : ''}
-          ${ngHtml}
-        </div>
-        ${data.stampedImageUrl ? `<div class="result-popup-actions"><button class="download" type="button" onclick="shareResultImage('${data.stampedImageUrl}')" style="background:#06c755;">แชร์รูปเข้า LINE / แอปอื่น</button><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ''}
-        <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines || {}, null, 2)}</pre></details></div>
-      </div>`;
-
-    window.latestResultPopupHtml = popupHtml;
-    if(typeof openResultPopup === 'function') openResultPopup(popupHtml);
-
-    if(detailDiv){
-      detailDiv.innerHTML = `
-        <div class="result-clean-card ${pass ? 'result-clean-pass' : 'result-clean-ng'}">
-          <div class="result-clean-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
-          <div class="result-clean-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</div>
-          <button type="button" onclick="reopenLatestResultPopup()" class="btn-success result-reopen-btn">เปิดผลตรวจอีกครั้ง</button>
-        </div>`;
-    }
-  }
-
-  window.sendCheck = async function(){
-    const resultDiv = document.getElementById('result');
-    const detailDiv = document.getElementById('detail');
-    try{
-      if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
-      if(typeof autoExp === 'function') { try{ autoExp(); }catch(e){} }
-      if(!validateReady()) return;
-      const payload = buildPayload();
-      if(resultDiv) resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
-      if(detailDiv) detailDiv.innerHTML = '';
-      if(typeof goPage === 'function') goPage(3);
-
-      const res = await fetch('/check', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if(data.error){
-        showCheckError(data.error);
-        return;
-      }
-      renderResult(data, payload);
-    }catch(err){
-      showCheckError('ตรวจสอบไม่ได้: ' + (err && err.message ? err.message : err));
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const market = document.getElementById('marketType');
-    const prefix = document.getElementById('cartonPrefix');
-    if(market) market.addEventListener('change', function(){ setTimeout(window.updateShippingMarkByPrefix, 0); });
-    if(prefix) prefix.addEventListener('change', window.updateShippingMarkByPrefix);
-    setTimeout(window.updateShippingMarkByPrefix, 300);
-    setTimeout(window.updateShippingMarkByPrefix, 900);
-  });
-})();
-</script>
-
-
-
-<script>
-/* ===== USER FIX: no default machine, date validation fallback, mobile-safe check ===== */
-(function(){
-  const SACHET_LIST_USER = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LP_LIST_USER = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
-  let lastModeUser = "";
-
-  function fillMachineUser(forceReset){
-    const modeEl = document.getElementById('mode');
-    const machine = document.getElementById('lpMachine');
-    const label = document.getElementById('machineHeaderLabel');
-    if(!modeEl || !machine) return;
-    const mode = modeEl.value || '';
-    const old = machine.value || '';
-
-    if(!mode){
+    const modeVal = mode ? mode.value : '';
+    if(!modeVal){
       machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
       machine.value = '';
+      machine.disabled = true;
       if(label) label.textContent = 'เครื่อง';
-      lastModeUser = '';
+      if(sachetLine) sachetLine.value = '';
       return;
     }
-
-    const list = mode === 'sachet' ? SACHET_LIST_USER : LP_LIST_USER;
-    machine.innerHTML = '<option value="" selected disabled>เลือกเครื่อง</option>' + list.map(v => `<option value="${v}">${v}</option>`).join('');
-    if(!forceReset && list.includes(old)) machine.value = old;
-    else machine.value = '';
-    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
-
-    const sachetLine = document.getElementById('sachetLine');
-    if(sachetLine) sachetLine.value = (mode === 'sachet' && machine.value) ? machine.value : '';
-    lastModeUser = mode;
-  }
-
-  function deriveMfgIfNeeded(){
-    const mfgEl = document.getElementById('mfg');
-    const dateEl = document.getElementById('mfgDate');
-    if(!mfgEl) return;
-    if(mfgEl.value) return;
-    const v = dateEl ? dateEl.value : '';
-    if(/^\d{4}-\d{2}-\d{2}$/.test(v)){
-      const p = v.split('-');
-      mfgEl.value = p[2] + p[1] + p[0].slice(-2);
-    }
-  }
-
-  function validateMobileReady(){
-    deriveMfgIfNeeded();
-    const get = id => (document.getElementById(id)?.value || '').trim();
-    const missing = [];
-    const mode = get('mode');
-    const machine = get('lpMachine');
-    const product = get('productType');
-    const market = get('marketType');
-    const mfg = get('mfg');
-    const date = get('mfgDate');
-    if(!mode) missing.push('ประเภทไลน์');
-    if(mode && !machine) missing.push('เครื่อง');
-    if(!product) missing.push('ประเภทผลิตภัณฑ์');
-    if(!market) missing.push('ประเภทงาน');
-    if(!mfg && !date) missing.push('วันที่ผลิต');
-    if((market === 'EXPORT' || market === 'LAOS') && !get('cartonPrefix')) missing.push('Prefix');
-    if(product === 'EPW' && (market === 'TH' || market === 'LAOS') && !get('mixDate')) missing.push('วันที่ผสม');
-    const hasPouch = !!(window.pouchImageData || (typeof pouchImageData !== 'undefined' && pouchImageData));
-    const hasCarton = !!(window.cartonImageData || (typeof cartonImageData !== 'undefined' && cartonImageData));
-    if(!hasPouch) missing.push('รูปซอง');
-    if(!hasCarton) missing.push('รูปกล่อง');
-    return missing;
-  }
-
-  const originalSendCheckUser = window.sendCheck;
-  window.sendCheck = async function(){
-    try{
-      deriveMfgIfNeeded();
-      if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
-      if(typeof updateShippingMarkByPrefix === 'function') { try{ updateShippingMarkByPrefix(); }catch(e){} }
-      const missing = validateMobileReady();
-      if(missing.length){
-        const msg = 'กรุณาเลือก/กรอก: ' + missing.join(', ');
-        if(typeof showToast === 'function') showToast(msg, 'error');
-        const resultDiv = document.getElementById('result');
-        if(resultDiv) resultDiv.innerHTML = `<div class="ng">${msg}</div>`;
-        return;
-      }
-      return await originalSendCheckUser.apply(this, arguments);
-    }catch(e){
-      const msg = 'ตรวจสอบไม่ได้: ' + (e && e.message ? e.message : e);
-      if(typeof showToast === 'function') showToast(msg, 'error');
-      const resultDiv = document.getElementById('result');
-      if(resultDiv) resultDiv.innerHTML = `<div class="ng">${msg}</div>`;
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const modeEl = document.getElementById('mode');
-    const machine = document.getElementById('lpMachine');
-    const dateEl = document.getElementById('mfgDate');
-    if(modeEl){
-      modeEl.addEventListener('change', function(){
-        fillMachineUser(true); // เปลี่ยนประเภทไลน์แล้วต้องให้ผู้ใช้เลือกเครื่องเอง ไม่ default LP7/MS11
-        if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots();
-      });
-    }
-    if(machine){
-      machine.addEventListener('change', function(){
-        const sachetLine = document.getElementById('sachetLine');
-        if(sachetLine && document.getElementById('mode')?.value === 'sachet') sachetLine.value = machine.value;
-        if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots();
-      });
-    }
-    if(dateEl){
-      dateEl.addEventListener('change', function(){
-        deriveMfgIfNeeded();
-        if(typeof updateMFGFromDate === 'function') updateMFGFromDate();
-      });
-    }
-    setTimeout(function(){
-      const mode = modeEl ? modeEl.value : '';
-      // ถ้ายังไม่ได้เลือกไลน์ แสดง placeholder; ถ้าเลือกแล้วแต่เครื่องเป็น default เดิม ให้ล้างให้เลือกใหม่
-      if(!mode) fillMachineUser(true);
-      else {
-        const val = (machine?.value || '').trim();
-        const isDefault = (mode === 'linapack' && (val === 'LP7' || val === 'LP1')) || (mode === 'sachet' && val === 'MS11');
-        fillMachineUser(isDefault);
-      }
-      deriveMfgIfNeeded();
-    }, 300);
-  });
-})();
-</script>
-
-
-
-<script>
-/* ===== FINAL OVERRIDE: no machine default + reliable popup after check ===== */
-(function(){
-  const SACHET_MACHINES_LAST = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LINAPACK_MACHINES_LAST = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
-
-  function q(id){ return document.getElementById(id); }
-  function val(id){ return (q(id)?.value || '').trim(); }
-
-  function setMachineOptions(reset=true){
-    const mode = val('mode');
-    const machine = q('lpMachine');
-    const label = q('machineHeaderLabel');
-    if(!machine) return;
-
-    if(!mode){
-      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
-      machine.value = '';
-      if(label) label.textContent = 'เครื่อง';
-      return;
-    }
-
-    const list = mode === 'sachet' ? SACHET_MACHINES_LAST : LINAPACK_MACHINES_LAST;
-    machine.innerHTML = '<option value="" selected disabled>เลือกเครื่อง</option>' + list.map(v => `<option value="${v}">${v}</option>`).join('');
+    machine.disabled = false;
+    const list = modeVal === 'sachet' ? SACHET : LP;
+    machine.innerHTML = optionsHtml('เลือกเครื่อง', list);
     machine.value = ''; // สำคัญ: ห้าม default LP7/MS11
-    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
-
-    const sachetLine = q('sachetLine');
+    if(label) label.textContent = modeVal === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
     if(sachetLine) sachetLine.value = '';
   }
 
-  function getImage(kind){
-    try{
-      if(kind === 'pouch'){
-        if(typeof pouchImageData !== 'undefined' && pouchImageData) return pouchImageData;
-        if(window.pouchImageData) return window.pouchImageData;
-      }
-      if(kind === 'carton'){
-        if(typeof cartonImageData !== 'undefined' && cartonImageData) return cartonImageData;
-        if(window.cartonImageData) return window.cartonImageData;
-      }
-    }catch(e){}
-    return '';
+  function onMachineChange(){
+    const modeVal = $('mode') ? $('mode').value : '';
+    const machineVal = $('lpMachine') ? $('lpMachine').value : '';
+    const sachetLine = $('sachetLine');
+    if(sachetLine) sachetLine.value = (modeVal === 'sachet') ? machineVal : '';
+    if(typeof window.updateExpectedLinkedLots === 'function') window.updateExpectedLinkedLots();
   }
 
-  function showError(msg){
-    if(typeof showToast === 'function') showToast(msg, 'error');
-    const r=q('result');
-    if(r) r.innerHTML = `<div class="ng">${msg}</div>`;
-    if(typeof goPage === 'function') goPage(3);
-    else q('result')?.scrollIntoView({behavior:'smooth', block:'start'});
-  }
-
-  function validateForCheck(){
-    if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
-    if(typeof autoExp === 'function') { try{ autoExp(); }catch(e){} }
-    if(typeof updateMixCodeFromDate === 'function') { try{ updateMixCodeFromDate(); }catch(e){} }
-    if(typeof updateShippingMarkByPrefix === 'function') { try{ updateShippingMarkByPrefix(); }catch(e){} }
-
-    const missing=[];
-    const mode=val('mode');
-    const machine=val('lpMachine');
-    const product=val('productType');
-    const market=val('marketType');
-    if(!mode) missing.push('ประเภทไลน์');
-    if(mode && !machine) missing.push('เครื่อง');
-    if(!product) missing.push('ประเภทผลิตภัณฑ์');
-    if(!market) missing.push('ประเภทงาน');
-    if(!val('mfg') && !val('mfgDate')) missing.push('วันที่ผลิต');
-    if((market === 'EXPORT' || market === 'LAOS') && !val('cartonPrefix')) missing.push('Prefix');
-    if(product === 'EPW' && (market === 'TH' || market === 'LAOS') && !val('mixDate')) missing.push('วันที่ผสม');
-    if(!getImage('pouch')) missing.push('รูปซอง');
-    if(!getImage('carton')) missing.push('รูปกล่อง');
-    return missing;
-  }
-
-  function buildCheckPayload(){
-    const mode=val('mode');
-    const productType=val('productType');
-    const marketType=val('marketType');
-    const isExport = marketType === 'EXPORT' || marketType === 'LAOS';
-    const needMix = productType === 'EPW' && (marketType === 'TH' || marketType === 'LAOS');
-    const exp = mode === 'sachet' ? val('sachetExp') : val('linapackExp');
-    const pouchImg = getImage('pouch');
-    const cartonImg = getImage('carton');
-    return {
-      checkType:'both',
-      mode,
-      productType,
-      marketType,
-      mfg: val('mfg'),
-      pouchImage:pouchImg,
-      cartonImage:cartonImg,
-      image:pouchImg,
-      buildingNo: marketType === 'TH' ? val('buildingNo') : val('buildingNoExport'),
-      buildingSuffix: marketType === 'TH' ? val('buildingSuffixTH') : val('buildingSuffixExport'),
-      shippingMark: isExport ? val('shippingMark') : '',
-      cartonAlphaCode: isExport ? val('cartonPrefix') : '',
-      line: val('lpMachine'),
-      exp,
-      mixCode: needMix ? val('mixCode') : ''
-    };
-  }
-
-  function renderPopupAndSummary(data, payload){
-    const pass = data.summary === 'PASS';
-    window.latestShareResultText = pass ? 'PASS' : 'NG';
-    window.latestShareMachine = payload.line || '-';
-
-    const resultDiv=q('result');
-    const detailDiv=q('detail');
-    if(resultDiv){
-      resultDiv.innerHTML = `<div class="result-hero"><div class="result-status-card ${pass ? 'pass-card' : 'ng-card'}"><div class="result-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div><p class="result-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</p></div></div>`;
-    }
-
-    const ngRows=(data.details || []).filter(r => r.status === 'NG');
-    let ngHtml='';
-    if(ngRows.length === 0){
-      ngHtml = `<div class="result-popup-ok-box">✓ ไม่พบรายการ NG</div>`;
+  function updateMarketUI(){
+    const market = $('marketType') ? $('marketType').value : '';
+    const thBox = $('cartonTHBox');
+    const exportBox = $('cartonExportBox');
+    const prefix = $('cartonPrefix');
+    const shipping = $('shippingMark');
+    if(market === 'TH'){
+      if(thBox) thBox.style.display = '';
+      if(exportBox) exportBox.style.display = 'none';
+      if(prefix) prefix.value = '';
+      if(shipping) shipping.value = '';
+    }else if(market === 'EXPORT' || market === 'LAOS'){
+      if(thBox) thBox.style.display = 'none';
+      if(exportBox) exportBox.style.display = '';
+      if(shipping && prefix) shipping.value = (window.PREFIX_SHIPPING_MAP && prefix.value) ? (window.PREFIX_SHIPPING_MAP[prefix.value] || '') : '';
     }else{
-      ngHtml = `<div class="result-popup-ng-box"><div class="result-section-title">รายการที่ NG</div><table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
-      ngRows.forEach(r => { ngHtml += `<tr><td>${r.item || '-'}</td><td>${r.actual || '-'}</td><td>${r.expected || '-'}</td></tr>`; });
-      ngHtml += `</table></div>`;
+      if(thBox) thBox.style.display = 'none';
+      if(exportBox) exportBox.style.display = 'none';
+      if(prefix) prefix.value = '';
+      if(shipping) shipping.value = '';
     }
-
-    const popupHtml = `
-      <div class="result-popup-header ${pass ? 'popup-pass' : 'popup-ng'}">
-        <div>
-          <div class="result-popup-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
-          <div class="result-popup-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'} | ${data.time || '-'}</div>
-        </div>
-        <button class="result-popup-close" onclick="closeResultPopup(event)">×</button>
-      </div>
-      <div class="result-popup-body">
-        <div class="result-popup-image-wrap">${data.stampedImageUrl ? `<img src="${data.stampedImageUrl}">` : `<div class="warn">ไม่มีรูปแสตมป์</div>`}</div>
-        <div class="result-popup-bottom">
-          ${data.expectedPouchLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot ซองที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedPouchLot}</div></div>` : ''}
-          ${data.expectedCartonLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot กล่องที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedCartonLot}</div></div>` : ''}
-          ${ngHtml}
-        </div>
-        ${data.stampedImageUrl ? `<div class="result-popup-actions"><button class="download" type="button" onclick="shareResultImage('${data.stampedImageUrl}')" style="background:#06c755;">แชร์รูปเข้า LINE / แอปอื่น</button><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ''}
-        <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines || {}, null, 2)}</pre></details></div>
-      </div>`;
-
-    window.latestResultPopupHtml = popupHtml;
-    if(typeof openResultPopup === 'function') openResultPopup(popupHtml);
-    else {
-      const popup=q('resultPopup'), content=q('resultPopupContent');
-      if(content) content.innerHTML=popupHtml;
-      if(popup) popup.classList.add('show');
-    }
-
-    if(detailDiv){
-      detailDiv.innerHTML = `<div class="result-clean-card ${pass ? 'result-clean-pass' : 'result-clean-ng'}"><div class="result-clean-title">${pass ? 'PASS ✅' : 'NG ❌'}</div><div class="result-clean-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</div><button type="button" onclick="reopenLatestResultPopup()" class="btn-success result-reopen-btn">เปิดผลตรวจอีกครั้ง</button></div>`;
-    }
+    if(typeof window.updateExpectedLinkedLots === 'function') window.updateExpectedLinkedLots();
   }
 
-  window.sendCheck = async function(){
-    try{
-      const missing=validateForCheck();
-      if(missing.length){ showError('กรุณาเลือก/กรอก: ' + missing.join(', ')); return; }
-      const payload=buildCheckPayload();
-      const r=q('result'), d=q('detail');
-      if(r) r.innerHTML='<div class="warn">กำลังตรวจสอบ...</div>';
-      if(d) d.innerHTML='';
-      if(typeof goPage === 'function') goPage(3);
-      const res=await fetch('/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const data=await res.json();
-      if(data.error){ showError(data.error); return; }
-      renderPopupAndSummary(data,payload);
-    }catch(e){
-      showError('ตรวจสอบไม่ได้: ' + (e && e.message ? e.message : e));
+  function updateShipping(){
+    const prefix = $('cartonPrefix');
+    const shipping = $('shippingMark');
+    if(!prefix || !shipping) return;
+    if(prefix.value === 'CUSTOM'){
+      shipping.readOnly = false;
+      shipping.value = '';
+      shipping.placeholder = 'กรอก Shipping Mark เอง';
+    }else{
+      shipping.readOnly = true;
+      shipping.placeholder = '';
+      shipping.value = (window.PREFIX_SHIPPING_MAP && prefix.value) ? (window.PREFIX_SHIPPING_MAP[prefix.value] || '') : '';
     }
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const mode=q('mode'), machine=q('lpMachine');
-    if(machine){
-      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
-      machine.value = '';
-    }
-    if(mode){
-      // ถ้ามีค่าเก่าจาก browser restore ให้ยังไม่เลือกเครื่องเอง
-      setTimeout(function(){ setMachineOptions(true); }, 0);
-      mode.addEventListener('change', function(){ setMachineOptions(true); });
-    }
-  });
-})();
-</script>
-
-
-
-<script>
-/* ===== ABSOLUTE FINAL FIX: popup close/share + no machine default ===== */
-(function(){
-  const SACHET_FINAL = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LP_FINAL = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
-  let userSelectedMachine = false;
-
-  function el(id){ return document.getElementById(id); }
-  function v(id){ return (el(id)?.value || '').trim(); }
-  function optionsHtml(list){
-    return '<option value="" selected disabled>เลือกเครื่อง</option>' +
-      list.map(x => `<option value="${x}">${x}</option>`).join('');
+    if(typeof window.updateExpectedLinkedLots === 'function') window.updateExpectedLinkedLots();
   }
 
-  function setMachineNoDefault(forceClear){
-    const mode = v('mode');
-    const machine = el('lpMachine');
-    const label = el('machineHeaderLabel');
-    if(!machine) return;
-
-    if(!mode){
-      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
-      machine.value = '';
-      if(label) label.textContent = 'เครื่อง';
-      userSelectedMachine = false;
-      return;
-    }
-
-    const list = mode === 'sachet' ? SACHET_FINAL : LP_FINAL;
-    const current = machine.value;
-    machine.innerHTML = optionsHtml(list);
-
-    if(!forceClear && userSelectedMachine && list.includes(current)) {
-      machine.value = current;
-    } else {
-      machine.value = '';
-      userSelectedMachine = false;
-    }
-
-    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
-    const sachetLine = el('sachetLine');
-    if(sachetLine) sachetLine.value = (mode === 'sachet' && machine.value) ? machine.value : '';
+  function syncMfg(){
+    if(typeof window.updateMFGFromDate === 'function') window.updateMFGFromDate();
   }
 
-  // Override old global functions that used to auto-select LP7/MS11.
-  window.setMachineOptionsForMode = function(mode){ setMachineNoDefault(true); };
-  window.applyMachineByModeFinal = function(){ setMachineNoDefault(true); };
-  window.setMachineList = function(){ setMachineNoDefault(true); };
-  window.fillMachineUser = function(){ setMachineNoDefault(true); };
-  window.setMachineOptions = function(){ setMachineNoDefault(true); };
+  function closePopup(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    const popup = $('resultPopup');
+    if(popup){
+      popup.classList.remove('show');
+      popup.style.display = 'none';
+    }
+    document.body.classList.remove('popup-open');
+    return false;
+  }
 
-  const oldChangeModeSafe = window.changeMode;
-  window.changeMode = function(){
-    try { if(typeof oldChangeModeSafe === 'function') oldChangeModeSafe(); } catch(e) {}
-    setMachineNoDefault(true);
-    try { if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots(); } catch(e) {}
-  };
-
-  // Make popup close reliable on iPhone/Safari.
-  window.closeResultPopup = function(event){
-    if(event){ event.preventDefault(); event.stopPropagation(); }
-    const popup = el('resultPopup');
-    if(popup) popup.classList.remove('show');
-  };
+  function openPopup(html){
+    const popup = $('resultPopup');
+    const content = $('resultPopupContent');
+    if(content && html !== undefined) content.innerHTML = html;
+    if(popup){
+      popup.style.display = 'flex';
+      popup.classList.add('show');
+    }
+    document.body.classList.add('popup-open');
+  }
 
   function shareMessage(){
-    const machine = (v('lpMachine') || window.latestShareMachine || '-').trim();
+    const machine = (($('lpMachine') && $('lpMachine').value) || window.latestShareMachine || '-').trim();
     const resultText = (window.latestShareResultText || '-').toUpperCase();
     const now = new Date();
     const dd = String(now.getDate()).padStart(2,'0');
@@ -4841,295 +3723,125 @@ input[type="date"]{
     return `ไลน์ ${machine} ตรวจสอบความถูกต้องของ Lot แล้ว (${resultText})\n\nวันที่ ${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
   }
 
-  // Share button: try image file share first, then URL/text share, then download.
-  window.shareResultImage = async function(imageUrl){
-    if(!imageUrl){ alert('ยังไม่มีรูปผลตรวจสำหรับแชร์'); return; }
-    const absoluteUrl = new URL(imageUrl, window.location.href).href;
+  async function shareImage(imageUrl){
+    if(!imageUrl){ alert('ยังไม่มีรูปผลตรวจสำหรับแชร์'); return false; }
+    const url = new URL(imageUrl, location.href).href;
     const text = shareMessage();
     try{
       if(navigator.share){
         try{
-          const res = await fetch(absoluteUrl, {cache:'no-store'});
+          const res = await fetch(url, {cache:'no-store'});
           if(res.ok){
             const blob = await res.blob();
             const file = new File([blob], 'Lot_Check_Result.jpg', {type: blob.type || 'image/jpeg'});
             if(!navigator.canShare || navigator.canShare({files:[file]})){
               await navigator.share({title:'IP ONE Lot Check Result', text, files:[file]});
-              return;
+              return false;
             }
           }
-        }catch(fileErr){}
-        await navigator.share({title:'IP ONE Lot Check Result', text, url:absoluteUrl});
-        return;
-      }
-      const a=document.createElement('a');
-      a.href=absoluteUrl; a.download='Lot_Check_Result.jpg'; document.body.appendChild(a); a.click(); a.remove();
-      alert('เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน\n\n' + text);
-    }catch(err){
-      if(err && err.name === 'AbortError') return;
-      alert('แชร์รูปไม่สำเร็จ: ' + (err && err.message ? err.message : err));
-    }
-  };
-
-  function initFinal(){
-    const mode = el('mode');
-    const machine = el('lpMachine');
-    if(machine){
-      machine.setAttribute('autocomplete','off');
-      machine.addEventListener('change', function(){
-        userSelectedMachine = !!machine.value;
-        const sachetLine = el('sachetLine');
-        if(sachetLine) sachetLine.value = (v('mode') === 'sachet' && machine.value) ? machine.value : '';
-        try { if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots(); } catch(e) {}
-      });
-    }
-    if(mode){
-      mode.setAttribute('autocomplete','off');
-      // Do not clear selected line; clear only machine after line changes.
-      mode.addEventListener('change', function(){ setMachineNoDefault(true); }, true);
-    }
-    setMachineNoDefault(true);
-
-    // Delegated close handler for dynamically rendered popup close button.
-    document.addEventListener('click', function(e){
-      if(e.target && e.target.closest && e.target.closest('.result-popup-close')){
-        window.closeResultPopup(e);
-      }
-    }, true);
-
-    const popup = el('resultPopup');
-    if(popup){
-      popup.addEventListener('click', function(e){ if(e.target === popup) window.closeResultPopup(e); }, true);
-    }
-  }
-
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFinal);
-  else initFinal();
-  window.addEventListener('pageshow', function(){ setTimeout(()=>setMachineNoDefault(true), 0); });
-})();
-</script>
-
-<style>
-/* Make popup close always tappable on mobile */
-.result-popup-close{ position:relative !important; z-index:1000001 !important; touch-action:manipulation; }
-.result-popup-overlay.show{ z-index:1000000 !important; }
-</style>
-
-
-
-<script>
-/* ===== HARD REPAIR 2026-06-24: popup close/share + machine must NOT default ===== */
-(function(){
-  const SACHET = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
-  const LINAPACK = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
-  const $ = (id) => document.getElementById(id);
-  const value = (id) => (($((id)) || {}).value || '').trim();
-
-  function machinePlaceholder(text){
-    return `<option value="" selected>${text}</option>`;
-  }
-
-  function forceMachinePlaceholder(reason){
-    const mode = $('mode');
-    const machine = $('lpMachine');
-    const label = $('machineHeaderLabel');
-    const sachetLine = $('sachetLine');
-    if(!machine) return;
-
-    const modeVal = (mode && mode.value || '').trim();
-    machine.dataset.userPicked = '0';
-
-    if(!modeVal){
-      machine.innerHTML = machinePlaceholder('เลือกประเภทไลน์ก่อน');
-      machine.value = '';
-      if(label) label.textContent = 'เครื่อง';
-      if(sachetLine) sachetLine.value = '';
-      return;
-    }
-
-    const list = modeVal === 'sachet' ? SACHET : LINAPACK;
-    machine.innerHTML = machinePlaceholder('เลือกเครื่อง') + list.map(x => `<option value="${x}">${x}</option>`).join('');
-    machine.value = '';
-    if(label) label.textContent = modeVal === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
-    if(sachetLine) sachetLine.value = '';
-  }
-
-  // Override every old machine function that used to auto-pick LP7/MS11.
-  window.setMachineOptionsForMode = function(){ forceMachinePlaceholder('override'); };
-  window.applyMachineByModeFinal = function(){ forceMachinePlaceholder('override'); };
-  window.setMachineList = function(){ forceMachinePlaceholder('override'); };
-  window.fillMachineUser = function(){ forceMachinePlaceholder('override'); };
-  window.setMachineOptions = function(){ forceMachinePlaceholder('override'); };
-
-  function installMachineFix(){
-    const mode = $('mode');
-    const machine = $('lpMachine');
-    const sachetLine = $('sachetLine');
-    if(!machine) return;
-
-    machine.setAttribute('autocomplete','off');
-    machine.addEventListener('pointerdown', () => { machine.dataset.openedByUser = '1'; }, true);
-    machine.addEventListener('touchstart', () => { machine.dataset.openedByUser = '1'; }, true);
-    machine.addEventListener('mousedown', () => { machine.dataset.openedByUser = '1'; }, true);
-    machine.addEventListener('change', () => {
-      if(machine.value){ machine.dataset.userPicked = '1'; }
-      if(sachetLine) sachetLine.value = (value('mode') === 'sachet' && machine.value) ? machine.value : '';
-      try{ if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots(); }catch(e){}
-    }, true);
-
-    if(mode){
-      mode.setAttribute('autocomplete','off');
-      mode.addEventListener('change', () => {
-        setTimeout(() => forceMachinePlaceholder('mode-change'), 0);
-        setTimeout(() => forceMachinePlaceholder('mode-change-late'), 80);
-      }, true);
-    }
-
-    // Initial state: never show LP7/MS11 as selected unless the user picked it.
-    setTimeout(() => forceMachinePlaceholder('init'), 0);
-    setTimeout(() => forceMachinePlaceholder('init-late'), 120);
-
-    // Guard against old scripts/browser restore that silently put LP7/MS11 back.
-    const guard = setInterval(() => {
-      const m = $('lpMachine');
-      if(!m) return;
-      if(m.dataset.userPicked !== '1' && m.value){
-        // If user has not explicitly selected a machine, force it back to placeholder.
-        m.value = '';
-        if(sachetLine) sachetLine.value = '';
-      }
-    }, 250);
-    window.__machineNoDefaultGuard = guard;
-  }
-
-  function closePopupNow(e){
-    if(e){ e.preventDefault(); e.stopPropagation(); }
-    const pop = $('resultPopup');
-    if(pop){
-      pop.classList.remove('show');
-      pop.style.display = 'none';
-    }
-    document.body.classList.remove('popup-open');
-    return false;
-  }
-
-  window.closeResultPopup = closePopupNow;
-
-  function openPopupNow(html){
-    const pop = $('resultPopup');
-    const content = $('resultPopupContent');
-    if(content) content.innerHTML = html || window.latestResultPopupHtml || '';
-    if(pop){
-      pop.style.display = 'flex';
-      pop.classList.add('show');
-    }
-    document.body.classList.add('popup-open');
-  }
-  window.openResultPopup = openPopupNow;
-  window.reopenLatestResultPopup = function(){ openPopupNow(window.latestResultPopupHtml || ''); };
-
-  function formatShareText(){
-    const machine = value('lpMachine') || window.latestShareMachine || '-';
-    const result = (window.latestShareResultText || '').toUpperCase() || '-';
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2,'0');
-    const mm = String(now.getMonth()+1).padStart(2,'0');
-    const yyyy = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const mi = String(now.getMinutes()).padStart(2,'0');
-    const ss = String(now.getSeconds()).padStart(2,'0');
-    return `ไลน์ ${machine} ตรวจสอบความถูกต้องของ Lot แล้ว (${result})\n\nวันที่ ${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
-  }
-  window.getShareMessage = formatShareText;
-
-  window.shareResultImage = async function(imageUrl){
-    if(!imageUrl){ alert('ยังไม่มีรูปผลตรวจสำหรับแชร์'); return false; }
-    const url = new URL(imageUrl, location.href).href;
-    const text = formatShareText();
-    try{
-      if(navigator.share){
-        // iPhone/Android: try to share actual image first.
-        try{
-          const res = await fetch(url, {cache:'no-store'});
-          const blob = await res.blob();
-          const file = new File([blob], 'Lot_Check_Result.jpg', {type: blob.type || 'image/jpeg'});
-          if(!navigator.canShare || navigator.canShare({files:[file]})){
-            await navigator.share({title:'IP ONE Lot Check Result', text, files:[file]});
-            return false;
-          }
-        }catch(fileErr){ /* fallback below */ }
+        }catch(e){}
         await navigator.share({title:'IP ONE Lot Check Result', text, url});
         return false;
       }
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Lot_Check_Result.jpg';
+      document.body.appendChild(a); a.click(); a.remove();
+      alert('เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน\n\n' + text);
     }catch(err){
-      if(err && err.name === 'AbortError') return false;
-      alert('แชร์รูปไม่สำเร็จ: ' + (err && err.message ? err.message : err));
+      if(err && err.name !== 'AbortError') alert('แชร์รูปไม่สำเร็จ: ' + (err.message || err));
+    }
+    return false;
+  }
+
+  function validateBeforeCheck(){
+    syncMfg();
+    const missing = [];
+    if(!$('mode')?.value) missing.push('ประเภทไลน์');
+    if(!$('lpMachine')?.value) missing.push('เครื่อง');
+    if(!$('productType')?.value) missing.push('ประเภทผลิตภัณฑ์');
+    if(!$('marketType')?.value) missing.push('ประเภทงาน');
+    if(!$('mfgDate')?.value || !$('mfg')?.value) missing.push('วันที่ผลิต');
+    const market = $('marketType')?.value;
+    if((market === 'EXPORT' || market === 'LAOS') && !$('cartonPrefix')?.value) missing.push('Prefix');
+    if(!window.pouchImageData && typeof pouchImageData !== 'undefined' && !pouchImageData) missing.push('รูปซอง');
+    if(!window.cartonImageData && typeof cartonImageData !== 'undefined' && !cartonImageData) missing.push('รูปกล่อง');
+    if(missing.length){
+      if(typeof window.showToast === 'function') window.showToast('กรุณาเลือก/ใส่: ' + missing.join(', '), 'error');
+      else alert('กรุณาเลือก/ใส่: ' + missing.join(', '));
       return false;
     }
-    const a = document.createElement('a');
-    a.href = url; a.download = 'Lot_Check_Result.jpg';
-    document.body.appendChild(a); a.click(); a.remove();
-    alert('เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน\n\n' + text);
-    return false;
+    return true;
+  }
+
+  const originalSendCheck = window.sendCheck;
+  window.sendCheck = async function(){
+    if(!validateBeforeCheck()) return false;
+    return originalSendCheck.apply(this, arguments);
   };
 
-  function installPopupAndShareHandlers(){
+  window.closeResultPopup = closePopup;
+  window.openResultPopup = openPopup;
+  window.reopenLatestResultPopup = function(){
+    if(window.latestResultPopupHtml) openPopup(window.latestResultPopupHtml);
+    else alert('ยังไม่มีผลตรวจล่าสุด');
+  };
+  window.getShareMessage = shareMessage;
+  window.shareResultImage = shareImage;
+  window.changeMode = function(){ resetMachineForMode(); try{ window.changeProduct(); }catch(e){} };
+  window.updateShippingMarkByPrefix = updateShipping;
+
+  function bindCleanEvents(){
+    const mode = $('mode');
+    const machine = $('lpMachine');
+    const market = $('marketType');
+    const prefix = $('cartonPrefix');
+    const mfgDate = $('mfgDate');
+
+    if(mode){ mode.removeAttribute('onchange'); mode.addEventListener('change', function(){ resetMachineForMode(); try{ window.changeProduct(); }catch(e){} }, true); }
+    if(machine){ machine.removeAttribute('onchange'); machine.addEventListener('change', onMachineChange, true); }
+    if(market){ market.removeAttribute('onchange'); market.addEventListener('change', function(){ try{ window.changeProduct(); }catch(e){} updateMarketUI(); }, true); }
+    if(prefix){ prefix.removeAttribute('onchange'); prefix.addEventListener('change', updateShipping, true); }
+    if(mfgDate){ mfgDate.removeAttribute('onchange'); mfgDate.addEventListener('change', function(){ syncMfg(); if(typeof window.updateExpectedLinkedLots==='function') window.updateExpectedLinkedLots(); }, true); }
+
     document.addEventListener('click', function(e){
       const closeBtn = e.target.closest && e.target.closest('.result-popup-close, [data-close-result-popup]');
-      if(closeBtn){ closePopupNow(e); return; }
-
-      const overlay = $('resultPopup');
-      if(overlay && e.target === overlay){ closePopupNow(e); return; }
-
-      const shareBtn = e.target.closest && e.target.closest('.result-popup-actions button, button[data-share-result]');
-      if(shareBtn && /แชร์/.test(shareBtn.textContent || '')){
-        e.preventDefault(); e.stopPropagation();
-        let img = shareBtn.getAttribute('data-url') || shareBtn.getAttribute('data-share-url') || '';
-        if(!img){
-          const on = shareBtn.getAttribute('onclick') || '';
-          const m = on.match(/shareResultImage\(['"]([^'"]+)['"]\)/);
-          if(m) img = m[1];
+      if(closeBtn){ closePopup(e); return; }
+      const popup = $('resultPopup');
+      if(popup && e.target === popup){ closePopup(e); return; }
+      const shareBtn = e.target.closest && e.target.closest('button, a');
+      if(shareBtn && /แชร์|LINE/.test(shareBtn.textContent || '')){
+        const attr = shareBtn.getAttribute('onclick') || '';
+        const m = attr.match(/shareResultImage\(['"]([^'"]+)['"]\)/);
+        let url = shareBtn.getAttribute('data-share-url') || (m ? m[1] : '');
+        if(!url){
+          const link = document.querySelector('.result-popup-actions a[href*="stamped_images"], .result-popup-actions a[href$=".jpg"], .result-popup-actions a[href$=".png"]');
+          if(link) url = link.getAttribute('href');
         }
-        if(!img){
-          const a = document.querySelector('.result-popup-actions a[href*="stamped_images"], .result-popup-actions a[href$=".jpg"], .result-popup-actions a[href$=".png"]');
-          if(a) img = a.getAttribute('href');
-        }
-        window.shareResultImage(img);
+        if(url){ e.preventDefault(); e.stopPropagation(); shareImage(url); }
       }
     }, true);
-
-    document.addEventListener('touchend', function(e){
-      const closeBtn = e.target.closest && e.target.closest('.result-popup-close, [data-close-result-popup]');
-      if(closeBtn){ closePopupNow(e); }
-    }, true);
   }
 
-  function initHardRepair(){
-    installMachineFix();
-    installPopupAndShareHandlers();
+  function initClean(){
+    bindCleanEvents();
+    resetMachineForMode();
+    updateMarketUI();
+    updateShipping();
+    closePopup();
   }
 
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHardRepair);
-  else initHardRepair();
-  window.addEventListener('pageshow', () => setTimeout(() => forceMachinePlaceholder('pageshow'), 60));
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initClean);
+  else initClean();
 })();
 </script>
-
-<style>
-/* HARD REPAIR: popup control must stay tappable; machine placeholder must be visible. */
-#resultPopup.result-popup-overlay{ display:none; }
-#resultPopup.result-popup-overlay.show{ display:flex !important; z-index:2147483000 !important; }
-.result-popup{ position:relative !important; z-index:2147483001 !important; }
-.result-popup-close{
-  pointer-events:auto !important;
-  cursor:pointer !important;
-  z-index:2147483002 !important;
-  position:relative !important;
-  touch-action:manipulation !important;
-  -webkit-tap-highlight-color:rgba(255,255,255,.25) !important;
-}
-#lpMachine option[value=""]{ color:#64748b; }
+<style id="final-clean-style">
+#resultPopup.result-popup-overlay{display:none;}
+#resultPopup.result-popup-overlay.show{display:flex!important;z-index:2147483640!important;}
+.result-popup-close{pointer-events:auto!important;cursor:pointer!important;touch-action:manipulation!important;}
+.result-popup-actions button,.result-popup-actions a{pointer-events:auto!important;touch-action:manipulation!important;}
+#lpMachine:disabled{background:#f3f6fa;color:#64748b;}
 </style>
+
 </body>
 </html>
 """
