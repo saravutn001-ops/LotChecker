@@ -2319,6 +2319,28 @@ button,
 /* Force hide Mix Date / Mix Code cards when product does not need mix code */
 .mix-field.hidden-field { display:none !important; }
 
+
+
+/* ===== HARD FIX: hide mix date/mix code for EPC ===== */
+.mix-field.force-hidden,
+.hidden-field.force-hidden,
+body.product-epc .mix-field,
+body.product-epc #mixDate,
+body.product-epc #mixCode,
+body.product-epc #mixDateHeaderLabel,
+body.product-epc #mixCodeHeaderLabel {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+}
+
 </style>
 </head>
 <body>
@@ -3396,6 +3418,64 @@ window.addEventListener('load', () => {
     });
   }
   document.addEventListener('DOMContentLoaded', function(){hideStatic('fileInputPouch');hideStatic('fileInputCarton');});
+})();
+</script>
+
+
+<script>
+(function(){
+  function productNeedsMix(){
+    const p = document.getElementById('productType');
+    const m = document.getElementById('marketType');
+    if(!p || !m) return false;
+    return p.value === 'EPW' && (m.value === 'TH' || m.value === 'LAOS');
+  }
+  function hardApplyMixVisibility(){
+    const need = productNeedsMix();
+    document.body.classList.toggle('product-epc', !need);
+
+    document.querySelectorAll('.mix-field, #mixDate, #mixCode, #mixDateHeaderLabel, #mixCodeHeaderLabel').forEach(function(el){
+      if(!el) return;
+      el.classList.toggle('force-hidden', !need);
+      el.classList.toggle('hidden-field', !need);
+      el.style.setProperty('display', need ? '' : 'none', 'important');
+      if(!need && (el.id === 'mixDate' || el.id === 'mixCode')) el.value = '';
+    });
+
+    // If some mobile-polish script wrapped these fields, hide the wrapper too.
+    ['mixDate','mixCode','mixDateHeaderLabel','mixCodeHeaderLabel'].forEach(function(id){
+      const el = document.getElementById(id);
+      if(!el) return;
+      const wrap = el.closest('.mobile-field, .field-card, .mix-field');
+      if(wrap){
+        wrap.classList.toggle('force-hidden', !need);
+        wrap.style.setProperty('display', need ? '' : 'none', 'important');
+      }
+    });
+
+    if(typeof fixLotHeaderColumns === 'function') {
+      try { fixLotHeaderColumns(); } catch(e) {}
+    }
+  }
+
+  window.hardApplyMixVisibility = hardApplyMixVisibility;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ['productType','marketType','mode'].forEach(function(id){
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('change', function(){ setTimeout(hardApplyMixVisibility, 0); setTimeout(hardApplyMixVisibility, 80); });
+    });
+    hardApplyMixVisibility();
+    setTimeout(hardApplyMixVisibility, 100);
+    setTimeout(hardApplyMixVisibility, 500);
+  });
+
+  const oldChangeProduct = window.changeProduct;
+  window.changeProduct = function(){
+    if(typeof oldChangeProduct === 'function') oldChangeProduct.apply(this, arguments);
+    hardApplyMixVisibility();
+    setTimeout(hardApplyMixVisibility, 50);
+  };
 })();
 </script>
 
