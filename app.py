@@ -4569,6 +4569,198 @@ input[type="date"]{
 })();
 </script>
 
+
+
+<script>
+/* ===== FINAL OVERRIDE: no machine default + reliable popup after check ===== */
+(function(){
+  const SACHET_MACHINES_LAST = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
+  const LINAPACK_MACHINES_LAST = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
+
+  function q(id){ return document.getElementById(id); }
+  function val(id){ return (q(id)?.value || '').trim(); }
+
+  function setMachineOptions(reset=true){
+    const mode = val('mode');
+    const machine = q('lpMachine');
+    const label = q('machineHeaderLabel');
+    if(!machine) return;
+
+    if(!mode){
+      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
+      machine.value = '';
+      if(label) label.textContent = 'เครื่อง';
+      return;
+    }
+
+    const list = mode === 'sachet' ? SACHET_MACHINES_LAST : LINAPACK_MACHINES_LAST;
+    machine.innerHTML = '<option value="" selected disabled>เลือกเครื่อง</option>' + list.map(v => `<option value="${v}">${v}</option>`).join('');
+    machine.value = ''; // สำคัญ: ห้าม default LP7/MS11
+    if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
+
+    const sachetLine = q('sachetLine');
+    if(sachetLine) sachetLine.value = '';
+  }
+
+  function getImage(kind){
+    try{
+      if(kind === 'pouch'){
+        if(typeof pouchImageData !== 'undefined' && pouchImageData) return pouchImageData;
+        if(window.pouchImageData) return window.pouchImageData;
+      }
+      if(kind === 'carton'){
+        if(typeof cartonImageData !== 'undefined' && cartonImageData) return cartonImageData;
+        if(window.cartonImageData) return window.cartonImageData;
+      }
+    }catch(e){}
+    return '';
+  }
+
+  function showError(msg){
+    if(typeof showToast === 'function') showToast(msg, 'error');
+    const r=q('result');
+    if(r) r.innerHTML = `<div class="ng">${msg}</div>`;
+    if(typeof goPage === 'function') goPage(3);
+    else q('result')?.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function validateForCheck(){
+    if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
+    if(typeof autoExp === 'function') { try{ autoExp(); }catch(e){} }
+    if(typeof updateMixCodeFromDate === 'function') { try{ updateMixCodeFromDate(); }catch(e){} }
+    if(typeof updateShippingMarkByPrefix === 'function') { try{ updateShippingMarkByPrefix(); }catch(e){} }
+
+    const missing=[];
+    const mode=val('mode');
+    const machine=val('lpMachine');
+    const product=val('productType');
+    const market=val('marketType');
+    if(!mode) missing.push('ประเภทไลน์');
+    if(mode && !machine) missing.push('เครื่อง');
+    if(!product) missing.push('ประเภทผลิตภัณฑ์');
+    if(!market) missing.push('ประเภทงาน');
+    if(!val('mfg') && !val('mfgDate')) missing.push('วันที่ผลิต');
+    if((market === 'EXPORT' || market === 'LAOS') && !val('cartonPrefix')) missing.push('Prefix');
+    if(product === 'EPW' && (market === 'TH' || market === 'LAOS') && !val('mixDate')) missing.push('วันที่ผสม');
+    if(!getImage('pouch')) missing.push('รูปซอง');
+    if(!getImage('carton')) missing.push('รูปกล่อง');
+    return missing;
+  }
+
+  function buildCheckPayload(){
+    const mode=val('mode');
+    const productType=val('productType');
+    const marketType=val('marketType');
+    const isExport = marketType === 'EXPORT' || marketType === 'LAOS';
+    const needMix = productType === 'EPW' && (marketType === 'TH' || marketType === 'LAOS');
+    const exp = mode === 'sachet' ? val('sachetExp') : val('linapackExp');
+    const pouchImg = getImage('pouch');
+    const cartonImg = getImage('carton');
+    return {
+      checkType:'both',
+      mode,
+      productType,
+      marketType,
+      mfg: val('mfg'),
+      pouchImage:pouchImg,
+      cartonImage:cartonImg,
+      image:pouchImg,
+      buildingNo: marketType === 'TH' ? val('buildingNo') : val('buildingNoExport'),
+      buildingSuffix: marketType === 'TH' ? val('buildingSuffixTH') : val('buildingSuffixExport'),
+      shippingMark: isExport ? val('shippingMark') : '',
+      cartonAlphaCode: isExport ? val('cartonPrefix') : '',
+      line: val('lpMachine'),
+      exp,
+      mixCode: needMix ? val('mixCode') : ''
+    };
+  }
+
+  function renderPopupAndSummary(data, payload){
+    const pass = data.summary === 'PASS';
+    window.latestShareResultText = pass ? 'PASS' : 'NG';
+    window.latestShareMachine = payload.line || '-';
+
+    const resultDiv=q('result');
+    const detailDiv=q('detail');
+    if(resultDiv){
+      resultDiv.innerHTML = `<div class="result-hero"><div class="result-status-card ${pass ? 'pass-card' : 'ng-card'}"><div class="result-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div><p class="result-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</p></div></div>`;
+    }
+
+    const ngRows=(data.details || []).filter(r => r.status === 'NG');
+    let ngHtml='';
+    if(ngRows.length === 0){
+      ngHtml = `<div class="result-popup-ok-box">✓ ไม่พบรายการ NG</div>`;
+    }else{
+      ngHtml = `<div class="result-popup-ng-box"><div class="result-section-title">รายการที่ NG</div><table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+      ngRows.forEach(r => { ngHtml += `<tr><td>${r.item || '-'}</td><td>${r.actual || '-'}</td><td>${r.expected || '-'}</td></tr>`; });
+      ngHtml += `</table></div>`;
+    }
+
+    const popupHtml = `
+      <div class="result-popup-header ${pass ? 'popup-pass' : 'popup-ng'}">
+        <div>
+          <div class="result-popup-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+          <div class="result-popup-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'} | ${data.time || '-'}</div>
+        </div>
+        <button class="result-popup-close" onclick="closeResultPopup(event)">×</button>
+      </div>
+      <div class="result-popup-body">
+        <div class="result-popup-image-wrap">${data.stampedImageUrl ? `<img src="${data.stampedImageUrl}">` : `<div class="warn">ไม่มีรูปแสตมป์</div>`}</div>
+        <div class="result-popup-bottom">
+          ${data.expectedPouchLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot ซองที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedPouchLot}</div></div>` : ''}
+          ${data.expectedCartonLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot กล่องที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedCartonLot}</div></div>` : ''}
+          ${ngHtml}
+        </div>
+        ${data.stampedImageUrl ? `<div class="result-popup-actions"><button class="download" type="button" onclick="shareResultImage('${data.stampedImageUrl}')" style="background:#06c755;">แชร์รูปเข้า LINE / แอปอื่น</button><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ''}
+        <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines || {}, null, 2)}</pre></details></div>
+      </div>`;
+
+    window.latestResultPopupHtml = popupHtml;
+    if(typeof openResultPopup === 'function') openResultPopup(popupHtml);
+    else {
+      const popup=q('resultPopup'), content=q('resultPopupContent');
+      if(content) content.innerHTML=popupHtml;
+      if(popup) popup.classList.add('show');
+    }
+
+    if(detailDiv){
+      detailDiv.innerHTML = `<div class="result-clean-card ${pass ? 'result-clean-pass' : 'result-clean-ng'}"><div class="result-clean-title">${pass ? 'PASS ✅' : 'NG ❌'}</div><div class="result-clean-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</div><button type="button" onclick="reopenLatestResultPopup()" class="btn-success result-reopen-btn">เปิดผลตรวจอีกครั้ง</button></div>`;
+    }
+  }
+
+  window.sendCheck = async function(){
+    try{
+      const missing=validateForCheck();
+      if(missing.length){ showError('กรุณาเลือก/กรอก: ' + missing.join(', ')); return; }
+      const payload=buildCheckPayload();
+      const r=q('result'), d=q('detail');
+      if(r) r.innerHTML='<div class="warn">กำลังตรวจสอบ...</div>';
+      if(d) d.innerHTML='';
+      if(typeof goPage === 'function') goPage(3);
+      const res=await fetch('/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data=await res.json();
+      if(data.error){ showError(data.error); return; }
+      renderPopupAndSummary(data,payload);
+    }catch(e){
+      showError('ตรวจสอบไม่ได้: ' + (e && e.message ? e.message : e));
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const mode=q('mode'), machine=q('lpMachine');
+    if(machine){
+      machine.innerHTML = '<option value="" selected disabled>เลือกประเภทไลน์ก่อน</option>';
+      machine.value = '';
+    }
+    if(mode){
+      // ถ้ามีค่าเก่าจาก browser restore ให้ยังไม่เลือกเครื่องเอง
+      setTimeout(function(){ setMachineOptions(true); }, 0);
+      mode.addEventListener('change', function(){ setMachineOptions(true); });
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
 """
