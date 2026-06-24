@@ -1028,6 +1028,55 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     .result-popup-image-wrap img { max-height:58vh !important; }
 }
 
+
+
+/* ===== Larger camera preview when camera is active ===== */
+#page2.photo-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(360px, .85fr) !important;
+}
+#page2.photo-grid .camera-card {
+    transition: all .18s ease-in-out;
+}
+#page2.photo-grid .camera-card.camera-active {
+    grid-column:1 / -1 !important;
+    display:grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap:10px 14px;
+    align-items:start;
+}
+#page2.photo-grid .camera-card.camera-active h3,
+#page2.photo-grid .camera-card.camera-active #captureTargetText,
+#page2.photo-grid .camera-card.camera-active .camera-action-row,
+#page2.photo-grid .camera-card.camera-active #captureBtn,
+#page2.photo-grid .camera-card.camera-active .btn-secondary {
+    grid-column:1 / -1;
+}
+#page2.photo-grid .camera-card.camera-active #video {
+    grid-column:1 / -1;
+    width:100% !important;
+    height:min(62vh, 620px) !important;
+    max-height:620px !important;
+    object-fit:contain !important;
+    border-radius:16px !important;
+    background:#07111f !important;
+    border:2px solid #0b63ce !important;
+}
+#page2.photo-grid .camera-card.camera-active .camera-action-row,
+#page2.photo-grid .camera-card.camera-active #captureBtn,
+#page2.photo-grid .camera-card.camera-active .btn-secondary {
+    max-width:720px;
+    justify-self:center;
+    width:100%;
+}
+@media (max-width:1100px) {
+    #page2.photo-grid { grid-template-columns:1fr 1fr !important; }
+    #page2.photo-grid .camera-card.camera-active #video { height:min(58vh, 560px) !important; }
+}
+@media (max-width:720px) {
+    #page2.photo-grid .camera-card.camera-active { grid-template-columns:1fr !important; }
+    #page2.photo-grid .camera-card.camera-active #video { height:70vh !important; }
+}
+
 </style>
 </head>
 <body>
@@ -1676,6 +1725,7 @@ document.getElementById("fileInputCarton").addEventListener("change", function(e
 async function startCamera() {
     try {
         const video = document.getElementById("video");
+        const cameraCard = document.querySelector(".camera-card");
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error("Browser นี้ไม่รองรับการเปิดกล้อง หรือไม่ได้เปิดผ่าน HTTPS/localhost");
         }
@@ -1694,6 +1744,7 @@ async function startCamera() {
         cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = cameraStream;
         await video.play();
+        if (cameraCard) cameraCard.classList.add("camera-active");
     } catch (err) {
         document.getElementById("result").innerHTML = '<div class="ng">เปิดกล้องไม่ได้</div><p>' + err + '</p>';
     }
@@ -1706,6 +1757,8 @@ function stopCamera() {
         cameraStream = null;
     }
     if (video) video.srcObject = null;
+    const cameraCard = document.querySelector(".camera-card");
+    if (cameraCard) cameraCard.classList.remove("camera-active");
 }
 
 function captureImage() {
