@@ -930,13 +930,13 @@ def parse_pouch_lot_fields(line, exp_line=""):
             result["mfg_date"] = tokens[idx + 1]
         if idx + 2 < len(tokens):
             v = tokens[idx + 2]
-            if re.fullmatch(r"(LP|MS)\d{1,2}", v):
+            if re.fullmatch(r"(?:LP|MS|AS)\d{1,2}", v):
                 result["machine"] = v
             else:
                 result["mix_code"] = v
         if idx + 3 < len(tokens):
             v = tokens[idx + 3]
-            if re.fullmatch(r"(LP|MS)\d{1,2}", v):
+            if re.fullmatch(r"(?:LP|MS|AS)\d{1,2}", v):
                 result["machine"] = v
 
     # fallback date
@@ -947,7 +947,7 @@ def parse_pouch_lot_fields(line, exp_line=""):
 
     # fallback machine
     if not result["machine"]:
-        m = re.search(r"\b(?:LP|MS)\d{1,2}\b", text)
+        m = re.search(r"\b(?:LP|MS|AS)\d{1,2}\b", text)
         if m:
             result["machine"] = m.group(0)
 
