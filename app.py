@@ -25,6 +25,7 @@ HTML = """
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>IP ONE Lot Checker</title>
 <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <link rel="apple-touch-icon" href="data:image/png;base64,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">
@@ -1540,6 +1541,89 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     .mobile-file-btn{height:44px!important;font-size:13px!important;}
 }
 
+
+
+/* ===== TRUE MOBILE APP UI OVERRIDE v2 ===== */
+:root{--app-blue:#0b2340;--app-blue2:#0f4db8;--app-green:#159947;--app-red:#dc2626;--app-soft:#f4f8fd;}
+html{background:#eef5fb;}
+body{background:#eef5fb!important;padding:0!important;margin:0!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;color:#0f172a!important;}
+.box{width:100%!important;max-width:980px!important;margin:0 auto!important;padding:10px!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;border:0!important;}
+.header-logo{position:sticky;top:0;z-index:50;justify-content:flex-start!important;background:linear-gradient(135deg,#08213b,#0b3e84)!important;color:#fff!important;border-radius:18px!important;padding:12px 14px!important;margin:0 0 10px!important;box-shadow:0 8px 24px rgba(8,33,59,.18)!important;}
+.header-logo img{width:54px!important;height:54px!important;object-fit:contain!important;background:#fff!important;border-radius:12px!important;padding:4px!important;margin:0!important;border:0!important;}
+.header-logo h1{font-size:24px!important;line-height:1.05!important;margin:0!important;color:white!important;letter-spacing:.2px!important;}
+.header-logo p{font-size:13px!important;color:#dbeafe!important;margin:3px 0 0!important;}
+.step-tabs,.compact-mode-info,#page1 .nav-row,#page3 .nav-row{display:none!important;}
+.step-page,.step-page.active{display:block!important;animation:none!important;}
+#page1,#page2,#page3{background:transparent!important;border:0!important;padding:0!important;margin:0!important;border-radius:0!important;}
+.mobile-card,.section-card,.photo-card,.camera-card,#autoExpInfo,#linkedLotInfo,#result > *, .result-card{background:rgba(255,255,255,.98)!important;border:1px solid #dbe6f3!important;border-radius:18px!important;box-shadow:0 8px 22px rgba(15,23,42,.06)!important;padding:16px!important;margin:10px 0!important;}
+.section-title{font-size:20px!important;font-weight:900!important;line-height:1.2!important;color:#172033!important;margin:0 0 14px!important;}
+.mobile-field-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;align-items:stretch!important;}
+.setup-field-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;}
+.carton-field-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;}
+.field-card{min-width:0!important;display:flex!important;flex-direction:column!important;gap:7px!important;background:transparent!important;padding:0!important;margin:0!important;}
+.field-card label{font-size:13px!important;line-height:1.25!important;color:#334155!important;font-weight:800!important;margin:0!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;}
+.field-card input,.field-card select,#page1 input,#page1 select{width:100%!important;height:48px!important;border:1px solid #d6e0ec!important;border-radius:13px!important;background:#fff!important;color:#0f172a!important;font-size:16px!important;font-weight:600!important;padding:0 12px!important;margin:0!important;box-shadow:0 2px 8px rgba(15,23,42,.03)!important;}
+.field-card input[readonly],#page1 input[readonly]{background:#f1f5f9!important;color:#334155!important;}
+#autoExpInfo,#linkedLotInfo{background:#eef6ff!important;border-color:#bfdbfe!important;color:#1d4ed8!important;font-size:17px!important;line-height:1.55!important;font-weight:700!important;}
+#linkedLotInfo b,#linkedLotInfo strong{font-weight:900!important;}
+#page2.photo-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important;align-items:stretch!important;margin-top:8px!important;}
+#page2.photo-grid > *{grid-column:auto!important;}
+.photo-card{margin:0!important;display:flex!important;flex-direction:column!important;}
+.photo-card h3{font-size:18px!important;font-weight:900!important;margin:0 0 6px!important;color:#172033!important;}
+.photo-card .small{font-size:15px!important;line-height:1.45!important;color:#64748b!important;margin:0 0 12px!important;min-height:0!important;font-weight:600!important;}
+.photo-card input[type=file]{height:44px!important;border:1px dashed #cbd5e1!important;border-radius:13px!important;background:#f8fbff!important;padding:10px!important;font-size:14px!important;margin:0 0 10px!important;}
+#previewPouch,#previewCarton{width:100%!important;height:260px!important;max-height:none!important;object-fit:contain!important;background:#0f172a!important;border-radius:16px!important;border:1px solid #cbd5e1!important;margin:0!important;}
+.capture-time{display:block!important;color:#64748b!important;font-size:13px!important;font-weight:800!important;margin-top:8px!important;}
+.camera-card{grid-column:1 / -1!important;margin:12px 0 0!important;}
+.camera-card h3{font-size:18px!important;margin:0 0 6px!important;}
+.camera-card .small{font-size:15px!important;line-height:1.4!important;color:#64748b!important;margin:0 0 12px!important;}
+button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!important;font-size:18px!important;font-weight:900!important;box-shadow:0 8px 16px rgba(37,99,235,.18)!important;margin-top:8px!important;}
+#openCameraBtn{background:linear-gradient(135deg,#2563eb,#1d4ed8)!important;}
+.check-row{grid-column:1 / -1!important;display:block!important;margin:12px 0!important;}
+.check-row .btn-secondary{display:none!important;}
+.check-row .btn-success{background:linear-gradient(135deg,#16a34a,#15803d)!important;width:100%!important;height:62px!important;font-size:19px!important;}
+.camera-overlay{position:fixed!important;inset:0!important;background:#000!important;z-index:99999!important;display:flex!important;flex-direction:column!important;padding:0!important;}
+.camera-live-wrap{position:relative!important;flex:1!important;min-height:0!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#000!important;}
+#video{width:100vw!important;height:100%!important;max-height:none!important;object-fit:contain!important;background:#000!important;border:0!important;border-radius:0!important;margin:0!important;}
+.camera-toolbar{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:8px!important;padding:10px!important;background:#111827!important;padding-bottom:calc(10px + env(safe-area-inset-bottom))!important;}
+.camera-toolbar button{height:54px!important;margin:0!important;font-size:15px!important;border-radius:14px!important;}
+.scan-guide{position:absolute!important;left:12%!important;right:12%!important;top:42%!important;height:18%!important;border:4px solid #22c55e!important;border-radius:18px!important;box-shadow:0 0 0 9999px rgba(0,0,0,.12)!important;pointer-events:none!important;}
+#page3.result-dashboard{margin-top:8px!important;}
+#result .result-popup-inline,#result .result-shell{background:#fff!important;border-radius:18px!important;border:1px solid #dbe6f3!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important;}
+.status-strip,.ng-list-card{border-radius:16px!important;overflow:hidden!important;}
+.mobile-bottom-nav{display:none!important;}
+@media (max-width:768px){
+    body{padding:0!important;padding-bottom:92px!important;}
+    .box{padding:8px!important;max-width:none!important;}
+    .header-logo{border-radius:14px!important;padding:10px 12px!important;margin-bottom:8px!important;}
+    .header-logo img{width:44px!important;height:44px!important;border-radius:10px!important;}
+    .header-logo h1{font-size:20px!important;}
+    .header-logo p{font-size:11px!important;}
+    .mobile-card,.section-card,.photo-card,.camera-card,#autoExpInfo,#linkedLotInfo{border-radius:14px!important;padding:12px!important;margin:8px 0!important;}
+    .section-title{font-size:18px!important;margin-bottom:12px!important;}
+    .setup-field-grid,.carton-field-grid,.mobile-field-grid{grid-template-columns:1fr!important;gap:10px!important;}
+    .field-card label{font-size:13px!important;}
+    .field-card input,.field-card select,#page1 input,#page1 select{height:46px!important;font-size:16px!important;border-radius:12px!important;}
+    #autoExpInfo,#linkedLotInfo{font-size:16px!important;padding:12px!important;}
+    #page2.photo-grid{grid-template-columns:1fr!important;gap:10px!important;}
+    .photo-card{padding:14px!important;}
+    .photo-card h3{font-size:17px!important;}
+    .photo-card .small{font-size:15px!important;}
+    #previewPouch,#previewCarton{height:300px!important;border-radius:14px!important;}
+    .camera-card{grid-column:1!important;}
+    #openCameraBtn,.check-row .btn-success{height:58px!important;font-size:18px!important;border-radius:14px!important;}
+    #page3{display:none!important;}
+    .mobile-bottom-nav{position:fixed!important;left:10px!important;right:10px!important;bottom:10px!important;height:70px!important;background:rgba(255,255,255,.96)!important;backdrop-filter:blur(14px)!important;border:1px solid #dbe6f3!important;border-radius:22px!important;box-shadow:0 -8px 28px rgba(15,23,42,.14)!important;display:grid!important;grid-template-columns:repeat(4,1fr)!important;z-index:9000!important;overflow:hidden!important;}
+    .mobile-bottom-nav button{height:100%!important;margin:0!important;background:transparent!important;color:#475569!important;box-shadow:none!important;border-radius:0!important;font-size:11px!important;display:flex!important;flex-direction:column!important;gap:4px!important;align-items:center!important;justify-content:center!important;padding:4px!important;}
+    .mobile-bottom-nav button:first-child{color:#2563eb!important;background:#eff6ff!important;font-weight:900!important;}
+    .mobile-bottom-nav .nav-ico{font-size:24px!important;line-height:1!important;}
+}
+@media (max-width:420px){
+    #previewPouch,#previewCarton{height:260px!important;}
+    .field-card input,.field-card select,#page1 input,#page1 select{font-size:15px!important;}
+    #autoExpInfo,#linkedLotInfo{font-size:15px!important;}
+}
+
 </style>
 </head>
 <body>
@@ -1565,42 +1649,59 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 <input type="hidden" id="checkType" value="both">
 <div class="info compact-mode-info"><b>โหมดตรวจรวม:</b> ตรวจล็อตซองและล็อตกล่องพร้อมกัน โดยใช้ MFG เดียวกันเป็นตัวกลาง</div>
 
-<div id="pouchHeader" class="section-card">
-    <div class="section-title">ตั้งค่าล็อต</div>
-    <div class="config-grid grid-9 no-pad">
-        <label>ประเภทไลน์</label>
-        <label id="machineHeaderLabel">เครื่อง</label>
-        <label>ประเภทผลิตภัณฑ์</label>
-        <label>ประเภทงาน</label>
-        <label>วันที่ผลิต (MFG)</label>
-        <label>MFG ที่ใช้ตรวจ</label>
-        <label>EXP ที่ใช้ตรวจ</label>
-        <label id="mixDateHeaderLabel">วันที่ผสม</label>
-        <label id="mixCodeHeaderLabel">Mix Code</label>
-
-        <select id="mode" onchange="changeMode()">
-            <option value="sachet">Sachet</option>
-            <option value="linapack">Linapack</option>
-        </select>
-        <select id="lpMachine" onchange="updateExpectedLinkedLots()">
-            <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
-            <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
-            <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
-        </select>
-        <select id="productType" onchange="changeProduct()">
-            <option value="EPC">EPC</option>
-            <option value="EPW">EPW</option>
-        </select>
-        <select id="marketType" onchange="changeProduct()">
-            <option value="TH">งานไทย</option>
-            <option value="EXPORT">งานต่างประเทศ</option>
-            <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
-        </select>
-        <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
-        <input id="mfg" value="" readonly>
-        <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
-        <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
-        <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
+<div id="pouchHeader" class="section-card mobile-card setup-card">
+    <div class="section-title">⚙️ ตั้งค่าข้อมูลการตรวจ</div>
+    <div class="mobile-field-grid setup-field-grid">
+        <div class="field-card">
+            <label>ประเภทไลน์</label>
+            <select id="mode" onchange="changeMode()">
+                <option value="sachet">Sachet</option>
+                <option value="linapack">Linapack</option>
+            </select>
+        </div>
+        <div class="field-card">
+            <label id="machineHeaderLabel">เครื่อง (MFG)</label>
+            <select id="lpMachine" onchange="updateExpectedLinkedLots()">
+                <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
+                <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
+                <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
+            </select>
+        </div>
+        <div class="field-card">
+            <label>ประเภทผลิตภัณฑ์</label>
+            <select id="productType" onchange="changeProduct()">
+                <option value="EPC">EPC</option>
+                <option value="EPW">EPW</option>
+            </select>
+        </div>
+        <div class="field-card">
+            <label>ประเภทงาน</label>
+            <select id="marketType" onchange="changeProduct()">
+                <option value="TH">งานไทย</option>
+                <option value="EXPORT">งานต่างประเทศ</option>
+                <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
+            </select>
+        </div>
+        <div class="field-card">
+            <label>วันที่ผลิต (MFG)</label>
+            <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
+        </div>
+        <div class="field-card">
+            <label>MFG ที่ใช้ตรวจ</label>
+            <input id="mfg" value="" readonly>
+        </div>
+        <div class="field-card">
+            <label>EXP ที่ใช้ตรวจ</label>
+            <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
+        </div>
+        <div class="field-card mix-field">
+            <label id="mixDateHeaderLabel">วันที่ผสม</label>
+            <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
+        </div>
+        <div class="field-card mix-field">
+            <label id="mixCodeHeaderLabel">Mix Code</label>
+            <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
+        </div>
     </div>
 </div>
 
@@ -1610,32 +1711,38 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     <p id="linapackHint" class="small full-span"></p>
 </div>
 
-<div id="cartonSection" class="section-card">
-    <div class="section-title">ข้อมูลล็อตกล่อง</div>
-    <div id="cartonTHBox" class="config-grid grid-4">
-        <label>Shipping Mark</label>
-        <label>Prefix</label>
-        <label>เลขอาคาร</label>
-        <label>Suffix หลังเลขอาคาร</label>
-
-        <input value="-" readonly>
-        <input value="00" readonly>
-        <select id="buildingNo" onchange="updateExpectedLinkedLots()">
-            <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
-            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-        </select>
-        <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
-        <p class="small full-span">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
+<div id="cartonSection" class="section-card mobile-card carton-card-config">
+    <div class="section-title">📦 ข้อมูลล็อตกล่อง</div>
+    <div id="cartonTHBox" class="mobile-field-grid carton-field-grid">
+        <div class="field-card">
+            <label>Shipping Mark</label>
+            <input value="-" readonly>
+        </div>
+        <div class="field-card">
+            <label>Prefix</label>
+            <input value="00" readonly>
+        </div>
+        <div class="field-card">
+            <label>เลขอาคาร</label>
+            <select id="buildingNo" onchange="updateExpectedLinkedLots()">
+                <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            </select>
+        </div>
+        <div class="field-card">
+            <label>Suffix หลังเลขอาคาร</label>
+            <input id="buildingSuffixTH" value="" placeholder="เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
+        </div>
     </div>
 
-    <div id="cartonExportBox" class="config-grid grid-4 hidden-market">
-        <label>Shipping Mark</label>
-        <label>Prefix</label>
-        <label>เลขอาคาร</label>
-        <label>Suffix หลังเลขอาคาร</label>
-
-        <input id="shippingMark" value="" placeholder="ระบบเติมจาก Prefix อัตโนมัติ" readonly>
-        <select id="cartonPrefix" onchange="updateShippingMarkByPrefix()">
+    <div id="cartonExportBox" class="mobile-field-grid carton-field-grid hidden-market">
+        <div class="field-card">
+            <label>Shipping Mark</label>
+            <input id="shippingMark" value="" placeholder="Auto" readonly>
+        </div>
+        <div class="field-card">
+            <label>Prefix</label>
+            <select id="cartonPrefix" onchange="updateShippingMarkByPrefix()">
             <option value="KC">KC → ZZZZZ</option>
             <option value="VN">VN → IPO VN</option>
             <option value="VT">VT → VN-MT</option>
@@ -1675,13 +1782,19 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
             <option value="LQ">LQ → ZZZZZ</option>
             <option value="CUSTOM">CUSTOM → กรอกเอง</option>
         </select>
-        <select id="buildingNoExport" onchange="updateExpectedLinkedLots()">
-            <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
-            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-        </select>
-        <input id="buildingSuffixExport" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
+        </div>
+        <div class="field-card">
+            <label>เลขอาคาร</label>
+            <select id="buildingNoExport" onchange="updateExpectedLinkedLots()">
+                <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            </select>
+        </div>
+        <div class="field-card">
+            <label>Suffix หลังเลขอาคาร</label>
+            <input id="buildingSuffixExport" value="" placeholder="เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
+        </div>
         <input id="cartonExp" value="" type="hidden">
-        <p class="small full-span">กล่องต่างประเทศ: ตรวจ Shipping Mark / Prefix / Running No. / MFG ตาม Pattern</p>
     </div>
 </div>
 
