@@ -1073,6 +1073,78 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     #page2.photo-grid .camera-card.camera-active #video { height:70vh !important; }
 }
 
+
+
+/* ===== Full screen camera modal ===== */
+.camera-card #openCameraBtn {
+    min-height:44px !important;
+    font-size:16px !important;
+}
+.camera-overlay {
+    position:fixed;
+    inset:0;
+    z-index:99999;
+    background:#000;
+    display:none;
+    flex-direction:column;
+}
+.camera-live-wrap {
+    position:relative;
+    flex:1;
+    width:100vw;
+    height:calc(100vh - 88px);
+    background:#000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+}
+.camera-overlay #video {
+    width:100vw !important;
+    height:calc(100vh - 88px) !important;
+    max-height:none !important;
+    object-fit:contain !important;
+    background:#000 !important;
+    border:0 !important;
+    border-radius:0 !important;
+    margin:0 !important;
+}
+.scan-guide {
+    position:absolute;
+    left:20%;
+    top:40%;
+    width:60%;
+    height:20%;
+    border:4px solid rgba(34,197,94,.95);
+    border-radius:14px;
+    box-shadow:0 0 0 9999px rgba(0,0,0,.08);
+    pointer-events:none;
+}
+.camera-toolbar {
+    height:88px;
+    width:100%;
+    background:#111827;
+    border-top:1px solid rgba(255,255,255,.16);
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 260px));
+    gap:14px;
+    align-items:center;
+    justify-content:center;
+    padding:12px 16px;
+}
+.camera-toolbar button {
+    margin:0 !important;
+    height:58px !important;
+    font-size:20px !important;
+    border-radius:16px !important;
+}
+@media (max-width:720px) {
+    .camera-live-wrap, .camera-overlay #video { height:calc(100vh - 76px) !important; }
+    .camera-toolbar { height:76px; grid-template-columns:1fr 1fr 1fr; gap:8px; padding:8px; }
+    .camera-toolbar button { height:54px !important; font-size:15px !important; padding:8px !important; }
+    .scan-guide { left:12%; width:76%; height:22%; }
+}
+
 </style>
 </head>
 <body>
@@ -1242,14 +1314,21 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 
     <div class="photo-card camera-card">
         <h3>ถ่ายจากกล้อง</h3>
+        <p class="small">กดเปิดกล้องเพื่อดูภาพแบบเต็มจอ แล้วเลือกถ่ายรูปซองหรือรูปกล่อง</p>
         <button id="openCameraBtn" onclick="startCamera()">เปิดกล้อง</button>
-        <video id="video" autoplay playsinline muted></video>
-        <div class="camera-action-row">
+        <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+
+    <div id="cameraOverlay" class="camera-overlay" style="display:none;">
+        <div class="camera-live-wrap">
+            <video id="video" autoplay playsinline muted></video>
+            <div class="scan-guide"></div>
+        </div>
+        <div class="camera-toolbar">
             <button id="capturePouchBtn" onclick="captureImage('pouch')">ถ่ายรูปซอง</button>
             <button id="captureCartonBtn" onclick="captureImage('carton')">ถ่ายรูปกล่อง</button>
             <button class="btn-secondary" onclick="stopCamera()">ปิดกล้อง</button>
         </div>
-        <canvas id="canvas" style="display:none;"></canvas>
     </div>
 
     <div class="nav-row check-row">
@@ -1728,6 +1807,7 @@ async function startCamera() {
     try {
         const video = document.getElementById("video");
         const cameraCard = document.querySelector(".camera-card");
+        const cameraOverlay = document.getElementById("cameraOverlay");
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error("Browser นี้ไม่รองรับการเปิดกล้อง หรือไม่ได้เปิดผ่าน HTTPS/localhost");
         }
@@ -1747,6 +1827,7 @@ async function startCamera() {
         video.srcObject = cameraStream;
         await video.play();
         if (cameraCard) cameraCard.classList.add("camera-active");
+        if (cameraOverlay) cameraOverlay.style.display = "flex";
     } catch (err) {
         document.getElementById("result").innerHTML = '<div class="ng">เปิดกล้องไม่ได้</div><p>' + err + '</p>';
     }
@@ -1760,7 +1841,9 @@ function stopCamera() {
     }
     if (video) video.srcObject = null;
     const cameraCard = document.querySelector(".camera-card");
+    const cameraOverlay = document.getElementById("cameraOverlay");
     if (cameraCard) cameraCard.classList.remove("camera-active");
+    if (cameraOverlay) cameraOverlay.style.display = "none";
 }
 
 function captureImage(kind) {
