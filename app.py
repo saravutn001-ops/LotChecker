@@ -565,6 +565,69 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     .config-grid.grid-2, .config-grid.grid-3, .config-grid.grid-5 { grid-template-columns:1fr !important; }
 }
 
+
+/* ===== Photo cards same-row layout override ===== */
+#page2.photo-grid {
+    display:grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 280px !important;
+    gap:10px !important;
+    align-items:start !important;
+}
+#page2.photo-grid > * { grid-column:auto !important; }
+.photo-card {
+    background:#ffffff;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px;
+    min-height:100%;
+}
+.photo-card h3 {
+    margin:0 0 6px !important;
+    font-size:16px !important;
+    line-height:1.2 !important;
+}
+.photo-card .small {
+    margin:0 0 8px !important;
+    min-height:32px;
+    font-size:12px !important;
+}
+.photo-card input,
+.photo-card button,
+.photo-card img,
+.photo-card video,
+.photo-card .info {
+    margin-top:6px !important;
+}
+#previewPouch, #previewCarton, #video {
+    width:100% !important;
+    height:230px !important;
+    max-height:230px !important;
+    object-fit:contain !important;
+    background:#0f172a !important;
+    border-radius:12px !important;
+}
+#page2.photo-grid .camera-card { grid-column:3 !important; }
+#page2.photo-grid .check-row {
+    grid-column:1 / -1 !important;
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    margin-top:0 !important;
+}
+#page2.photo-grid .check-row .btn-secondary { display:none !important; }
+#page2.photo-grid .check-row .btn-success {
+    font-size:18px !important;
+    padding:12px !important;
+    margin-top:0 !important;
+}
+@media (max-width:1100px) {
+    #page2.photo-grid { grid-template-columns:1fr 1fr !important; }
+    #page2.photo-grid .camera-card { grid-column:1 / -1 !important; }
+}
+@media (max-width:720px) {
+    #page2.photo-grid { grid-template-columns:1fr !important; }
+    #page2.photo-grid > * { grid-column:1 / -1 !important; }
+}
+
 </style>
 </head>
 <body>
@@ -732,35 +795,36 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 </div>
 </div>
 
-<div id="page2" class="step-page">
-<h3>รูปที่ 1: ซอง</h3>
-<p class="small">ต้องถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP ตามประเภทงาน</p>
-<input type="file" id="fileInputPouch" accept="image/*">
-<button onclick="setCaptureTarget('pouch')">เลือกถ่ายรูปซอง</button>
-<img id="previewPouch" style="display:none;">
+<div id="page2" class="step-page photo-grid">
+    <div class="photo-card pouch-card">
+        <h3>รูปที่ 1: ซอง</h3>
+        <p class="small">ถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP</p>
+        <input type="file" id="fileInputPouch" accept="image/*">
+        <button onclick="setCaptureTarget('pouch')">เลือกถ่ายรูปซอง</button>
+        <img id="previewPouch" style="display:none;">
+    </div>
 
-<hr>
+    <div class="photo-card carton-card">
+        <h3>รูปที่ 2: กล่อง</h3>
+        <p class="small">ถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
+        <input type="file" id="fileInputCarton" accept="image/*">
+        <button onclick="setCaptureTarget('carton')">เลือกถ่ายรูปกล่อง</button>
+        <img id="previewCarton" style="display:none;">
+    </div>
 
-<h3>รูปที่ 2: กล่อง</h3>
-<p class="small">ต้องถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
-<input type="file" id="fileInputCarton" accept="image/*">
-<button onclick="setCaptureTarget('carton')">เลือกถ่ายรูปกล่อง</button>
-<img id="previewCarton" style="display:none;">
+    <div class="photo-card camera-card">
+        <h3>ถ่ายจากกล้อง</h3>
+        <p id="captureTargetText" class="info">เลือกก่อนว่าจะถ่ายรูปซองหรือรูปกล่อง</p>
+        <button onclick="startCamera()">เปิดกล้อง</button>
+        <video id="video" autoplay playsinline></video>
+        <button onclick="captureImage()">ถ่ายรูปตามที่เลือก</button>
+        <canvas id="canvas" style="display:none;"></canvas>
+    </div>
 
-<hr>
-
-<h3>ถ่ายจากกล้อง</h3>
-<p id="captureTargetText" class="info">เลือกก่อนว่าจะถ่ายรูปซองหรือรูปกล่อง</p>
-<button onclick="startCamera()">เปิดกล้อง</button>
-<video id="video" autoplay playsinline></video>
-<button onclick="captureImage()">ถ่ายรูปตามที่เลือก</button>
-
-<canvas id="canvas" style="display:none;"></canvas>
-
-<div class="nav-row">
-    <button class="btn-secondary" onclick="goPage(1)">ย้อนกลับ</button>
-    <button class="btn-success" onclick="sendCheck()">ตรวจสอบล็อตซอง + กล่อง</button>
-</div>
+    <div class="nav-row check-row">
+        <button class="btn-secondary" onclick="goPage(1)">ย้อนกลับ</button>
+        <button class="btn-success" onclick="sendCheck()">ตรวจสอบล็อตซอง + กล่อง</button>
+    </div>
 </div>
 
 <div id="page3" class="step-page">
