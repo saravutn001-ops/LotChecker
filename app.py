@@ -1188,6 +1188,266 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     font-weight:700;
 }
 
+
+/* ===== Mobile app UI + PASS/NG status color override ===== */
+.result-popup-header.popup-pass {
+    background:linear-gradient(135deg, #15803d, #16a34a) !important;
+}
+.result-popup-header.popup-ng {
+    background:linear-gradient(135deg, #991b1b, #dc2626) !important;
+}
+.result-popup-header .result-popup-title,
+.result-popup-header .result-popup-subtitle {
+    color:#ffffff !important;
+}
+.result-popup-ng-box {
+    background:#fee2e2 !important;
+    border:1px solid #fca5a5 !important;
+    color:#7f1d1d !important;
+}
+.result-popup-ng-box .result-section-title,
+.result-popup-ng-box th,
+.result-popup-ng-box td {
+    color:#7f1d1d !important;
+}
+.result-popup-ok-box {
+    background:#dcfce7 !important;
+    border:1px solid #86efac !important;
+    color:#166534 !important;
+}
+.result-status-card.pass-card {
+    background:#f0fdf4 !important;
+    border-color:#86efac !important;
+}
+.result-status-card.ng-card {
+    background:#fef2f2 !important;
+    border-color:#fca5a5 !important;
+}
+
+@media (max-width: 768px) {
+    html, body {
+        width:100%;
+        overflow-x:hidden;
+        background:#eef3f8 !important;
+    }
+    body { padding:6px !important; }
+    .box {
+        width:100% !important;
+        max-width:none !important;
+        padding:8px !important;
+        border-radius:16px !important;
+        box-shadow:none !important;
+    }
+    .header-logo {
+        padding:10px !important;
+        border-radius:14px !important;
+        gap:10px !important;
+        margin-bottom:8px !important;
+        position:relative !important;
+        top:auto !important;
+    }
+    .header-logo img { width:48px !important; }
+    .header-logo h1 {
+        font-size:20px !important;
+        line-height:1.1 !important;
+        white-space:normal !important;
+    }
+    .header-logo p { font-size:11px !important; }
+
+    #page1, #page2, #page3 {
+        display:block !important;
+        padding:8px !important;
+        border-radius:14px !important;
+        margin-top:8px !important;
+    }
+    .section-card, #pouchHeader, #pouchSection, #cartonSection, .photo-card, .result-card, .result-status-card, .result-meta-card {
+        border-radius:14px !important;
+        padding:10px !important;
+        margin-bottom:8px !important;
+    }
+    .section-title {
+        font-size:16px !important;
+        margin-bottom:10px !important;
+    }
+
+    .config-grid,
+    .config-grid.grid-2,
+    .config-grid.grid-3,
+    .config-grid.grid-4,
+    .config-grid.grid-5,
+    .config-grid.grid-9,
+    #pouchHeader .config-grid,
+    #cartonSection .config-grid {
+        display:grid !important;
+        grid-template-columns:1fr !important;
+        gap:8px !important;
+    }
+    .config-grid label {
+        font-size:13px !important;
+        line-height:1.25 !important;
+        white-space:normal !important;
+        overflow:visible !important;
+        text-overflow:clip !important;
+        margin-top:4px !important;
+    }
+    .config-grid input,
+    .config-grid select,
+    input,
+    select {
+        width:100% !important;
+        height:44px !important;
+        min-height:44px !important;
+        font-size:16px !important;
+        padding:9px 10px !important;
+        border-radius:12px !important;
+    }
+    .info, .warn {
+        font-size:14px !important;
+        line-height:1.55 !important;
+        padding:10px 12px !important;
+        border-radius:12px !important;
+        word-break:break-word !important;
+    }
+
+    #page2.photo-grid {
+        display:grid !important;
+        grid-template-columns:1fr !important;
+        gap:8px !important;
+    }
+    #page2.photo-grid > *,
+    #page2.photo-grid .camera-card,
+    #page2.photo-grid .check-row {
+        grid-column:1 / -1 !important;
+    }
+    .photo-card h3 {
+        font-size:17px !important;
+        margin-bottom:6px !important;
+    }
+    .photo-card .small {
+        min-height:0 !important;
+        font-size:13px !important;
+        line-height:1.45 !important;
+    }
+    #previewPouch, #previewCarton {
+        height:260px !important;
+        max-height:260px !important;
+        width:100% !important;
+        object-fit:contain !important;
+        border-radius:12px !important;
+    }
+    .capture-time { font-size:13px !important; }
+    button, .download {
+        width:100% !important;
+        min-height:48px !important;
+        font-size:16px !important;
+        border-radius:12px !important;
+    }
+    #page2 .check-row .btn-success {
+        min-height:56px !important;
+        font-size:18px !important;
+    }
+
+    .result-hero,
+    .result-main-grid,
+    .result-meta-grid,
+    .result-actions {
+        grid-template-columns:1fr !important;
+    }
+    .result-title { font-size:38px !important; }
+    .result-subtitle { font-size:14px !important; line-height:1.4 !important; }
+    .result-meta-card { display:none !important; }
+    #detail { display:block !important; }
+    #detail .result-card {
+        padding:10px !important;
+    }
+    #detail .result-section-title {
+        font-size:16px !important;
+    }
+
+    .result-popup-overlay {
+        padding:0 !important;
+        align-items:stretch !important;
+        justify-content:stretch !important;
+    }
+    .result-popup {
+        width:100vw !important;
+        height:100vh !important;
+        max-height:100vh !important;
+        border-radius:0 !important;
+        border:0 !important;
+    }
+    .result-popup-header {
+        padding:14px 12px !important;
+        align-items:center !important;
+    }
+    .result-popup-title { font-size:34px !important; }
+    .result-popup-subtitle {
+        font-size:13px !important;
+        line-height:1.35 !important;
+    }
+    .result-popup-close {
+        min-width:44px !important;
+        height:44px !important;
+        font-size:24px !important;
+    }
+    .result-popup-body { padding:10px !important; }
+    .result-popup-meta { display:none !important; }
+    .result-popup-image-wrap {
+        padding:8px !important;
+        border-radius:14px !important;
+    }
+    .result-popup-image-wrap img {
+        width:100% !important;
+        max-height:46vh !important;
+        border-radius:12px !important;
+    }
+    .result-popup-bottom,
+    .result-popup-actions {
+        grid-template-columns:1fr !important;
+        gap:8px !important;
+        margin-top:8px !important;
+    }
+    .result-popup-lot-box {
+        padding:10px !important;
+        border-radius:12px !important;
+    }
+    .result-popup-lot-value {
+        font-size:15px !important;
+        line-height:1.35 !important;
+    }
+    .result-popup-ng-box,
+    .result-popup-ok-box {
+        padding:12px !important;
+        border-radius:12px !important;
+        font-size:16px !important;
+        overflow-x:auto !important;
+    }
+    .result-popup-ng-box table {
+        min-width:520px !important;
+    }
+    .result-json details {
+        border-radius:12px !important;
+    }
+    .result-json pre {
+        max-height:220px !important;
+        font-size:11px !important;
+    }
+
+    .camera-toolbar {
+        height:auto !important;
+        grid-template-columns:1fr !important;
+        padding:8px !important;
+        gap:8px !important;
+    }
+    .camera-toolbar button {
+        height:52px !important;
+        font-size:16px !important;
+    }
+    .camera-live-wrap, .camera-overlay #video {
+        height:calc(100vh - 188px) !important;
+    }
+}
+
 </style>
 </head>
 <body>
@@ -1344,16 +1604,16 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 <div id="page2" class="step-page photo-grid">
     <div class="photo-card pouch-card">
         <h3>รูปที่ 1: ซอง</h3>
-        <p class="small">ถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP</p>
-        <input type="file" id="fileInputPouch" accept="image/*" capture="environment">
+        <p class="small">เลือกไฟล์รูปจากโทรศัพท์ หรือกดเปิดกล้องเพื่อถ่ายรูปซอง</p>
+        <input type="file" id="fileInputPouch" accept="image/*">
         <img id="previewPouch" style="display:none;">
         <span id="pouchCaptureTime" class="capture-time"></span>
     </div>
 
     <div class="photo-card carton-card">
         <h3>รูปที่ 2: กล่อง</h3>
-        <p class="small">ถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
-        <input type="file" id="fileInputCarton" accept="image/*" capture="environment">
+        <p class="small">เลือกไฟล์รูปจากโทรศัพท์ หรือกดเปิดกล้องเพื่อถ่ายรูปกล่อง</p>
+        <input type="file" id="fileInputCarton" accept="image/*">
         <img id="previewCarton" style="display:none;">
         <span id="cartonCaptureTime" class="capture-time"></span>
     </div>
@@ -1905,7 +2165,7 @@ document.getElementById("fileInputPouch").addEventListener("change", function(e)
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = function(event) { setImage("pouch", event.target.result); };
+    reader.onload = function(event) { setImage("pouch", event.target.result); showToast("✅ เลือกรูปซองจากเครื่องเรียบร้อย"); };
     reader.readAsDataURL(file);
 });
 
@@ -1913,7 +2173,7 @@ document.getElementById("fileInputCarton").addEventListener("change", function(e
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = function(event) { setImage("carton", event.target.result); };
+    reader.onload = function(event) { setImage("carton", event.target.result); showToast("✅ เลือกรูปกล่องจากเครื่องเรียบร้อย"); };
     reader.readAsDataURL(file);
 });
 
@@ -2077,9 +2337,9 @@ async function sendCheck() {
         }
 
         const popupHtml = `
-            <div class="result-popup-header">
+            <div class="result-popup-header ${pass ? 'popup-pass' : 'popup-ng'}">
                 <div>
-                    <div class="result-popup-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+                    <div class="result-popup-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
                     <div class="result-popup-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'} | ${data.time || '-'}</div>
                 </div>
                 <button class="result-popup-close" onclick="closeResultPopup(event)">×</button>
@@ -2105,9 +2365,9 @@ async function sendCheck() {
         openResultPopup(popupHtml);
 
         detailDiv.innerHTML = `
-            <div class="result-card" style="text-align:center; padding:18px;">
+            <div class="result-card" style="text-align:center; padding:14px;">
                 <div class="result-section-title">ผลตรวจแสดงใน Pop-up</div>
-                <button onclick='openResultPopup(${JSON.stringify(popupHtml)})' class="btn-success" style="max-width:360px;">เปิดผลตรวจอีกครั้ง</button>
+                <button type="button" onclick='openResultPopup(${JSON.stringify(popupHtml)})' class="btn-success" style="max-width:360px;">เปิดผลตรวจอีกครั้ง</button>
             </div>
         `;
 
