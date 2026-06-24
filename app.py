@@ -364,9 +364,12 @@ pre {
         </select>
 
         <div id="mixCodeBox">
+            <label>วันที่ผสม</label>
+            <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
+
             <label>รหัสวันที่ผสม / Mix Code</label>
-            <input id="mixCode" value="08F" placeholder="เช่น 08F">
-            <p class="small">ใช้กับ EPW งานไทย/ลาว เช่น MFG 230626 22F LP4 07:45</p>
+            <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
+            <p class="small">เลือกวันที่จากปฏิทิน ระบบจะแปลงเดือนเป็น A-L อัตโนมัติ เช่น 18 มิถุนายน = 18F</p>
         </div>
 
         <label>EXP</label>
@@ -536,6 +539,7 @@ const PREFIX_SHIPPING_MAP = {
     "UK": "U,K,T-7",
     "DB": "DBL INDUSTRIES PLC",
     "OL": "IMPORTER:ORGANIC LINE CO., LTD",
+    "OD": "IMPORTER:ORGANIC LINE CO., LTD",
     "MI": "ZZZZZ",
     "WD": "WEDAR",
     "CZ": "ZZZZZ",
@@ -570,8 +574,16 @@ function setTodayDefault() {
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
-    document.getElementById("mfgDate").value = `${yyyy}-${mm}-${dd}`;
+    const todayText = `${yyyy}-${mm}-${dd}`;
+    document.getElementById("mfgDate").value = todayText;
+
+    const mixDate = document.getElementById("mixDate");
+    if (mixDate && !mixDate.value) {
+        mixDate.value = todayText;
+    }
+
     updateMFGFromDate();
+    updateMixCodeFromDate();
 }
 
 function parseDDMMYY(s) {
@@ -604,6 +616,26 @@ function updateMFGFromDate() {
     const mfg = parts[2] + parts[1] + parts[0].slice(-2);
     document.getElementById("mfg").value = mfg;
     autoExp();
+}
+
+const MIX_MONTH_CODES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+
+function updateMixCodeFromDate() {
+    const mixDateInput = document.getElementById("mixDate");
+    const mixCodeInput = document.getElementById("mixCode");
+    if (!mixDateInput || !mixCodeInput) return;
+
+    const dateValue = mixDateInput.value;
+    if (!dateValue) {
+        mixCodeInput.value = "";
+        return;
+    }
+
+    const parts = dateValue.split("-");
+    const day = parts[2];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const monthCode = MIX_MONTH_CODES[monthIndex] || "";
+    mixCodeInput.value = day + monthCode;
 }
 
 
@@ -760,6 +792,7 @@ function changeProduct() {
     if (checkType === "pouch" && mode === "linapack") {
         const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
         mixCodeBox.style.display = needMix ? "block" : "none";
+        if (needMix) updateMixCodeFromDate();
 
         if (product === "EPC" && market === "TH") {
             hint.innerHTML = "EPC ไทย: ตรวจ MFG + เลขเครื่อง + เวลา + EXP อายุ 1 ปี 3 เดือน";
@@ -853,6 +886,13 @@ async function sendCheck() {
         } else {
             payload.line = document.getElementById("lpMachine").value;
             payload.exp = document.getElementById("linapackExp").value;
+            updateMixCodeFromDate();
+            const needMix = (productType === "EPW" && (marketType === "TH" || marketType === "LAOS"));
+            if (needMix && !document.getElementById("mixCode").value) {
+                resultDiv.innerHTML = '<div class="ng">กรุณาเลือกวันที่ผสม</div>';
+                goPage(1);
+                return;
+            }
             payload.mixCode = document.getElementById("mixCode").value;
         }
     } else {
@@ -1855,7 +1895,7 @@ def check_pouch_sachet(lines, product_type, market_type, expected_mfg, expected_
                 "item": "แถว %s - เวลา" % i,
                 "status": "PASS" if time_ok else "NG",
                 "actual": actual_time,
-                "expected": "00:00-23:59"
+                "expected": "เวลา valid 00:00-23:59"
             })
 
         # EXP / วันหมดอายุ
@@ -1960,7 +2000,7 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
         "item": "เวลา",
         "status": "PASS" if time_ok else "NG",
         "actual": actual_time if actual_time else "NOT FOUND",
-        "expected": "00:00-23:59"
+        "expected": "เวลา valid 00:00-23:59 เช่น 07:45"
     })
 
     has_exp = "EXP" in all_text
