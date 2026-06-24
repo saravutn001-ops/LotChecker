@@ -629,51 +629,15 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 }
 
 
-/* ===== Final spacing refinement: make compact form easier to read ===== */
-#page1 {
-    gap:12px !important;
-}
-.section-card {
-    padding:12px !important;
-}
-.section-title {
-    margin:0 0 10px !important;
-    line-height:1.35 !important;
-}
-.config-grid {
-    gap:10px 12px !important;
-}
-.config-grid label {
-    line-height:1.35 !important;
-    padding-bottom:2px !important;
-}
-.config-grid input,
-.config-grid select {
-    height:38px !important;
-    padding:7px 10px !important;
-}
-#mixCodeBox {
-    margin-top:10px !important;
-}
-#autoExpInfo,
-#linkedLotInfo {
-    font-size:13px !important;
-    padding:10px 12px !important;
-    line-height:1.6 !important;
-}
-#page2.photo-grid {
-    gap:12px !important;
-}
-.photo-card {
-    padding:12px !important;
-}
-.photo-card h3 {
-    margin-bottom:8px !important;
-}
-.photo-card .small {
-    margin-bottom:10px !important;
-    line-height:1.45 !important;
-}
+/* ===== Requested compact header/carton cleanup ===== */
+.config-grid.grid-4 { grid-template-columns:repeat(4, minmax(0,1fr)) !important; }
+.config-grid.grid-9 { grid-template-columns:repeat(9, minmax(0,1fr)) !important; }
+#pouchSection { display:none !important; }
+.hidden-field { display:none !important; }
+#pouchHeader.section-card { grid-column:1 / -1 !important; }
+#pouchHeader .section-title { margin-bottom:10px !important; }
+@media (max-width:1200px) { .config-grid.grid-9 { grid-template-columns:repeat(5, minmax(0,1fr)) !important; } }
+@media (max-width:800px) { .config-grid.grid-4, .config-grid.grid-9 { grid-template-columns:1fr !important; } }
 
 </style>
 </head>
@@ -699,89 +663,76 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 <input type="hidden" id="checkType" value="both">
 <div class="info compact-mode-info"><b>โหมดตรวจรวม:</b> ตรวจล็อตซองและล็อตกล่องพร้อมกัน โดยใช้ MFG เดียวกันเป็นตัวกลาง</div>
 
-<div id="pouchHeader" class="config-grid grid-5">
-    <label>ประเภทไลน์</label>
-    <label>ประเภทผลิตภัณฑ์</label>
-    <label>ประเภทงาน</label>
-    <label>วันที่ผลิต (MFG)</label>
-    <label>MFG ที่ใช้ตรวจ</label>
+<div id="pouchHeader" class="section-card">
+    <div class="section-title">ตั้งค่าล็อต</div>
+    <div class="config-grid grid-9 no-pad">
+        <label>ประเภทไลน์</label>
+        <label id="machineHeaderLabel">เครื่อง</label>
+        <label>ประเภทผลิตภัณฑ์</label>
+        <label>ประเภทงาน</label>
+        <label>วันที่ผลิต (MFG)</label>
+        <label>MFG ที่ใช้ตรวจ</label>
+        <label>EXP ที่ใช้ตรวจ</label>
+        <label id="mixDateHeaderLabel">วันที่ผสม</label>
+        <label id="mixCodeHeaderLabel">Mix Code</label>
 
-    <select id="mode" onchange="changeMode()">
-        <option value="sachet">Sachet</option>
-        <option value="linapack">Linapack</option>
-    </select>
-    <select id="productType" onchange="changeProduct()">
-        <option value="EPC">EPC</option>
-        <option value="EPW">EPW</option>
-    </select>
-    <select id="marketType" onchange="changeProduct()">
-        <option value="TH">งานไทย</option>
-        <option value="EXPORT">งานต่างประเทศ</option>
-        <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
-    </select>
-    <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
-    <input id="mfg" value="" readonly>
-</div>
-
-<div id="pouchSection" class="section-card">
-    <div class="section-title">ข้อมูลล็อตซอง</div>
-    <div id="sachetBox" class="config-grid grid-2">
-        <label>Sachet Code</label>
-        <label>EXP</label>
-
-        <input id="sachetLine" value="MS11" placeholder="เช่น MS11">
-        <input id="sachetExp" value="" placeholder="Auto Calculated" readonly>
-
-        <p class="small full-span">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
-    </div>
-
-    <div id="linapackBox" class="config-grid grid-2" style="display:none;">
-        <label>เครื่อง Linapack</label>
-        <label>EXP</label>
-
+        <select id="mode" onchange="changeMode()">
+            <option value="sachet">Sachet</option>
+            <option value="linapack">Linapack</option>
+        </select>
         <select id="lpMachine" onchange="updateExpectedLinkedLots()">
             <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
             <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
             <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
         </select>
+        <select id="productType" onchange="changeProduct()">
+            <option value="EPC">EPC</option>
+            <option value="EPW">EPW</option>
+        </select>
+        <select id="marketType" onchange="changeProduct()">
+            <option value="TH">งานไทย</option>
+            <option value="EXPORT">งานต่างประเทศ</option>
+            <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
+        </select>
+        <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
+        <input id="mfg" value="" readonly>
         <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
-
-        <div id="mixCodeBox" class="full-span" style="display:none;">
-            <div class="config-grid grid-2 no-pad">
-                <label>วันที่ผสม</label>
-                <label>รหัสวันที่ผสม / Mix Code</label>
-                <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
-                <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
-            </div>
-            <p class="small">เลือกวันที่จากปฏิทิน ระบบจะแปลงเดือนเป็น A-L อัตโนมัติ เช่น 18 มิถุนายน = 18F</p>
-        </div>
-
-        <p id="linapackHint" class="small full-span"></p>
+        <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
+        <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
     </div>
+</div>
+
+<div id="pouchSection" style="display:none;">
+    <input id="sachetLine" value="MS11" type="hidden">
+    <input id="sachetExp" value="" type="hidden">
+    <p id="linapackHint" class="small full-span"></p>
 </div>
 
 <div id="cartonSection" class="section-card">
     <div class="section-title">ข้อมูลล็อตกล่อง</div>
-    <div id="cartonTHBox" class="config-grid grid-2">
+    <div id="cartonTHBox" class="config-grid grid-4">
+        <label>Shipping Mark</label>
+        <label>Prefix</label>
         <label>เลขอาคาร</label>
         <label>Suffix หลังเลขอาคาร</label>
 
+        <input value="-" readonly>
+        <input value="00" readonly>
         <select id="buildingNo" onchange="updateExpectedLinkedLots()">
             <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
         <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
-
         <p class="small full-span">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
     </div>
 
-    <div id="cartonExportBox" class="config-grid grid-5" style="display:none;">
-        <label>Prefix</label>
+    <div id="cartonExportBox" class="config-grid grid-4" style="display:none;">
         <label>Shipping Mark</label>
+        <label>Prefix</label>
         <label>เลขอาคาร</label>
         <label>Suffix หลังเลขอาคาร</label>
-        <label>EXP สำหรับ Pattern ที่มี EXP</label>
 
+        <input id="shippingMark" value="" placeholder="ระบบเติมจาก Prefix อัตโนมัติ" readonly>
         <select id="cartonPrefix" onchange="updateShippingMarkByPrefix()">
             <option value="KC">KC → ZZZZZ</option>
             <option value="VN">VN → IPO VN</option>
@@ -822,15 +773,13 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
             <option value="LQ">LQ → ZZZZZ</option>
             <option value="CUSTOM">CUSTOM → กรอกเอง</option>
         </select>
-        <input id="shippingMark" value="" placeholder="ระบบเติมจาก Prefix อัตโนมัติ" readonly>
         <select id="buildingNoExport" onchange="updateExpectedLinkedLots()">
             <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
         <input id="buildingSuffixExport" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
-        <input id="cartonExp" value="" placeholder="Auto Calculated" readonly>
-
-        <p class="small full-span">กล่องต่างประเทศ: ตรวจ Prefix / Shipping Mark / Running No. / MFG / EXP ตาม Pattern</p>
+        <input id="cartonExp" value="" type="hidden">
+        <p class="small full-span">กล่องต่างประเทศ: ตรวจ Shipping Mark / Prefix / Running No. / MFG ตาม Pattern</p>
     </div>
 </div>
 
@@ -1204,8 +1153,10 @@ function changeCheckType() {
 
 function changeMode() {
     const mode = document.getElementById("mode").value;
-    document.getElementById("sachetBox").style.display = mode === "sachet" ? "block" : "none";
-    document.getElementById("linapackBox").style.display = mode === "linapack" ? "block" : "none";
+    const lp = document.getElementById("lpMachine");
+    const lpLabel = document.getElementById("machineHeaderLabel");
+    if (lp) lp.classList.toggle("hidden-field", mode === "sachet");
+    if (lpLabel) lpLabel.classList.toggle("hidden-field", mode === "sachet");
     changeProduct();
 }
 
@@ -1214,7 +1165,10 @@ function changeProduct() {
     const market = document.getElementById("marketType").value;
     const mode = document.getElementById("mode").value;
 
-    const mixCodeBox = document.getElementById("mixCodeBox");
+    const mixDate = document.getElementById("mixDate");
+    const mixCode = document.getElementById("mixCode");
+    const mixDateLabel = document.getElementById("mixDateHeaderLabel");
+    const mixCodeLabel = document.getElementById("mixCodeHeaderLabel");
     const cartonTHBox = document.getElementById("cartonTHBox");
     const cartonExportBox = document.getElementById("cartonExportBox");
     const linapackExp = document.getElementById("linapackExp");
@@ -1229,13 +1183,15 @@ function changeProduct() {
     sachetExp.disabled = noExp;
     linapackExp.disabled = noExp;
 
+    const needMix = (mode === "linapack" && product === "EPW" && (market === "TH" || market === "LAOS"));
+    [mixDate, mixCode, mixDateLabel, mixCodeLabel].forEach(el => { if (el) el.classList.toggle("hidden-field", !needMix); });
+
     cartonTHBox.style.display = market === "TH" ? "block" : "none";
     cartonExportBox.style.display = (market === "EXPORT" || market === "LAOS") ? "block" : "none";
     if (market === "EXPORT" || market === "LAOS") updateShippingMarkByPrefix();
 
     if (mode === "linapack") {
         const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
-        mixCodeBox.style.display = needMix ? "block" : "none";
         if (needMix) updateMixCodeFromDate();
 
         if (product === "EPC" && market === "TH") {
