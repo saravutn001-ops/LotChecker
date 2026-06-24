@@ -737,6 +737,134 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     background:linear-gradient(135deg, #16a34a, #15803d) !important;
 }
 
+
+
+/* ===== Modern result page UI ===== */
+#page3.result-dashboard {
+    background:#f8fafc !important;
+    border:1px solid var(--border) !important;
+    border-radius:16px !important;
+    padding:14px !important;
+}
+#result { margin:0 !important; }
+.result-hero {
+    display:grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap:12px;
+    align-items:stretch;
+    margin-bottom:12px;
+}
+.result-status-card,
+.result-meta-card,
+.result-card {
+    background:#ffffff;
+    border:1px solid #dbe4ef;
+    border-radius:16px;
+    padding:14px;
+    box-shadow:0 8px 22px rgba(15,23,42,.06);
+}
+.result-status-card.pass-card { border-left:8px solid #16a34a; }
+.result-status-card.ng-card { border-left:8px solid #dc2626; }
+.result-title {
+    font-size:36px;
+    font-weight:900;
+    line-height:1;
+    margin:0 0 6px;
+    letter-spacing:.3px;
+}
+.result-title.pass-text { color:#16a34a; }
+.result-title.ng-text { color:#dc2626; }
+.result-subtitle {
+    font-size:15px;
+    color:#475569;
+    margin:0;
+    font-weight:700;
+}
+.result-meta-grid {
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:8px;
+}
+.meta-item {
+    background:#f1f5f9;
+    border:1px solid #e2e8f0;
+    border-radius:12px;
+    padding:8px 10px;
+}
+.meta-label {
+    font-size:11px;
+    color:#64748b;
+    font-weight:800;
+    margin-bottom:4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.meta-value {
+    font-size:14px;
+    color:#0f172a;
+    font-weight:800;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.result-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin:10px 0 0;
+}
+.result-actions a {
+    margin:0 !important;
+}
+.result-section-title {
+    font-size:16px;
+    font-weight:900;
+    color:#0f172a;
+    margin:0 0 10px;
+}
+.result-main-grid {
+    display:grid;
+    grid-template-columns: 1.1fr .9fr;
+    gap:12px;
+}
+.result-image-card img {
+    width:100%;
+    max-height:470px !important;
+    object-fit:contain;
+    background:#0f172a;
+    border-radius:14px;
+    margin:0 !important;
+}
+.result-table table { margin-top:0 !important; }
+.result-table th,
+.result-table td { font-size:13px !important; padding:8px 9px !important; }
+.result-json {
+    margin-top:12px;
+}
+.result-json details {
+    background:#fff;
+    border:1px solid #dbe4ef;
+    border-radius:14px;
+    padding:10px;
+}
+.result-json summary {
+    cursor:pointer;
+    font-weight:900;
+    color:#0f172a;
+}
+.result-json pre {
+    max-height:260px !important;
+    margin-top:10px;
+}
+@media (max-width:1000px) {
+    .result-hero, .result-main-grid { grid-template-columns:1fr; }
+}
+@media (max-width:640px) {
+    .result-meta-grid, .result-actions { grid-template-columns:1fr; }
+    .result-title { font-size:30px; }
+}
+
 </style>
 </head>
 <body>
@@ -925,7 +1053,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     </div>
 </div>
 
-<div id="page3" class="step-page">
+<div id="page3" class="step-page result-dashboard">
 <div class="nav-row">
     <button class="btn-secondary" onclick="goPage(1)">ตั้งค่า</button>
     <button class="btn-secondary" onclick="goPage(2)">รูปภาพ</button>
@@ -1480,37 +1608,56 @@ async function sendCheck() {
             return;
         }
 
-        resultDiv.innerHTML = data.summary === "PASS"
-            ? `<div class="pass">PASS ✅</div>`
-            : `<div class="ng">NG ❌</div>`;
+        const pass = data.summary === "PASS";
+        resultDiv.innerHTML = `
+            <div class="result-hero">
+                <div class="result-status-card ${pass ? 'pass-card' : 'ng-card'}">
+                    <div class="result-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+                    <p class="result-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</p>
+                </div>
+                <div class="result-meta-card">
+                    <div class="result-meta-grid">
+                        <div class="meta-item"><div class="meta-label">เวลา</div><div class="meta-value">${data.time || '-'}</div></div>
+                        <div class="meta-item"><div class="meta-label">โหมด</div><div class="meta-value">${data.checkType || '-'}</div></div>
+                        <div class="meta-item"><div class="meta-label">ประเภทงาน</div><div class="meta-value">${data.marketType || '-'}</div></div>
+                        <div class="meta-item"><div class="meta-label">Expected EXP</div><div class="meta-value">${data.expectedExp || '-'}</div></div>
+                    </div>
+                </div>
+            </div>
+        `;
 
-        let html = `<p><b>เวลา:</b> ${data.time}</p>`;
-        html += `<p><b>โหมด:</b> ${data.checkType}</p>`;
-        if (data.expectedPouchLot) html += `<p><b>Lot ซองที่ควรเป็น:</b> ${data.expectedPouchLot}</p>`;
-        if (data.expectedCartonLot) html += `<p><b>Lot กล่องที่ควรเป็น:</b> ${data.expectedCartonLot}</p>`;
-        html += `<p><b>ประเภทงาน:</b> ${data.marketType}</p>`;
-        html += `<p><b>Expected EXP:</b> ${data.expectedExp}</p>`;
-if (data.stampedImageUrl) {
-            html += `
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px;">
+        let html = ``;
+        html += `<div class="result-main-grid">`;
+
+        html += `<div class="result-card result-image-card">`;
+        html += `<div class="result-section-title">รูปหลักฐานการตรวจ</div>`;
+        if (data.stampedImageUrl) {
+            html += `<img src="${data.stampedImageUrl}">`;
+            html += `<div class="result-actions">
                 <a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a>
                 <a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a>
-            </div>
-            `;
-            html += `<img src="${data.stampedImageUrl}">`;
+            </div>`;
+        } else {
+            html += `<div class="warn">ไม่มีรูปแสตมป์</div>`;
         }
+        html += `</div>`;
 
+        html += `<div class="result-card result-table">`;
+        html += `<div class="result-section-title">สรุปรายการตรวจ</div>`;
+        if (data.expectedPouchLot) html += `<div class="meta-item" style="margin-bottom:8px;"><div class="meta-label">Lot ซองที่ควรเป็น</div><div class="meta-value">${data.expectedPouchLot}</div></div>`;
+        if (data.expectedCartonLot) html += `<div class="meta-item" style="margin-bottom:8px;"><div class="meta-label">Lot กล่องที่ควรเป็น</div><div class="meta-value">${data.expectedCartonLot}</div></div>`;
         html += `<table><tr><th>รายการ</th><th>ผล</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
-
         data.details.forEach(row => {
             const cls = row.status === "PASS" ? "status-pass" : (row.status === "NG" ? "status-ng" : "");
             html += `<tr><td>${row.item}</td><td class="${cls}">${row.status}</td><td>${row.actual}</td><td>${row.expected}</td></tr>`;
         });
-
         html += `</table>`;
+        html += `</div>`;
+        html += `</div>`;
 
         if (data.abnormalPoints && data.abnormalPoints.length > 0) {
-            html += `<h3>จุดผิดปกติที่พบ</h3>`;
+            html += `<div class="result-card" style="margin-top:12px;">`;
+            html += `<div class="result-section-title">จุดผิดปกติที่พบ</div>`;
             html += `<table><tr><th>จุดที่ผิด</th><th>ปัญหา</th><th>อ่านได้</th><th>ควรเป็น</th><th>ตำแหน่งในรูป/ล็อต</th></tr>`;
             data.abnormalPoints.forEach(p => {
                 html += `<tr>
@@ -1521,10 +1668,10 @@ if (data.stampedImageUrl) {
                     <td>${p.position_hint || ""}</td>
                 </tr>`;
             });
-            html += `</table>`;
+            html += `</table></div>`;
         }
 
-        html += `<h3>AI อ่านได้ทั้งหมด</h3><pre>${JSON.stringify(data.lines, null, 2)}</pre>`;
+        html += `<div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines, null, 2)}</pre></details></div>`;
         detailDiv.innerHTML = html;
 
     } catch (err) {
@@ -2094,7 +2241,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         left_x = margin
         right_x = margin + panel_w + gap
         panel_h = image_area_h - 20
-        for x, label in [(left_x, "POUCH / รูปซอง"), (right_x, "CARTON / รูปกล่อง")]:
+        for x, label in [(left_x, "POUCH"), (right_x, "CARTON")]:
             draw.rounded_rectangle([x, y0, x + panel_w, y0 + panel_h], radius=22, fill=(255, 255, 255), outline=(215, 225, 235), width=3)
             draw.text((x + 22, y0 + 20), label, font=label_font, fill=(20, 40, 60))
 
