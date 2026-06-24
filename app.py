@@ -536,7 +536,6 @@ const PREFIX_SHIPPING_MAP = {
     "UK": "U,K,T-7",
     "DB": "DBL INDUSTRIES PLC",
     "OL": "IMPORTER:ORGANIC LINE CO., LTD",
-    "OD": "IMPORTER:ORGANIC LINE CO., LTD",
     "MI": "ZZZZZ",
     "WD": "WEDAR",
     "CZ": "ZZZZZ",
