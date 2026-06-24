@@ -727,13 +727,13 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 
 .camera-action-row {
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
     gap:8px;
 }
 .camera-action-row button {
     margin-top:0 !important;
 }
-#captureBtn {
+#capturePouchBtn, #captureCartonBtn {
     background:linear-gradient(135deg, #16a34a, #15803d) !important;
 }
 
@@ -1045,10 +1045,8 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     align-items:start;
 }
 #page2.photo-grid .camera-card.camera-active h3,
-#page2.photo-grid .camera-card.camera-active #captureTargetText,
 #page2.photo-grid .camera-card.camera-active .camera-action-row,
-#page2.photo-grid .camera-card.camera-active #captureBtn,
-#page2.photo-grid .camera-card.camera-active .btn-secondary {
+#page2.photo-grid .camera-card.camera-active #openCameraBtn {
     grid-column:1 / -1;
 }
 #page2.photo-grid .camera-card.camera-active #video {
@@ -1061,9 +1059,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     background:#07111f !important;
     border:2px solid #0b63ce !important;
 }
-#page2.photo-grid .camera-card.camera-active .camera-action-row,
-#page2.photo-grid .camera-card.camera-active #captureBtn,
-#page2.photo-grid .camera-card.camera-active .btn-secondary {
+#page2.photo-grid .camera-card.camera-active .camera-action-row {
     max-width:720px;
     justify-self:center;
     width:100%;
@@ -1234,7 +1230,6 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
         <h3>รูปที่ 1: ซอง</h3>
         <p class="small">ถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP</p>
         <input type="file" id="fileInputPouch" accept="image/*" capture="environment">
-        <button onclick="setCaptureTarget('pouch')">เลือกถ่ายรูปซอง</button>
         <img id="previewPouch" style="display:none;">
     </div>
 
@@ -1242,20 +1237,18 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
         <h3>รูปที่ 2: กล่อง</h3>
         <p class="small">ถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
         <input type="file" id="fileInputCarton" accept="image/*" capture="environment">
-        <button onclick="setCaptureTarget('carton')">เลือกถ่ายรูปกล่อง</button>
         <img id="previewCarton" style="display:none;">
     </div>
 
     <div class="photo-card camera-card">
         <h3>ถ่ายจากกล้อง</h3>
-        <p id="captureTargetText" class="info">เลือกว่าจะบันทึกรูปเป็นซองหรือกล่อง</p>
-        <div class="camera-action-row">
-            <button onclick="setCaptureTarget('pouch'); startCamera();">ถ่ายรูปซอง</button>
-            <button onclick="setCaptureTarget('carton'); startCamera();">ถ่ายรูปกล่อง</button>
-        </div>
+        <button id="openCameraBtn" onclick="startCamera()">เปิดกล้อง</button>
         <video id="video" autoplay playsinline muted></video>
-        <button id="captureBtn" onclick="captureImage()">บันทึกรูปซอง</button>
-        <button class="btn-secondary" onclick="stopCamera()">ปิดกล้อง</button>
+        <div class="camera-action-row">
+            <button id="capturePouchBtn" onclick="captureImage('pouch')">ถ่ายรูปซอง</button>
+            <button id="captureCartonBtn" onclick="captureImage('carton')">ถ่ายรูปกล่อง</button>
+            <button class="btn-secondary" onclick="stopCamera()">ปิดกล้อง</button>
+        </div>
         <canvas id="canvas" style="display:none;"></canvas>
     </div>
 
@@ -1549,7 +1542,7 @@ function buildExpectedPouchLot() {
     if (!/^\d{6}$/.test(mfg)) return "-";
 
     if (mode === "sachet") {
-        const line = document.getElementById("sachetLine").value.trim().toUpperCase() || "MS11";
+        const line = document.getElementById("lpMachine").value.trim().toUpperCase() || "MS1";
         const exp = document.getElementById("sachetExp").value.trim();
         return exp ? `MFG ${mfg} ${line} 1 EXP ${exp}` : `MFG ${mfg} ${line} 1`;
     }
@@ -1613,12 +1606,25 @@ function changeCheckType() {
     changeProduct();
 }
 
+function setMachineOptionsForMode(mode) {
+    const machineSelect = document.getElementById("lpMachine");
+    if (!machineSelect) return;
+    const current = machineSelect.value;
+    const options = mode === "sachet"
+        ? ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"]
+        : ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
+    machineSelect.innerHTML = options.map(v => `<option value="${v}">${v}</option>`).join("");
+    if (options.includes(current)) machineSelect.value = current;
+    else machineSelect.value = mode === "sachet" ? "MS11" : "LP7";
+    const sachetLine = document.getElementById("sachetLine");
+    if (sachetLine && mode === "sachet") sachetLine.value = machineSelect.value;
+}
+
 function changeMode() {
     const mode = document.getElementById("mode").value;
-    const lp = document.getElementById("lpMachine");
+    setMachineOptionsForMode(mode);
     const lpLabel = document.getElementById("machineHeaderLabel");
-    if (lp) lp.classList.toggle("hidden-field", mode === "sachet");
-    if (lpLabel) lpLabel.classList.toggle("hidden-field", mode === "sachet");
+    if (lpLabel) lpLabel.innerText = mode === "sachet" ? "เครื่อง Sachet" : "เครื่อง Linapack";
     changeProduct();
 }
 
@@ -1700,10 +1706,6 @@ function setImage(kind, dataUrl) {
 
 function setCaptureTarget(kind) {
     captureTarget = kind === "carton" ? "carton" : "pouch";
-    const label = captureTarget === "carton" ? "กล่อง" : "ซอง";
-    document.getElementById("captureTargetText").innerHTML = "ตอนนี้เลือก: ถ่ายรูป" + label;
-    const btn = document.getElementById("captureBtn");
-    if (btn) btn.innerText = "บันทึกรูป" + label;
 }
 
 document.getElementById("fileInputPouch").addEventListener("change", function(e) {
@@ -1761,9 +1763,10 @@ function stopCamera() {
     if (cameraCard) cameraCard.classList.remove("camera-active");
 }
 
-function captureImage() {
+function captureImage(kind) {
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
+    const target = kind === "carton" ? "carton" : "pouch";
 
     if (!video.videoWidth) {
         document.getElementById("result").innerHTML = '<div class="ng">กรุณาเปิดกล้องก่อน</div>';
@@ -1775,7 +1778,7 @@ function captureImage() {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const captured = canvas.toDataURL("image/jpeg", 0.92);
-    setImage(captureTarget, captured);
+    setImage(target, captured);
 }
 
 async function sendCheck() {
@@ -1808,7 +1811,7 @@ async function sendCheck() {
     };
 
     if (mode === "sachet") {
-        payload.line = document.getElementById("sachetLine").value;
+        payload.line = document.getElementById("lpMachine").value;
         payload.exp = document.getElementById("sachetExp").value;
         payload.mixCode = "";
     } else {
@@ -1918,6 +1921,7 @@ window.onload = function() {
     setTodayDefault();
     updateShippingMarkByPrefix();
     changeCheckType();
+    changeMode();
     updateExpectedLinkedLots();
     goPage(1);
 };
@@ -3323,6 +3327,8 @@ def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code=""
         "running_no": "",
         "prefix": "",
         "mfg": "",
+        "building_no": "",
+        "suffix": "",
         "building_suffix": "",
         "exp": "",
     }
@@ -3361,14 +3367,14 @@ def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code=""
     if mfg_index is not None and mfg_index > 0:
         result["prefix"] = tokens[mfg_index - 1]
 
-    # Building + suffix = token(s) after MFG date.
-    # If there is an extra suffix such as QR, show it so the user sees why it is NG.
+    # Building No. and Suffix are separated so the UI can show which field is NG.
     if mfg_index is not None and mfg_index + 1 < len(tokens):
         building = tokens[mfg_index + 1]
+        result["building_no"] = building
         if mfg_index + 2 < len(tokens):
             next_token = tokens[mfg_index + 2]
-            # Show suffix if alphabetic, e.g. 3 QR or 3 N
             if re.fullmatch(r"[A-Z]+", next_token):
+                result["suffix"] = next_token
                 result["building_suffix"] = f"{building} {next_token}"
             else:
                 result["building_suffix"] = building
@@ -3478,20 +3484,41 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         if not append_carton_field_check(details, "MFG date", mfg_code, expected_mfg):
             overall = False
 
-        # Building No. + Suffix
+        # Building No. and Suffix are checked separately
+        actual_building_no = field_actual.get("building_no") or building_code
+        actual_suffix = field_actual.get("suffix") or ""
         if building_no:
-            if not append_carton_field_check(details, "Building No. + Suffix", building_visible, expected_building_full):
+            if not append_carton_field_check(details, "Building No.", actual_building_no, building_no):
                 overall = False
+            expected_suffix = (building_suffix or "").strip().upper()
+            if expected_suffix:
+                if not append_carton_field_check(details, "Building Suffix", actual_suffix, expected_suffix):
+                    overall = False
+            else:
+                suffix_ok = not actual_suffix
+                details.append({
+                    "item": "Building Suffix",
+                    "status": "PASS" if suffix_ok else "NG",
+                    "actual": actual_suffix if actual_suffix else "ไม่มี",
+                    "expected": "ไม่มี Suffix" if suffix_ok else "ไม่ควรมี Suffix"
+                })
+                if not suffix_ok:
+                    overall = False
         else:
-            # ถ้าเลือกไม่มีเลขอาคาร แต่ OCR อ่านเจอค่าหลังวันที่ ถือว่า NG
-            no_building_ok = not building_visible
+            no_building_ok = not actual_building_no
             details.append({
-                "item": "Building No. + Suffix",
+                "item": "Building No.",
                 "status": "PASS" if no_building_ok else "NG",
-                "actual": building_visible if building_visible else "ไม่มี",
+                "actual": actual_building_no if actual_building_no else "ไม่มี",
                 "expected": "ไม่มีเลขอาคาร"
             })
-            if not no_building_ok:
+            details.append({
+                "item": "Building Suffix",
+                "status": "PASS" if not actual_suffix else "NG",
+                "actual": actual_suffix if actual_suffix else "ไม่มี",
+                "expected": "ไม่มี Suffix"
+            })
+            if not no_building_ok or actual_suffix:
                 overall = False
 
         return overall, details
@@ -3553,15 +3580,37 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     if not append_carton_field_check(details, "MFG date", field_actual.get("mfg"), expected_mfg):
         overall = False
 
-    # Building No. + Suffix
+    # Building No. and Suffix are checked separately
+    actual_building_no = field_actual.get("building_no")
+    actual_suffix = field_actual.get("suffix")
     if building_no:
-        if not append_carton_field_check(details, "Building No. + Suffix", field_actual.get("building_suffix"), expected_building_full):
+        if not append_carton_field_check(details, "Building No.", actual_building_no, building_no):
             overall = False
+        expected_suffix = (building_suffix or "").strip().upper()
+        if expected_suffix:
+            if not append_carton_field_check(details, "Building Suffix", actual_suffix, expected_suffix):
+                overall = False
+        else:
+            suffix_ok = not actual_suffix
+            details.append({
+                "item": "Building Suffix",
+                "status": "PASS" if suffix_ok else "NG",
+                "actual": actual_suffix if actual_suffix else "ไม่มี",
+                "expected": "ไม่มี Suffix" if suffix_ok else "ไม่ควรมี Suffix"
+            })
+            if not suffix_ok:
+                overall = False
     else:
         details.append({
-            "item": "Building No. + Suffix",
+            "item": "Building No.",
             "status": "PASS",
             "actual": "ไม่ตรวจเลขอาคาร",
+            "expected": "ไม่ตรวจ"
+        })
+        details.append({
+            "item": "Building Suffix",
+            "status": "PASS",
+            "actual": "ไม่ตรวจ Suffix",
             "expected": "ไม่ตรวจ"
         })
 
