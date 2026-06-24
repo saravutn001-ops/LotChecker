@@ -1625,6 +1625,93 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
     #autoExpInfo,#linkedLotInfo{font-size:15px!important;}
 }
 
+
+
+/* ===== FINAL MOBILE COMPLETENESS FIX: no clipping, visible upload buttons ===== */
+.static-mobile-file-btn{display:none;}
+.static-upload-placeholder{display:none;}
+@media (max-width: 768px){
+    *{box-sizing:border-box!important;}
+    html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important;background:#eef5fb!important;}
+    body{padding:0!important;padding-bottom:92px!important;}
+    .box{width:100%!important;max-width:100%!important;margin:0!important;padding:8px!important;overflow:hidden!important;}
+    .header-logo{position:relative!important;top:auto!important;margin:0 0 8px!important;width:100%!important;}
+
+    #page1,#page2{width:100%!important;max-width:100%!important;overflow:hidden!important;}
+    #pouchHeader,#cartonSection,.photo-card,.camera-card,#autoExpInfo,#linkedLotInfo{
+        width:100%!important;max-width:100%!important;overflow:hidden!important;
+    }
+
+    .setup-field-grid{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        gap:12px!important;
+    }
+    .carton-field-grid,
+    #cartonTHBox,
+    #cartonExportBox{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        gap:12px!important;
+        width:100%!important;
+        max-width:100%!important;
+        overflow:visible!important;
+    }
+    #cartonTHBox.hidden-market,
+    #cartonExportBox.hidden-market{display:none!important;}
+
+    .field-card{min-width:0!important;width:100%!important;}
+    .field-card label{font-size:13px!important;line-height:1.25!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;}
+    .field-card input,.field-card select,#page1 input,#page1 select{
+        width:100%!important;max-width:100%!important;min-width:0!important;height:48px!important;
+        font-size:16px!important;border-radius:14px!important;padding:0 12px!important;
+    }
+
+    #autoExpInfo,#linkedLotInfo{
+        font-size:16px!important;line-height:1.55!important;padding:13px 14px!important;word-break:break-word!important;
+    }
+
+    #page2.photo-grid{display:grid!important;grid-template-columns:1fr!important;gap:10px!important;}
+    #page2.photo-grid>*{grid-column:1/-1!important;}
+    .photo-card{padding:14px!important;border-radius:18px!important;}
+    .photo-card h3{font-size:18px!important;margin-bottom:6px!important;}
+    .photo-card .small{font-size:15px!important;line-height:1.45!important;min-height:0!important;margin-bottom:12px!important;}
+
+    .photo-card input[type=file]{
+        position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;
+    }
+    .static-mobile-file-btn,.mobile-file-btn{
+        display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;
+        width:100%!important;height:52px!important;border-radius:15px!important;
+        background:linear-gradient(135deg,#2563eb,#1d4ed8)!important;color:#fff!important;
+        font-size:16px!important;font-weight:900!important;margin:12px 0 0!important;
+        box-shadow:0 8px 18px rgba(37,99,235,.20)!important;
+    }
+    .static-upload-placeholder,.upload-placeholder{
+        display:flex!important;align-items:center!important;justify-content:center!important;
+        width:100%!important;height:150px!important;border:1.5px dashed #cbd5e1!important;
+        border-radius:16px!important;background:linear-gradient(180deg,#f8fbff,#ffffff)!important;
+        color:#2563eb!important;font-size:46px!important;margin:12px 0 0!important;
+    }
+    #previewPouch:not([style*="display:none"])+.capture-time,
+    #previewCarton:not([style*="display:none"])+.capture-time{display:block!important;}
+    #previewPouch,#previewCarton{
+        width:100%!important;height:260px!important;max-height:260px!important;object-fit:contain!important;
+        background:#0f172a!important;border-radius:16px!important;margin-top:12px!important;
+    }
+    #previewPouch[style*="display:none"],#previewCarton[style*="display:none"]{display:none!important;}
+
+    .camera-card{padding:14px!important;}
+    #openCameraBtn,.check-row .btn-success,button[onclick="sendCheck()"]{
+        width:100%!important;height:60px!important;font-size:18px!important;border-radius:16px!important;
+    }
+}
+@media (max-width: 430px){
+    .setup-field-grid,.carton-field-grid,#cartonTHBox,#cartonExportBox{grid-template-columns:1fr!important;}
+    .field-card input,.field-card select,#page1 input,#page1 select{height:50px!important;font-size:16px!important;}
+    #previewPouch,#previewCarton{height:240px!important;}
+}
+
 </style>
 </head>
 <body>
@@ -1812,6 +1899,8 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
         <h3>รูปที่ 1: ซอง</h3>
         <p class="small">เลือกไฟล์รูปจากโทรศัพท์ หรือกดเปิดกล้องเพื่อถ่ายรูปซอง</p>
         <input type="file" id="fileInputPouch" accept="image/*">
+        <label class="static-mobile-file-btn" for="fileInputPouch">📁 เลือกไฟล์รูปซอง</label>
+        <div class="static-upload-placeholder">🖼️+</div>
         <img id="previewPouch" style="display:none;">
         <span id="pouchCaptureTime" class="capture-time"></span>
     </div>
@@ -1820,6 +1909,8 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
         <h3>รูปที่ 2: กล่อง</h3>
         <p class="small">เลือกไฟล์รูปจากโทรศัพท์ หรือกดเปิดกล้องเพื่อถ่ายรูปกล่อง</p>
         <input type="file" id="fileInputCarton" accept="image/*">
+        <label class="static-mobile-file-btn" for="fileInputCarton">📁 เลือกไฟล์รูปกล่อง</label>
+        <div class="static-upload-placeholder">🖼️+</div>
         <img id="previewCarton" style="display:none;">
         <span id="cartonCaptureTime" class="capture-time"></span>
     </div>
@@ -2674,6 +2765,22 @@ window.addEventListener('load', () => {
     addUploadUI('fileInputCarton','เลือกไฟล์ / เปิดกล้อง');
     addBottomNav();
   });
+})();
+</script>
+
+
+<script>
+(function(){
+  function hideStatic(inputId){
+    var input=document.getElementById(inputId);
+    if(!input) return;
+    input.addEventListener('change', function(){
+      var card=input.closest('.photo-card');
+      if(!card) return;
+      card.querySelectorAll('.static-upload-placeholder,.upload-placeholder').forEach(function(el){el.style.display='none';});
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function(){hideStatic('fileInputPouch');hideStatic('fileInputCarton');});
 })();
 </script>
 
