@@ -2795,7 +2795,7 @@ function goPage(page) {
 }
 
 const PREFIX_SHIPPING_MAP = {
-    "KC": "",
+    "KC": "ZZZZZ",
     "VN": "IPO VN",
     "VT": "VN-MT",
     "KK": "AKK",
@@ -3999,10 +3999,10 @@ input[type="date"]{
   const LP_LIST = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
 
   function optHtml(list, placeholder){
-    return `<option value="" disabled>${placeholder}</option>` + list.map(v=>`<option value="${v}">${v}</option>`).join("");
+    return `<option value="" selected disabled>${placeholder}</option>` + list.map(v=>`<option value="${v}">${v}</option>`).join("");
   }
 
-  function setMachineList(forceDefault){
+  function setMachineList(){
     const mode = document.getElementById('mode')?.value || '';
     const machine = document.getElementById('lpMachine');
     const label = document.getElementById('machineHeaderLabel');
@@ -4016,14 +4016,13 @@ input[type="date"]{
     }
 
     const list = mode === 'sachet' ? SACHET_LIST : LP_LIST;
-    const fallback = mode === 'sachet' ? 'MS11' : 'LP7';
     machine.innerHTML = optHtml(list, 'เลือกเครื่อง');
-    if(list.includes(old)) machine.value = old;
-    else machine.value = forceDefault ? fallback : fallback;
+    // หลังเลือกประเภทไลน์ ให้รอผู้ใช้เลือกเครื่องเอง ไม่ตั้งค่า LP7/MS11 ให้อัตโนมัติ
+    machine.value = list.includes(old) ? old : '';
     if(label) label.textContent = mode === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
 
     const sachetLine = document.getElementById('sachetLine');
-    if(sachetLine && mode === 'sachet') sachetLine.value = machine.value;
+    if(sachetLine) sachetLine.value = (mode === 'sachet' && machine.value) ? machine.value : '';
   }
 
   function applyMarketPrefix(){
@@ -4109,9 +4108,9 @@ input[type="date"]{
   const prevChangeMode = window.changeMode;
   window.changeMode = function(){
     try { if(typeof prevChangeMode === 'function') prevChangeMode.apply(this, arguments); } catch(e) {}
-    setMachineList(true);
+    setMachineList();
     refreshAll();
-    setTimeout(function(){ setMachineList(true); refreshAll(); }, 50);
+    setTimeout(function(){ setMachineList(); refreshAll(); }, 50);
   };
 
   const prevChangeProduct = window.changeProduct;
@@ -4125,7 +4124,7 @@ input[type="date"]{
   const prevSendCheck = window.sendCheck;
   window.sendCheck = async function(){
     try{
-      setMachineList(false);
+      setMachineList();
       applyMarketPrefix();
       if(!validateBeforeCheckFinal()) return;
       if(typeof updateMFGFromDate === 'function') { try { updateMFGFromDate(); } catch(e) {} }
@@ -4143,7 +4142,7 @@ input[type="date"]{
     const prefix = document.getElementById('cartonPrefix');
     const machine = document.getElementById('lpMachine');
 
-    if(mode) mode.addEventListener('change', function(){ setMachineList(true); refreshAll(); });
+    if(mode) mode.addEventListener('change', function(){ setMachineList(); refreshAll(); });
     if(market) market.addEventListener('change', function(){ applyMarketPrefix(); refreshAll(); });
     if(prefix) prefix.addEventListener('change', function(){ applyMarketPrefix(); refreshAll(); });
     if(machine) machine.addEventListener('change', function(){
@@ -4152,14 +4151,281 @@ input[type="date"]{
       if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots();
     });
 
-    // Keep initial fields blank as requested; only machine shows default after user selects line type.
+    // Keep initial fields blank as requested; machine stays as 'เลือกเครื่อง' after user selects line type.
     setTimeout(function(){
-      if(!(document.getElementById('mode')?.value)) setMachineList(false);
+      if(!(document.getElementById('mode')?.value)) setMachineList();
       applyMarketPrefix();
     }, 700);
   });
 })();
 </script>
+
+
+<script>
+/* ===== FINAL STABLE FIX: check button + real Shipping Mark ===== */
+(function(){
+  const REAL_PREFIX_SHIPPING_MAP = {
+    "00":"-",
+    "KC":"ZZZZZ",
+    "VN":"IPO VN",
+    "VT":"VN-MT",
+    "KK":"AKK",
+    "CT":"CDT",
+    "TS":"TS",
+    "AC":"AKC",
+    "SM":"SOMCHAICHALUEN",
+    "AX":"AKX",
+    "MM":"I.P. ONE-MYANMAR",
+    "ML":"ML",
+    "KT":"KT",
+    "MW":"MWD",
+    "MK":"MK",
+    "MY":"MDY",
+    "TG":"TG",
+    "MN":"MNJM",
+    "MA":"MLA",
+    "LM":"MT/LM+VY",
+    "DK":"DKSH",
+    "NT":"NTPL",
+    "XR":"XR",
+    "BU":"BUL",
+    "UK":"U,K,T-7",
+    "DB":"DBL INDUSTRIES PLC",
+    "OL":"IMPORTER:ORGANIC LINE CO., LTD",
+    "OD":"IMPORTER:ORGANIC LINE CO., LTD",
+    "MI":"ZZZZZ",
+    "WD":"WEDAR",
+    "CZ":"ZZZZZ",
+    "ND":"NDF",
+    "CS":"CSMS",
+    "FN":"FENIX",
+    "CD":"CDM",
+    "DT":"DBT",
+    "YP":"YPG",
+    "LB":"ZZZZZ",
+    "LQ":"ZZZZZ"
+  };
+
+  window.updateShippingMarkByPrefix = function(){
+    const market = document.getElementById('marketType')?.value || '';
+    const prefix = document.getElementById('cartonPrefix');
+    const shipping = document.getElementById('shippingMark');
+    if(!shipping) return;
+
+    if(market === 'TH'){
+      shipping.value = '-';
+      shipping.placeholder = '-';
+      shipping.readOnly = true;
+      if(prefix){
+        prefix.value = '';
+        prefix.disabled = true;
+        prefix.style.pointerEvents = 'none';
+        prefix.style.opacity = '.75';
+      }
+      return;
+    }
+
+    if(market === 'EXPORT' || market === 'LAOS'){
+      if(prefix){
+        prefix.disabled = false;
+        prefix.style.pointerEvents = 'auto';
+        prefix.style.opacity = '1';
+      }
+      const prefixValue = (prefix?.value || '').trim().toUpperCase();
+      shipping.value = prefixValue ? (REAL_PREFIX_SHIPPING_MAP[prefixValue] || '') : '';
+      shipping.placeholder = prefixValue ? 'ไม่พบ Shipping Mark ของ Prefix นี้' : 'เลือก Prefix ก่อน';
+      shipping.readOnly = true;
+      return;
+    }
+
+    shipping.value = '';
+    shipping.placeholder = 'เลือกประเภทงานก่อน';
+    shipping.readOnly = true;
+  };
+
+  function getImageData(kind){
+    try{
+      if(kind === 'pouch'){
+        if(typeof pouchImageData !== 'undefined' && pouchImageData) return pouchImageData;
+        if(window.pouchImageData) return window.pouchImageData;
+      }
+      if(kind === 'carton'){
+        if(typeof cartonImageData !== 'undefined' && cartonImageData) return cartonImageData;
+        if(window.cartonImageData) return window.cartonImageData;
+      }
+    }catch(e){}
+    return '';
+  }
+
+  function getValue(id){
+    return (document.getElementById(id)?.value || '').trim();
+  }
+
+  function showCheckError(message){
+    if(typeof showToast === 'function') showToast(message, 'error');
+    const resultDiv = document.getElementById('result');
+    if(resultDiv) resultDiv.innerHTML = `<div class="ng">${message}</div>`;
+    const page3 = document.getElementById('page3');
+    if(page3) page3.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function validateReady(){
+    const missing = [];
+    const mode = getValue('mode');
+    const machine = getValue('lpMachine');
+    const product = getValue('productType');
+    const market = getValue('marketType');
+    const mfgDate = getValue('mfgDate');
+
+    if(!mode) missing.push('ประเภทไลน์');
+    if(mode && !machine) missing.push('เครื่อง');
+    if(!product) missing.push('ประเภทผลิตภัณฑ์');
+    if(!market) missing.push('ประเภทงาน');
+    if(!mfgDate) missing.push('วันที่ผลิต');
+    if((market === 'EXPORT' || market === 'LAOS') && !getValue('cartonPrefix')) missing.push('Prefix');
+
+    const needMix = product === 'EPW' && (market === 'TH' || market === 'LAOS');
+    if(needMix && !getValue('mixDate')) missing.push('วันที่ผสม');
+    if(!getImageData('pouch')) missing.push('รูปซอง');
+    if(!getImageData('carton')) missing.push('รูปกล่อง');
+
+    if(missing.length){
+      showCheckError('กรุณาเลือก/กรอก: ' + missing.join(', '));
+      return false;
+    }
+    return true;
+  }
+
+  function buildPayload(){
+    const marketType = getValue('marketType');
+    const productType = getValue('productType');
+    const mode = getValue('mode');
+    if(typeof updateMFGFromDate === 'function') { try{ updateMFGFromDate(); }catch(e){} }
+    if(typeof updateMixCodeFromDate === 'function') { try{ updateMixCodeFromDate(); }catch(e){} }
+    window.updateShippingMarkByPrefix();
+
+    const isExport = marketType === 'EXPORT' || marketType === 'LAOS';
+    const needMix = productType === 'EPW' && (marketType === 'TH' || marketType === 'LAOS');
+    const line = getValue('lpMachine');
+    const exp = mode === 'sachet' ? getValue('sachetExp') : getValue('linapackExp');
+
+    return {
+      checkType: 'both',
+      mode,
+      productType,
+      marketType,
+      mfg: getValue('mfg'),
+      pouchImage: getImageData('pouch'),
+      cartonImage: getImageData('carton'),
+      image: getImageData('pouch'),
+      buildingNo: marketType === 'TH' ? getValue('buildingNo') : getValue('buildingNoExport'),
+      buildingSuffix: marketType === 'TH' ? getValue('buildingSuffixTH') : getValue('buildingSuffixExport'),
+      shippingMark: isExport ? getValue('shippingMark') : '',
+      cartonAlphaCode: isExport ? getValue('cartonPrefix') : '',
+      line,
+      exp,
+      mixCode: needMix ? getValue('mixCode') : ''
+    };
+  }
+
+  function renderResult(data, payload){
+    const resultDiv = document.getElementById('result');
+    const detailDiv = document.getElementById('detail');
+    const pass = data.summary === 'PASS';
+    window.latestShareResultText = pass ? 'PASS' : 'NG';
+    window.latestShareMachine = payload.line || '-';
+
+    if(resultDiv){
+      resultDiv.innerHTML = `
+        <div class="result-hero">
+          <div class="result-status-card ${pass ? 'pass-card' : 'ng-card'}">
+            <div class="result-title ${pass ? 'pass-text' : 'ng-text'}">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+            <p class="result-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</p>
+          </div>
+        </div>`;
+    }
+
+    const ngRows = (data.details || []).filter(row => row.status === 'NG');
+    let ngHtml = '';
+    if(ngRows.length === 0){
+      ngHtml = `<div class="result-popup-ok-box">✓ ไม่พบรายการ NG</div>`;
+    }else{
+      ngHtml = `<div class="result-popup-ng-box"><div class="result-section-title">รายการที่ NG</div><table><tr><th>รายการ NG</th><th>อ่านได้</th><th>ค่าที่ควรเป็น</th></tr>`;
+      ngRows.forEach(row => { ngHtml += `<tr><td>${row.item || '-'}</td><td>${row.actual || '-'}</td><td>${row.expected || '-'}</td></tr>`; });
+      ngHtml += `</table></div>`;
+    }
+
+    const popupHtml = `
+      <div class="result-popup-header ${pass ? 'popup-pass' : 'popup-ng'}">
+        <div>
+          <div class="result-popup-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+          <div class="result-popup-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'} | ${data.time || '-'}</div>
+        </div>
+        <button class="result-popup-close" onclick="closeResultPopup(event)">×</button>
+      </div>
+      <div class="result-popup-body">
+        <div class="result-popup-image-wrap">
+          ${data.stampedImageUrl ? `<img src="${data.stampedImageUrl}">` : `<div class="warn">ไม่มีรูปแสตมป์</div>`}
+        </div>
+        <div class="result-popup-bottom">
+          ${data.expectedPouchLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot ซองที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedPouchLot}</div></div>` : ''}
+          ${data.expectedCartonLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot กล่องที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedCartonLot}</div></div>` : ''}
+          ${ngHtml}
+        </div>
+        ${data.stampedImageUrl ? `<div class="result-popup-actions"><button class="download" type="button" onclick="shareResultImage('${data.stampedImageUrl}')" style="background:#06c755;">แชร์รูปเข้า LINE / แอปอื่น</button><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ''}
+        <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines || {}, null, 2)}</pre></details></div>
+      </div>`;
+
+    window.latestResultPopupHtml = popupHtml;
+    if(typeof openResultPopup === 'function') openResultPopup(popupHtml);
+
+    if(detailDiv){
+      detailDiv.innerHTML = `
+        <div class="result-clean-card ${pass ? 'result-clean-pass' : 'result-clean-ng'}">
+          <div class="result-clean-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+          <div class="result-clean-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</div>
+          <button type="button" onclick="reopenLatestResultPopup()" class="btn-success result-reopen-btn">เปิดผลตรวจอีกครั้ง</button>
+        </div>`;
+    }
+  }
+
+  window.sendCheck = async function(){
+    const resultDiv = document.getElementById('result');
+    const detailDiv = document.getElementById('detail');
+    try{
+      if(!validateReady()) return;
+      const payload = buildPayload();
+      if(resultDiv) resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
+      if(detailDiv) detailDiv.innerHTML = '';
+      if(typeof goPage === 'function') goPage(3);
+
+      const res = await fetch('/check', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if(data.error){
+        showCheckError(data.error);
+        return;
+      }
+      renderResult(data, payload);
+    }catch(err){
+      showCheckError('ตรวจสอบไม่ได้: ' + (err && err.message ? err.message : err));
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const market = document.getElementById('marketType');
+    const prefix = document.getElementById('cartonPrefix');
+    if(market) market.addEventListener('change', function(){ setTimeout(window.updateShippingMarkByPrefix, 0); });
+    if(prefix) prefix.addEventListener('change', window.updateShippingMarkByPrefix);
+    setTimeout(window.updateShippingMarkByPrefix, 300);
+    setTimeout(window.updateShippingMarkByPrefix, 900);
+  });
+})();
+</script>
+
 </body>
 </html>
 """
