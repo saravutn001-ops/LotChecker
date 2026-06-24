@@ -357,7 +357,7 @@ pre {
 
     <div id="linapackBox" style="display:none;">
         <label>เครื่อง Linapack</label>
-        <select id="lpMachine">
+        <select id="lpMachine" onchange="updateExpectedLinkedLots()">
             <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
             <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
             <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
@@ -385,13 +385,13 @@ pre {
         <p class="small">เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก / รหัสงานไทยต้องเป็น 00 / เลขอาคารเลือกได้ 1-6 หรือ ไม่มี</p>
 
         <label>เลขอาคาร</label>
-        <select id="buildingNo">
+        <select id="buildingNo" onchange="updateExpectedLinkedLots()">
             <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
 
         <label>Suffix หลังเลขอาคาร</label>
-        <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR">
+        <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
         <p class="small">ถ้าเลือกเลขอาคารและมีการเติมท้ายเลขอาคาร เช่น 3N หรือ 3QR ให้กรอก N หรือ QR</p>
     </div>
 
@@ -444,13 +444,13 @@ pre {
         <p class="small">ตัวอย่าง: Prefix AC → Shipping Mark AKC / Prefix KC → ไม่มี Shipping Mark</p>
 
         <label>เลขอาคาร</label>
-        <select id="buildingNoExport">
+        <select id="buildingNoExport" onchange="updateExpectedLinkedLots()">
             <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
 
         <label>Suffix หลังเลขอาคาร</label>
-        <input id="buildingSuffixExport" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR">
+        <input id="buildingSuffixExport" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
         <p class="small">เช่น N = เปลี่ยน Artwork Packaging / QR = งาน XR STK แบบใหม่</p>
 
         <label>EXP สำหรับ Pattern ที่มี EXP</label>
@@ -461,6 +461,7 @@ pre {
 </div>
 
 <div id="autoExpInfo" class="info"></div>
+<div id="linkedLotInfo" class="info"></div>
 
 <div class="nav-row">
     <button onclick="goPage(2)">ถัดไป: รูปภาพ</button>
@@ -616,6 +617,7 @@ function updateMFGFromDate() {
     const mfg = parts[2] + parts[1] + parts[0].slice(-2);
     document.getElementById("mfg").value = mfg;
     autoExp();
+    updateExpectedLinkedLots();
 }
 
 const MIX_MONTH_CODES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
@@ -636,6 +638,7 @@ function updateMixCodeFromDate() {
     const monthIndex = parseInt(parts[1], 10) - 1;
     const monthCode = MIX_MONTH_CODES[monthIndex] || "";
     mixCodeInput.value = day + monthCode;
+    updateExpectedLinkedLots();
 }
 
 
@@ -735,6 +738,70 @@ function autoExp() {
     } catch(e) {}
 }
 
+
+function buildExpectedPouchLot() {
+    const mode = document.getElementById("mode").value;
+    const product = document.getElementById("productType").value;
+    const market = document.getElementById("marketType").value;
+    const mfg = document.getElementById("mfg").value.trim();
+    if (!/^\d{6}$/.test(mfg)) return "-";
+
+    if (mode === "sachet") {
+        const line = document.getElementById("sachetLine").value.trim().toUpperCase() || "MS11";
+        const exp = document.getElementById("sachetExp").value.trim();
+        return exp ? `MFG ${mfg} ${line} 1 EXP ${exp}` : `MFG ${mfg} ${line} 1`;
+    }
+
+    const machine = document.getElementById("lpMachine").value.trim().toUpperCase();
+    const mixCode = document.getElementById("mixCode").value.trim().toUpperCase();
+    const exp = document.getElementById("linapackExp").value.trim();
+    const needMix = (product === "EPW" && (market === "TH" || market === "LAOS"));
+    let line1 = `MFG ${mfg}`;
+    if (needMix && mixCode) line1 += ` ${mixCode}`;
+    line1 += ` ${machine} เวลา`;
+    if (exp) return `${line1}<br>EXP ${exp}`;
+    return line1;
+}
+
+function buildExpectedCartonLot() {
+    const market = document.getElementById("marketType").value;
+    const mfg = document.getElementById("mfg").value.trim();
+    if (!/^\d{6}$/.test(mfg)) return "-";
+
+    if (market === "TH") {
+        const building = document.getElementById("buildingNo").value.trim();
+        const suffix = document.getElementById("buildingSuffixTH").value.trim().toUpperCase();
+        const buildingFull = building ? `${building}${suffix ? " " + suffix : ""}` : "";
+        return `00001 00 ${mfg}${buildingFull ? " " + buildingFull : ""}`;
+    }
+
+    const prefix = document.getElementById("cartonPrefix").value;
+    const shipping = document.getElementById("shippingMark").value.trim().toUpperCase();
+    const building = document.getElementById("buildingNoExport").value.trim();
+    const suffix = document.getElementById("buildingSuffixExport").value.trim().toUpperCase();
+    const exp = document.getElementById("cartonExp").value.trim();
+    const buildingFull = building ? `${building}${suffix ? " " + suffix : ""}` : "";
+    const shipPart = shipping ? shipping + " " : "";
+    return `${shipPart}00001 ${prefix} ${mfg}${buildingFull ? " " + buildingFull : ""}${exp ? " EXP " + exp : ""}`;
+}
+
+function updateExpectedLinkedLots() {
+    const box = document.getElementById("linkedLotInfo");
+    if (!box) return;
+    const mfg = document.getElementById("mfg").value.trim();
+    const checkType = document.getElementById("checkType").value;
+    if (!/^\d{6}$/.test(mfg)) {
+        box.innerHTML = "Lot ซองและ Lot กล่องจะเชื่อมกันหลังเลือกวันที่ผลิต";
+        return;
+    }
+    const pouchLot = buildExpectedPouchLot();
+    const cartonLot = buildExpectedCartonLot();
+    box.innerHTML = `<b>ข้อมูลที่เชื่อมโยงกันจาก MFG เดียวกัน</b><br>` +
+                    `ซองที่ควรเป็น: <b>${pouchLot}</b><br>` +
+                    `กล่องที่ควรเป็น: <b>${cartonLot}</b><br>` +
+                    `<span class="small">ระบบใช้ MFG เดียวกันตรวจทั้งซองและกล่อง ถ้าซองเป็น ${mfg} กล่องต้องเป็น ${mfg} เช่นกัน</span>`;
+}
+
 function changeCheckType() {
     const checkType = document.getElementById("checkType").value;
     const marketType = document.getElementById("marketType");
@@ -812,6 +879,7 @@ function changeProduct() {
     document.getElementById("result").innerHTML = "";
     document.getElementById("detail").innerHTML = "";
     autoExp();
+    updateExpectedLinkedLots();
 }
 
 document.getElementById("fileInput").addEventListener("change", function(e) {
@@ -973,7 +1041,13 @@ if (data.stampedImageUrl) {
     }
 }
 
-window.onload = function() { setTodayDefault(); updateShippingMarkByPrefix(); changeCheckType(); goPage(1); };
+window.onload = function() {
+    setTodayDefault();
+    updateShippingMarkByPrefix();
+    changeCheckType();
+    updateExpectedLinkedLots();
+    goPage(1);
+};
 </script>
 </body>
 </html>
@@ -2664,6 +2738,9 @@ def check():
             checked_time
         )
 
+        expected_pouch_lot = ""
+        expected_carton_lot = f"00001 00 {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip() if market_type == "TH" else ""
+
         return jsonify({
             "summary": summary,
             "checkType": check_type_name,
@@ -2671,6 +2748,8 @@ def check():
             "productType": product_type,
             "marketType": market_type,
             "expectedExp": expected_exp if expected_exp else "ไม่ใช้ EXP",
+            "expectedPouchLot": expected_pouch_lot,
+            "expectedCartonLot": expected_carton_lot,
             "lines": lines,
             "details": details,
             "abnormalPoints": abnormal_points,
