@@ -628,6 +628,53 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     #page2.photo-grid > * { grid-column:1 / -1 !important; }
 }
 
+
+/* ===== Final spacing refinement: make compact form easier to read ===== */
+#page1 {
+    gap:12px !important;
+}
+.section-card {
+    padding:12px !important;
+}
+.section-title {
+    margin:0 0 10px !important;
+    line-height:1.35 !important;
+}
+.config-grid {
+    gap:10px 12px !important;
+}
+.config-grid label {
+    line-height:1.35 !important;
+    padding-bottom:2px !important;
+}
+.config-grid input,
+.config-grid select {
+    height:38px !important;
+    padding:7px 10px !important;
+}
+#mixCodeBox {
+    margin-top:10px !important;
+}
+#autoExpInfo,
+#linkedLotInfo {
+    font-size:13px !important;
+    padding:10px 12px !important;
+    line-height:1.6 !important;
+}
+#page2.photo-grid {
+    gap:12px !important;
+}
+.photo-card {
+    padding:12px !important;
+}
+.photo-card h3 {
+    margin-bottom:8px !important;
+}
+.photo-card .small {
+    margin-bottom:10px !important;
+    line-height:1.45 !important;
+}
+
 </style>
 </head>
 <body>
