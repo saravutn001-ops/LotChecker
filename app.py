@@ -2379,6 +2379,48 @@ body.product-epc #mixCodeHeaderLabel {
   .result-popup-content{width:100% !important;max-width:100% !important;max-height:92vh !important;border-radius:22px 22px 0 0 !important;}
 }
 
+
+/* ===== Final fixes: hide check-only fields, remove placeholders, show selected images ===== */
+#mfg, #linapackExp { display:none !important; }
+.static-upload-placeholder, .upload-placeholder { display:none !important; }
+.mobile-file-btn { display:none !important; }
+.static-mobile-file-btn {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    min-height:48px !important;
+    border-radius:14px !important;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8) !important;
+    color:#fff !important;
+    font-size:15px !important;
+    font-weight:900 !important;
+    margin-top:10px !important;
+    cursor:pointer !important;
+}
+#previewPouch, #previewCarton {
+    display:none !important;
+    width:100% !important;
+    height:auto !important;
+    max-height:360px !important;
+    object-fit:contain !important;
+    background:#0f172a !important;
+    border-radius:16px !important;
+    border:1px solid #cbd5e1 !important;
+    margin-top:12px !important;
+}
+#previewPouch.has-image, #previewCarton.has-image { display:block !important; }
+.photo-card input[type=file] {
+    width:1px !important; height:1px !important; opacity:0 !important; position:absolute !important; left:-9999px !important;
+}
+@media (max-width: 768px) {
+    #page1, #page2.photo-grid { display:block !important; width:100% !important; }
+    .mobile-field-grid, .setup-field-grid, .carton-field-grid { display:block !important; width:100% !important; }
+    .field-card, .photo-card { width:100% !important; margin:0 0 12px 0 !important; }
+    .photo-card { padding:14px !important; }
+    #previewPouch, #previewCarton { max-height:420px !important; }
+}
+
 </style>
 </head>
 <body>
@@ -2443,14 +2485,8 @@ body.product-epc #mixCodeHeaderLabel {
             <label>วันที่ผลิต (MFG)</label>
             <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
         </div>
-        <div class="field-card">
-            <label>MFG ที่ใช้ตรวจ</label>
-            <input id="mfg" value="" readonly>
-        </div>
-        <div class="field-card">
-            <label>EXP ที่ใช้ตรวจ</label>
-            <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
-        </div>
+        <input id="mfg" value="" type="hidden">
+        <input id="linapackExp" value="" type="hidden">
         <div class="field-card mix-field">
             <label id="mixDateHeaderLabel">วันที่ผสม</label>
             <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
@@ -2570,7 +2606,6 @@ body.product-epc #mixCodeHeaderLabel {
         <p class="small">เลือกไฟล์รูปจากโทรศัพท์ หรือกดเปิดกล้องเพื่อถ่ายรูปซอง</p>
         <input type="file" id="fileInputPouch" accept="image/*">
         <label class="static-mobile-file-btn" for="fileInputPouch">📁 เลือกไฟล์รูปซอง</label>
-        <div class="static-upload-placeholder">🖼️+</div>
         <img id="previewPouch" style="display:none;">
         <span id="pouchCaptureTime" class="capture-time"></span>
     </div>
@@ -2580,7 +2615,6 @@ body.product-epc #mixCodeHeaderLabel {
         <p class="small">เลือกไฟล์รูปจากโทรศัพท์ หรือกดเปิดกล้องเพื่อถ่ายรูปกล่อง</p>
         <input type="file" id="fileInputCarton" accept="image/*">
         <label class="static-mobile-file-btn" for="fileInputCarton">📁 เลือกไฟล์รูปกล่อง</label>
-        <div class="static-upload-placeholder">🖼️+</div>
         <img id="previewCarton" style="display:none;">
         <span id="cartonCaptureTime" class="capture-time"></span>
     </div>
@@ -3152,18 +3186,28 @@ function changeProduct() {
 }
 
 function setImage(kind, dataUrl) {
-    if (kind === "carton") {
+    const isCarton = kind === "carton";
+    const preview = document.getElementById(isCarton ? "previewCarton" : "previewPouch");
+    if (!preview) return;
+
+    if (isCarton) {
         cartonImageData = dataUrl;
-        const preview = document.getElementById("previewCarton");
-        preview.src = dataUrl;
-        preview.style.display = "block";
         updateCaptureTime("carton");
     } else {
         pouchImageData = dataUrl;
-        const preview = document.getElementById("previewPouch");
-        preview.src = dataUrl;
-        preview.style.display = "block";
         updateCaptureTime("pouch");
+    }
+
+    preview.src = dataUrl;
+    preview.classList.add("has-image");
+    preview.removeAttribute("hidden");
+    preview.style.setProperty("display", "block", "important");
+
+    const card = preview.closest(".photo-card");
+    if (card) {
+        card.querySelectorAll(".static-upload-placeholder,.upload-placeholder").forEach(function(el){
+            el.style.setProperty("display", "none", "important");
+        });
     }
 }
 
