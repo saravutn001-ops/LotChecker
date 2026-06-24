@@ -2341,6 +2341,44 @@ body.product-epc #mixCodeHeaderLabel {
     overflow: hidden !important;
 }
 
+
+/* ===== Clean bottom result card, no broken HTML text ===== */
+.result-clean-card{
+    background:#fff;
+    border:1px solid #d7dee8;
+    border-radius:18px;
+    padding:18px;
+    text-align:center;
+    box-shadow:0 8px 22px rgba(15,23,42,.08);
+    margin-top:14px;
+}
+.result-clean-card.result-clean-pass{border-left:8px solid #16a34a;}
+.result-clean-card.result-clean-ng{border-left:8px solid #dc2626;}
+.result-clean-title{font-size:34px;font-weight:900;line-height:1.1;}
+.result-clean-pass .result-clean-title{color:#16a34a;}
+.result-clean-ng .result-clean-title{color:#dc2626;}
+.result-clean-subtitle{font-size:16px;color:#334155;font-weight:700;margin-top:8px;}
+.result-reopen-btn{max-width:360px;margin:16px auto 0 !important;display:block;}
+.result-popup-header.popup-pass{background:linear-gradient(135deg,#16a34a,#15803d) !important;}
+.result-popup-header.popup-ng{background:linear-gradient(135deg,#dc2626,#991b1b) !important;}
+.result-popup-actions .download{white-space:normal;}
+
+@media (max-width: 820px){
+  body{overflow-x:hidden !important;}
+  .box{width:100% !important;max-width:100% !important;overflow:hidden !important;}
+  #cartonSection, #cartonTHBox, #cartonExportBox, .section-card, .config-grid{
+    width:100% !important; max-width:100% !important; overflow:visible !important;
+  }
+  #cartonTHBox .config-grid, #cartonExportBox .config-grid, #cartonSection .config-grid, .config-grid{
+    display:grid !important; grid-template-columns:1fr !important; gap:12px !important;
+  }
+  #cartonTHBox *, #cartonExportBox *, #cartonSection *{min-width:0 !important;}
+  input, select, button{max-width:100% !important;}
+  .result-clean-title{font-size:30px;}
+  .result-popup{align-items:flex-end !important;}
+  .result-popup-content{width:100% !important;max-width:100% !important;max-height:92vh !important;border-radius:22px 22px 0 0 !important;}
+}
+
 </style>
 </head>
 <body>
@@ -2618,6 +2656,11 @@ function closeResultPopup(event) {
     if (popup) popup.classList.remove("show");
 }
 
+let latestResultPopupHtml = "";
+let latestShareResultText = "PASS";
+let latestShareMachine = "-";
+
+
 function openResultPopup(html) {
     const popup = document.getElementById("resultPopup");
     const content = document.getElementById("resultPopupContent");
@@ -2625,6 +2668,34 @@ function openResultPopup(html) {
     if (popup) popup.classList.add("show");
 }
 
+function reopenLatestResultPopup() {
+    if (latestResultPopupHtml) {
+        openResultPopup(latestResultPopupHtml);
+    } else {
+        alert("ยังไม่มีผลตรวจล่าสุด");
+    }
+}
+
+
+function formatShareDateTime() {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yyyy = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    return `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+}
+
+function getShareMessage() {
+    const machineEl = document.getElementById("lpMachine");
+    const machine = (machineEl?.value || latestShareMachine || "-").trim();
+    const resultText = (latestShareResultText || "-").toUpperCase();
+    return `ไลน์ ${machine} ตรวจสอบความถูกต้องของ Lot แล้ว (${resultText})
+
+วันที่ ${formatShareDateTime()}`;
+}
 
 async function shareResultImage(imageUrl) {
     if (!imageUrl) {
@@ -2639,11 +2710,12 @@ async function shareResultImage(imageUrl) {
 
         const blob = await response.blob();
         const file = new File([blob], "Lot_Check_Result.jpg", { type: blob.type || "image/jpeg" });
+        const shareText = getShareMessage();
 
         if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
             await navigator.share({
                 title: "IP ONE Lot Check Result",
-                text: "ผลการตรวจสอบล็อตซองและกล่อง",
+                text: shareText,
                 files: [file]
             });
             return;
@@ -2652,7 +2724,7 @@ async function shareResultImage(imageUrl) {
         if (navigator.share) {
             await navigator.share({
                 title: "IP ONE Lot Check Result",
-                text: "ผลการตรวจสอบล็อตซองและกล่อง",
+                text: shareText,
                 url: absoluteUrl
             });
             return;
@@ -2664,7 +2736,9 @@ async function shareResultImage(imageUrl) {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        alert("เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน");
+        alert("เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน
+
+" + shareText);
     } catch (err) {
         alert("แชร์รูปไม่สำเร็จ: " + err.message);
     }
@@ -3240,6 +3314,8 @@ async function sendCheck() {
         }
 
         const pass = data.summary === "PASS";
+        latestShareResultText = pass ? "PASS" : "NG";
+        latestShareMachine = (document.getElementById("lpMachine")?.value || payload.line || "-").trim();
         resultDiv.innerHTML = `
             <div class="result-hero">
                 <div class="result-status-card ${pass ? 'pass-card' : 'ng-card'}">
@@ -3296,12 +3372,14 @@ async function sendCheck() {
                 ${data.stampedImageUrl ? `<div class="result-popup-actions"><button class="download" type="button" onclick="shareResultImage('${data.stampedImageUrl}')" style="background:#06c755;">แชร์รูปเข้า LINE / แอปอื่น</button><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ``}
                 <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines, null, 2)}</pre></details></div>
             </div>`;
+        latestResultPopupHtml = popupHtml;
         openResultPopup(popupHtml);
 
         detailDiv.innerHTML = `
-            <div class="result-card" style="text-align:center; padding:14px;">
-                <div class="result-section-title">ผลตรวจแสดงใน Pop-up</div>
-                <button type="button" onclick='openResultPopup(${JSON.stringify(popupHtml)})' class="btn-success" style="max-width:360px;">เปิดผลตรวจอีกครั้ง</button>
+            <div class="result-clean-card ${pass ? 'result-clean-pass' : 'result-clean-ng'}">
+                <div class="result-clean-title">${pass ? 'PASS ✅' : 'NG ❌'}</div>
+                <div class="result-clean-subtitle">${pass ? 'ตรวจสอบล็อตซองและกล่องผ่าน' : 'พบข้อมูลไม่ตรงตามเงื่อนไข'}</div>
+                <button type="button" onclick="reopenLatestResultPopup()" class="btn-success result-reopen-btn">เปิดผลตรวจอีกครั้ง</button>
             </div>
         `;
 
@@ -3985,7 +4063,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         body_font = get_font(30)
         label_font = get_font(34)
 
-        if summary == "PASS":
+        if str(summary).upper() == "PASS":
             title = "LOT CHECK PASS"
             line2 = "POUCH + CARTON VERIFIED"
             color = (255, 255, 255)
@@ -4033,7 +4111,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         title_font = get_font(max(30, int(w * 0.045)))
         body_font = get_font(max(20, int(w * 0.028)))
 
-        if summary == "PASS":
+        if str(summary).upper() == "PASS":
             title = "LOT CHECK PASS"
             line2 = "LOT VERIFIED"
             color = (255, 255, 255)
