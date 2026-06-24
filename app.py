@@ -1020,6 +1020,14 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     margin-top:14px;
 }
 .result-popup-actions a { margin:0 !important; }
+
+.result-popup-actions button.download {
+    border:0 !important;
+    cursor:pointer;
+    width:100% !important;
+    text-align:center !important;
+}
+
 .result-popup-ng-box table { margin-top:8px !important; }
 .result-popup-ng-box th, .result-popup-ng-box td { font-size:13px !important; padding:8px 9px !important; }
 @media (max-width:900px) {
@@ -1145,9 +1153,45 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     .scan-guide { left:12%; width:76%; height:22%; }
 }
 
+/* ===== Capture success toast ===== */
+.capture-toast {
+    position:fixed;
+    top:18px;
+    left:50%;
+    transform:translateX(-50%) translateY(-10px);
+    min-width:260px;
+    max-width:92vw;
+    padding:13px 22px;
+    border-radius:14px;
+    background:#16a34a;
+    color:#ffffff;
+    font-weight:800;
+    font-size:16px;
+    text-align:center;
+    z-index:1000000;
+    box-shadow:0 12px 30px rgba(0,0,0,.25);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease;
+}
+.capture-toast.show {
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+}
+.capture-toast.info { background:#2563eb; }
+.capture-toast.error { background:#dc2626; }
+.capture-time {
+    display:block;
+    margin-top:6px;
+    color:#64748b;
+    font-size:12px;
+    font-weight:700;
+}
+
 </style>
 </head>
 <body>
+<div id="captureToast" class="capture-toast"></div>
 
 <div class="box">
 <div class="header-logo">
@@ -1303,6 +1347,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
         <p class="small">ถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP</p>
         <input type="file" id="fileInputPouch" accept="image/*" capture="environment">
         <img id="previewPouch" style="display:none;">
+        <span id="pouchCaptureTime" class="capture-time"></span>
     </div>
 
     <div class="photo-card carton-card">
@@ -1310,6 +1355,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
         <p class="small">ถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
         <input type="file" id="fileInputCarton" accept="image/*" capture="environment">
         <img id="previewCarton" style="display:none;">
+        <span id="cartonCaptureTime" class="capture-time"></span>
     </div>
 
     <div class="photo-card camera-card">
@@ -1359,6 +1405,27 @@ let cartonImageData = "";
 let captureTarget = "pouch";
 let cameraStream = null;
 
+let toastTimer = null;
+
+function showToast(message, type = "success") {
+    const toast = document.getElementById("captureToast");
+    if (!toast) return;
+    toast.className = "capture-toast" + (type ? " " + type : "");
+    toast.textContent = message;
+    toast.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        toast.classList.remove("show");
+    }, 2400);
+}
+
+function updateCaptureTime(kind) {
+    const now = new Date();
+    const timeText = now.toLocaleTimeString("th-TH", { hour12:false });
+    const el = document.getElementById(kind === "carton" ? "cartonCaptureTime" : "pouchCaptureTime");
+    if (el) el.textContent = "บันทึกล่าสุด: " + timeText;
+}
+
 function closeResultPopup(event) {
     const popup = document.getElementById("resultPopup");
     if (popup) popup.classList.remove("show");
@@ -1369,6 +1436,51 @@ function openResultPopup(html) {
     const content = document.getElementById("resultPopupContent");
     if (content) content.innerHTML = html;
     if (popup) popup.classList.add("show");
+}
+
+
+async function shareResultImage(imageUrl) {
+    if (!imageUrl) {
+        alert("ยังไม่มีรูปผลตรวจสำหรับแชร์");
+        return;
+    }
+
+    try {
+        const absoluteUrl = new URL(imageUrl, window.location.href).href;
+        const response = await fetch(absoluteUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error("โหลดรูปไม่สำเร็จ");
+
+        const blob = await response.blob();
+        const file = new File([blob], "Lot_Check_Result.jpg", { type: blob.type || "image/jpeg" });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+            await navigator.share({
+                title: "IP ONE Lot Check Result",
+                text: "ผลการตรวจสอบล็อตซองและกล่อง",
+                files: [file]
+            });
+            return;
+        }
+
+        if (navigator.share) {
+            await navigator.share({
+                title: "IP ONE Lot Check Result",
+                text: "ผลการตรวจสอบล็อตซองและกล่อง",
+                url: absoluteUrl
+            });
+            return;
+        }
+
+        const a = document.createElement("a");
+        a.href = absoluteUrl;
+        a.download = "Lot_Check_Result.jpg";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        alert("เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน");
+    } catch (err) {
+        alert("แชร์รูปไม่สำเร็จ: " + err.message);
+    }
 }
 
 
@@ -1775,11 +1887,13 @@ function setImage(kind, dataUrl) {
         const preview = document.getElementById("previewCarton");
         preview.src = dataUrl;
         preview.style.display = "block";
+        updateCaptureTime("carton");
     } else {
         pouchImageData = dataUrl;
         const preview = document.getElementById("previewPouch");
         preview.src = dataUrl;
         preview.style.display = "block";
+        updateCaptureTime("pouch");
     }
 }
 
@@ -1853,6 +1967,7 @@ function captureImage(kind) {
 
     if (!video.videoWidth) {
         document.getElementById("result").innerHTML = '<div class="ng">กรุณาเปิดกล้องก่อน</div>';
+        showToast("กรุณาเปิดกล้องก่อน", "error");
         return;
     }
 
@@ -1862,6 +1977,7 @@ function captureImage(kind) {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const captured = canvas.toDataURL("image/jpeg", 0.92);
     setImage(target, captured);
+    showToast(target === "carton" ? "✅ บันทึกรูปกล่องเรียบร้อย" : "✅ บันทึกรูปซองเรียบร้อย");
 }
 
 async function sendCheck() {
@@ -1983,7 +2099,7 @@ async function sendCheck() {
                     ${data.expectedCartonLot ? `<div class="result-popup-lot-box"><div class="result-popup-lot-title">Lot กล่องที่ควรเป็น</div><div class="result-popup-lot-value">${data.expectedCartonLot}</div></div>` : ``}
                     ${ngHtml}
                 </div>
-                ${data.stampedImageUrl ? `<div class="result-popup-actions"><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ``}
+                ${data.stampedImageUrl ? `<div class="result-popup-actions"><button class="download" type="button" onclick="shareResultImage('${data.stampedImageUrl}')" style="background:#06c755;">แชร์รูปเข้า LINE / แอปอื่น</button><a class="download" href="${data.stampedImageUrl}" target="_blank">เปิดรูป</a><a class="download" href="${data.stampedImageUrl}" download="Lot_Check_Result.jpg" style="background:#16a34a;">ดาวน์โหลดรูป</a></div>` : ``}
                 <div class="result-json"><details><summary>AI อ่านได้ทั้งหมด</summary><pre>${JSON.stringify(data.lines, null, 2)}</pre></details></div>
             </div>`;
         openResultPopup(popupHtml);
