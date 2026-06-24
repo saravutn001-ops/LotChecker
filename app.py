@@ -725,6 +725,18 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 #cartonSection { gap:8px !important; }
 #cartonTHBox, #cartonExportBox { margin-top:0 !important; }
 
+.camera-action-row {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+}
+.camera-action-row button {
+    margin-top:0 !important;
+}
+#captureBtn {
+    background:linear-gradient(135deg, #16a34a, #15803d) !important;
+}
+
 </style>
 </head>
 <body>
@@ -881,7 +893,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     <div class="photo-card pouch-card">
         <h3>รูปที่ 1: ซอง</h3>
         <p class="small">ถ่าย/อัปโหลดรูปล็อตบนซองให้เห็น MFG / Mix Code / Machine / Time / EXP</p>
-        <input type="file" id="fileInputPouch" accept="image/*">
+        <input type="file" id="fileInputPouch" accept="image/*" capture="environment">
         <button onclick="setCaptureTarget('pouch')">เลือกถ่ายรูปซอง</button>
         <img id="previewPouch" style="display:none;">
     </div>
@@ -889,17 +901,21 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     <div class="photo-card carton-card">
         <h3>รูปที่ 2: กล่อง</h3>
         <p class="small">ถ่าย/อัปโหลดรูปล็อตบนกล่อง เช่น 00001 00 240626 3</p>
-        <input type="file" id="fileInputCarton" accept="image/*">
+        <input type="file" id="fileInputCarton" accept="image/*" capture="environment">
         <button onclick="setCaptureTarget('carton')">เลือกถ่ายรูปกล่อง</button>
         <img id="previewCarton" style="display:none;">
     </div>
 
     <div class="photo-card camera-card">
         <h3>ถ่ายจากกล้อง</h3>
-        <p id="captureTargetText" class="info">เลือกก่อนว่าจะถ่ายรูปซองหรือรูปกล่อง</p>
-        <button onclick="startCamera()">เปิดกล้อง</button>
-        <video id="video" autoplay playsinline></video>
-        <button onclick="captureImage()">ถ่ายรูปตามที่เลือก</button>
+        <p id="captureTargetText" class="info">เลือกว่าจะบันทึกรูปเป็นซองหรือกล่อง</p>
+        <div class="camera-action-row">
+            <button onclick="setCaptureTarget('pouch'); startCamera();">ถ่ายรูปซอง</button>
+            <button onclick="setCaptureTarget('carton'); startCamera();">ถ่ายรูปกล่อง</button>
+        </div>
+        <video id="video" autoplay playsinline muted></video>
+        <button id="captureBtn" onclick="captureImage()">บันทึกรูปซอง</button>
+        <button class="btn-secondary" onclick="stopCamera()">ปิดกล้อง</button>
         <canvas id="canvas" style="display:none;"></canvas>
     </div>
 
@@ -923,6 +939,7 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 let pouchImageData = "";
 let cartonImageData = "";
 let captureTarget = "pouch";
+let cameraStream = null;
 
 function goPage(page) {
     // Single-page layout: keep every section visible.
@@ -1324,9 +1341,10 @@ function setImage(kind, dataUrl) {
 
 function setCaptureTarget(kind) {
     captureTarget = kind === "carton" ? "carton" : "pouch";
-    document.getElementById("captureTargetText").innerHTML = captureTarget === "carton"
-        ? "ตอนนี้เลือก: ถ่ายรูปกล่อง"
-        : "ตอนนี้เลือก: ถ่ายรูปซอง";
+    const label = captureTarget === "carton" ? "กล่อง" : "ซอง";
+    document.getElementById("captureTargetText").innerHTML = "ตอนนี้เลือก: ถ่ายรูป" + label;
+    const btn = document.getElementById("captureBtn");
+    if (btn) btn.innerText = "บันทึกรูป" + label;
 }
 
 document.getElementById("fileInputPouch").addEventListener("change", function(e) {
@@ -1348,11 +1366,36 @@ document.getElementById("fileInputCarton").addEventListener("change", function(e
 async function startCamera() {
     try {
         const video = document.getElementById("video");
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-        video.srcObject = stream;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Browser นี้ไม่รองรับการเปิดกล้อง หรือไม่ได้เปิดผ่าน HTTPS/localhost");
+        }
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+        const constraints = {
+            audio: false,
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            }
+        };
+        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = cameraStream;
+        await video.play();
     } catch (err) {
         document.getElementById("result").innerHTML = '<div class="ng">เปิดกล้องไม่ได้</div><p>' + err + '</p>';
     }
+}
+
+function stopCamera() {
+    const video = document.getElementById("video");
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    if (video) video.srcObject = null;
 }
 
 function captureImage() {
@@ -1366,8 +1409,9 @@ function captureImage() {
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    const captured = canvas.toDataURL("image/jpeg", 0.9);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const captured = canvas.toDataURL("image/jpeg", 0.92);
     setImage(captureTarget, captured);
 }
 
@@ -1682,13 +1726,24 @@ def no_exp_required(product_type, market_type):
 
 
 def get_font(size):
+    # Prefer fonts that support Thai. Do not bundle font files; use system fonts if available.
     candidates = [
-        "arial.ttf",
+        os.path.join(os.getcwd(), "NotoSansThai-Regular.ttf"),
+        os.path.join(os.getcwd(), "THSarabunNew.ttf"),
+        "C:/Windows/Fonts/NotoSansThai-Regular.ttf",
+        "C:/Windows/Fonts/THSarabunNew.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
+        "/usr/share/fonts/opentype/tlwg/Sawasdee-Bold.otf",
+        "/usr/share/fonts/opentype/tlwg/Sawasdee.otf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "arial.ttf",
     ]
     for path in candidates:
         try:
-            return ImageFont.truetype(path, size)
+            if os.path.exists(path) or path.lower() in ("arial.ttf",):
+                return ImageFont.truetype(path, size)
         except Exception:
             pass
     return ImageFont.load_default()
