@@ -290,6 +290,68 @@ pre {
     .header-logo h1 { font-size:24px; }
 }
 
+
+/* ===== Single-page dashboard layout ===== */
+.step-tabs { display:none !important; }
+.step-page, .step-page.active { display:block !important; animation:none !important; }
+#page1, #page2, #page3 { margin-top:16px; }
+#page1 {
+    display:grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:14px;
+    background:white;
+    padding:16px;
+    border-radius:18px;
+    border:1px solid var(--border);
+}
+#page1 > .info, #page1 > #pouchHeader, #page1 > #pouchSection, #page1 > #cartonSection, #page1 > #autoExpInfo, #page1 > #linkedLotInfo { grid-column:1 / -1; }
+#pouchHeader {
+    display:grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:12px;
+}
+#pouchHeader label, #pouchHeader select { margin-top:0; }
+#pouchSection, #cartonSection {
+    display:grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:14px;
+}
+#sachetBox, #linapackBox, #cartonTHBox, #cartonExportBox { margin-top:0; }
+#page1 > label { margin-top:0; }
+#page1 > input, #page1 > select { margin-top:0; }
+#page1 .nav-row { display:none !important; }
+#page2 {
+    display:grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:14px;
+}
+#page2 h3, #page2 p, #page2 input, #page2 button, #page2 img { margin-top:8px; }
+#page2 > hr { display:none; }
+#page2 > h3:nth-of-type(1), #page2 > p:nth-of-type(1), #fileInputPouch, #page2 button[onclick="setCaptureTarget('pouch')"], #previewPouch {
+    grid-column:1;
+}
+#page2 > h3:nth-of-type(2), #page2 > p:nth-of-type(2), #fileInputCarton, #page2 button[onclick="setCaptureTarget('carton')"], #previewCarton {
+    grid-column:2;
+}
+#page2 > h3:nth-of-type(3), #captureTargetText, #page2 button[onclick="startCamera()"], #video, #page2 button[onclick="captureImage()"], #canvas, #page2 .nav-row {
+    grid-column:1 / -1;
+}
+#page2 .nav-row { grid-template-columns:1fr; }
+#page2 .nav-row .btn-secondary { display:none !important; }
+#page3 .nav-row { display:none !important; }
+#page3 {
+    background:white;
+    padding:16px;
+    border-radius:18px;
+    border:1px solid var(--border);
+}
+#detail img { max-height:420px; object-fit:contain; background:#f8fafc; }
+@media (max-width:900px) {
+    #page1, #page2, #pouchHeader, #pouchSection, #cartonSection { grid-template-columns:1fr !important; }
+    #page2 > h3:nth-of-type(1), #page2 > p:nth-of-type(1), #fileInputPouch, #page2 button[onclick="setCaptureTarget('pouch')"], #previewPouch,
+    #page2 > h3:nth-of-type(2), #page2 > p:nth-of-type(2), #fileInputCarton, #page2 button[onclick="setCaptureTarget('carton')"], #previewCarton { grid-column:1 / -1; }
+}
+
 </style>
 </head>
 <body>
@@ -461,7 +523,7 @@ pre {
 <div id="linkedLotInfo" class="info"></div>
 
 <div class="nav-row">
-    <button onclick="goPage(2)">ถัดไป: รูปภาพ</button>
+    
 </div>
 </div>
 
@@ -512,13 +574,13 @@ let cartonImageData = "";
 let captureTarget = "pouch";
 
 function goPage(page) {
+    // Single-page layout: keep every section visible.
     for (let i = 1; i <= 3; i++) {
         const pageEl = document.getElementById("page" + i);
-        const tabEl = document.getElementById("tab" + i);
-        if (pageEl) pageEl.classList.toggle("active", i === page);
-        if (tabEl) tabEl.classList.toggle("active", i === page);
+        if (pageEl) pageEl.classList.add("active");
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const target = document.getElementById(page === 2 ? "page2" : (page === 3 ? "page3" : "page1"));
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 const PREFIX_SHIPPING_MAP = {
@@ -991,8 +1053,8 @@ async function sendCheck() {
     }
 
 
-    goPage(3);
     resultDiv.innerHTML = '<div class="warn">กำลังตรวจสอบ...</div>';
+    goPage(3);
     detailDiv.innerHTML = "";
 
     try {
@@ -1519,51 +1581,128 @@ def draw_red_boxes_on_image(image, boxes):
 
 
 
-def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time):
+def _open_base64_image(image_base64):
     if "," in image_base64:
         image_base64 = image_base64.split(",", 1)[1]
-
     image_bytes = base64.b64decode(image_base64)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    return Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    draw = ImageDraw.Draw(image)
+
+def _resize_to_fit(image, max_w, max_h):
     w, h = image.size
+    scale = min(max_w / w, max_h / h)
+    new_w = max(1, int(w * scale))
+    new_h = max(1, int(h * scale))
+    return image.resize((new_w, new_h), Image.LANCZOS)
 
-    title_font = get_font(max(30, int(w * 0.045)))
-    body_font = get_font(max(20, int(w * 0.028)))
 
-    if summary == "PASS":
-        title = "LOT CHECK PASS"
-        line2 = "LOT VERIFIED"
-        color = (0, 180, 0)
+def stamp_image(image_base64, summary, check_type, product_type, market_type, mode, checked_time, carton_image_base64=None):
+    """
+    Create stamped evidence image.
+    - Single mode: stamp one image as before.
+    - POUCH + CARTON mode: create one report image that contains BOTH pouch and carton photos.
+    """
+    if carton_image_base64:
+        pouch_img = _open_base64_image(image_base64)
+        carton_img = _open_base64_image(carton_image_base64)
+
+        canvas_w = 1800
+        header_h = 155
+        footer_h = 170
+        gap = 30
+        margin = 40
+        panel_w = (canvas_w - (margin * 2) - gap) // 2
+        image_max_h = 920
+
+        pouch_resized = _resize_to_fit(pouch_img, panel_w, image_max_h)
+        carton_resized = _resize_to_fit(carton_img, panel_w, image_max_h)
+        image_area_h = max(pouch_resized.height, carton_resized.height) + 76
+        canvas_h = header_h + image_area_h + footer_h + margin
+
+        image = Image.new("RGB", (canvas_w, canvas_h), (245, 248, 252))
+        draw = ImageDraw.Draw(image)
+
+        title_font = get_font(56)
+        body_font = get_font(30)
+        label_font = get_font(34)
+
+        if summary == "PASS":
+            title = "LOT CHECK PASS"
+            line2 = "POUCH + CARTON VERIFIED"
+            color = (0, 150, 0)
+        else:
+            title = "LOT CHECK NG"
+            line2 = "POUCH + CARTON VERIFICATION FAILED"
+            color = (220, 0, 0)
+
+        # Header
+        draw.rectangle([0, 0, canvas_w, header_h], fill=(12, 37, 64))
+        draw.text((margin, 30), title, font=title_font, fill=color)
+        draw.text((margin, 96), line2, font=body_font, fill=(255, 255, 255))
+        time_text = f"By Lot Checker | {checked_time}"
+        tb = draw.textbbox((0, 0), time_text, font=body_font)
+        draw.text((canvas_w - margin - (tb[2] - tb[0]), 56), time_text, font=body_font, fill=(255, 255, 255))
+
+        # Panels
+        y0 = header_h + 30
+        left_x = margin
+        right_x = margin + panel_w + gap
+        panel_h = image_area_h - 20
+        for x, label in [(left_x, "POUCH / รูปซอง"), (right_x, "CARTON / รูปกล่อง")]:
+            draw.rounded_rectangle([x, y0, x + panel_w, y0 + panel_h], radius=22, fill=(255, 255, 255), outline=(215, 225, 235), width=3)
+            draw.text((x + 22, y0 + 20), label, font=label_font, fill=(20, 40, 60))
+
+        pouch_x = left_x + (panel_w - pouch_resized.width) // 2
+        carton_x = right_x + (panel_w - carton_resized.width) // 2
+        img_y = y0 + 72
+        image.paste(pouch_resized, (pouch_x, img_y))
+        image.paste(carton_resized, (carton_x, img_y))
+
+        # Footer stamp
+        footer_y = header_h + image_area_h + 10
+        draw.rectangle([0, footer_y, canvas_w, canvas_h], fill=(12, 37, 64))
+        draw_text_with_shadow(draw, (margin, footer_y + 28), title, title_font, color)
+        draw_text_with_shadow(draw, (margin, footer_y + 96), f"POUCH + CARTON | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
     else:
-        title = "LOT CHECK NG"
-        line2 = "LOT VERIFICATION FAILED"
-        color = (255, 0, 0)
+        image = _open_base64_image(image_base64)
 
-    check_type_en = str(check_type)
-    if check_type_en == "ซอง":
-        check_type_en = "POUCH"
-    elif check_type_en == "กล่อง":
-        check_type_en = "CARTON"
+        draw = ImageDraw.Draw(image)
+        w, h = image.size
 
-    x = max(20, int(w * 0.035))
+        title_font = get_font(max(30, int(w * 0.045)))
+        body_font = get_font(max(20, int(w * 0.028)))
 
-    # Put stamp at bottom-left, no background box
-    line_count = 4
-    line_height_title = int(title_font.size * 1.25)
-    line_height_body = int(body_font.size * 1.25)
-    total_text_height = line_height_title + (line_count - 1) * line_height_body
-    y = max(20, h - total_text_height - max(30, int(h * 0.035)))
+        if summary == "PASS":
+            title = "LOT CHECK PASS"
+            line2 = "LOT VERIFIED"
+            color = (0, 180, 0)
+        else:
+            title = "LOT CHECK NG"
+            line2 = "LOT VERIFICATION FAILED"
+            color = (255, 0, 0)
 
-    draw_text_with_shadow(draw, (x, y), title, title_font, color)
-    y += int(title_font.size * 1.25)
-    draw_text_with_shadow(draw, (x, y), line2, body_font, color)
-    y += int(body_font.size * 1.25)
-    draw_text_with_shadow(draw, (x, y), f"By Lot Checker | {checked_time}", body_font, (255, 255, 255))
-    y += int(body_font.size * 1.25)
-    draw_text_with_shadow(draw, (x, y), f"{check_type_en} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
+        check_type_en = str(check_type)
+        if check_type_en == "ซอง":
+            check_type_en = "POUCH"
+        elif check_type_en == "กล่อง":
+            check_type_en = "CARTON"
 
+        x = max(20, int(w * 0.035))
+
+        # Put stamp at bottom-left, no background box
+        line_count = 4
+        line_height_title = int(title_font.size * 1.25)
+        line_height_body = int(body_font.size * 1.25)
+        total_text_height = line_height_title + (line_count - 1) * line_height_body
+        y = max(20, h - total_text_height - max(30, int(h * 0.035)))
+
+        draw_text_with_shadow(draw, (x, y), title, title_font, color)
+        y += int(title_font.size * 1.25)
+        draw_text_with_shadow(draw, (x, y), line2, body_font, color)
+        y += int(body_font.size * 1.25)
+        draw_text_with_shadow(draw, (x, y), f"By Lot Checker | {checked_time}", body_font, (255, 255, 255))
+        y += int(body_font.size * 1.25)
+        draw_text_with_shadow(draw, (x, y), f"{check_type_en} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
 
     filename = f"{summary}_{now_thai().strftime('%Y%m%d_%H%M%S')}.jpg"
     output_path = os.path.join(STAMP_DIR, filename)
@@ -2811,7 +2950,8 @@ def check():
             product_type,
             market_type,
             mode_name,
-            checked_time
+            checked_time,
+            carton_image_data if check_type == "both" else None
         )
 
         if mode == "sachet":
