@@ -639,6 +639,74 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 @media (max-width:1200px) { .config-grid.grid-9 { grid-template-columns:repeat(5, minmax(0,1fr)) !important; } }
 @media (max-width:800px) { .config-grid.grid-4, .config-grid.grid-9 { grid-template-columns:1fr !important; } }
 
+
+
+/* ===== FINAL CLEAN LEFT-ALIGNED LAYOUT FIX ===== */
+#page1 {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:10px !important;
+    align-items:stretch !important;
+}
+.compact-mode-info { display:none !important; }
+#pouchHeader.section-card,
+#cartonSection.section-card {
+    display:block !important;
+    width:100% !important;
+    grid-column:auto !important;
+}
+#pouchHeader .config-grid,
+#cartonSection .config-grid {
+    width:100% !important;
+    justify-content:start !important;
+    align-items:end !important;
+    gap:8px 12px !important;
+}
+#pouchHeader .config-grid {
+    grid-template-columns:repeat(var(--lot-cols, 6), minmax(120px, 1fr)) !important;
+}
+#cartonTHBox.config-grid,
+#cartonExportBox.config-grid {
+    display:grid !important;
+    grid-template-columns:repeat(4, minmax(170px, 1fr)) !important;
+}
+#pouchHeader .config-grid label,
+#cartonSection .config-grid label {
+    font-size:12px !important;
+    line-height:1.35 !important;
+    margin:0 0 2px 0 !important;
+    white-space:normal !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+}
+#pouchHeader .config-grid input,
+#pouchHeader .config-grid select,
+#cartonSection .config-grid input,
+#cartonSection .config-grid select {
+    height:38px !important;
+    font-size:13px !important;
+    padding:7px 10px !important;
+    margin:0 !important;
+}
+#autoExpInfo, #linkedLotInfo {
+    width:100% !important;
+    line-height:1.55 !important;
+    padding:9px 12px !important;
+}
+#cartonTHBox .small,
+#cartonExportBox .small {
+    display:none !important;
+}
+@media (max-width:1200px) {
+    #pouchHeader .config-grid { grid-template-columns:repeat(3, minmax(0, 1fr)) !important; }
+    #cartonTHBox.config-grid, #cartonExportBox.config-grid { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width:720px) {
+    #pouchHeader .config-grid,
+    #cartonTHBox.config-grid,
+    #cartonExportBox.config-grid { grid-template-columns:1fr !important; }
+}
+
 </style>
 </head>
 <body>
@@ -1402,6 +1470,32 @@ window.onload = function() {
     updateExpectedLinkedLots();
     goPage(1);
 };
+
+
+function fixLotHeaderColumns() {
+    const grid = document.querySelector('#pouchHeader .config-grid');
+    if (!grid) return;
+    const labels = Array.from(grid.querySelectorAll('label')).filter(el => !el.classList.contains('hidden-field') && getComputedStyle(el).display !== 'none');
+    const count = Math.max(1, labels.length);
+    grid.style.setProperty('--lot-cols', count);
+}
+
+const _oldChangeMode = changeMode;
+changeMode = function() {
+    _oldChangeMode();
+    fixLotHeaderColumns();
+};
+
+const _oldChangeProduct = changeProduct;
+changeProduct = function() {
+    _oldChangeProduct();
+    fixLotHeaderColumns();
+};
+
+window.addEventListener('load', () => {
+    fixLotHeaderColumns();
+});
+
 </script>
 </body>
 </html>
