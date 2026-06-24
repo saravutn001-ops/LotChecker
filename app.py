@@ -4915,6 +4915,221 @@ input[type="date"]{
 .result-popup-overlay.show{ z-index:1000000 !important; }
 </style>
 
+
+
+<script>
+/* ===== HARD REPAIR 2026-06-24: popup close/share + machine must NOT default ===== */
+(function(){
+  const SACHET = ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];
+  const LINAPACK = ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];
+  const $ = (id) => document.getElementById(id);
+  const value = (id) => (($((id)) || {}).value || '').trim();
+
+  function machinePlaceholder(text){
+    return `<option value="" selected>${text}</option>`;
+  }
+
+  function forceMachinePlaceholder(reason){
+    const mode = $('mode');
+    const machine = $('lpMachine');
+    const label = $('machineHeaderLabel');
+    const sachetLine = $('sachetLine');
+    if(!machine) return;
+
+    const modeVal = (mode && mode.value || '').trim();
+    machine.dataset.userPicked = '0';
+
+    if(!modeVal){
+      machine.innerHTML = machinePlaceholder('เลือกประเภทไลน์ก่อน');
+      machine.value = '';
+      if(label) label.textContent = 'เครื่อง';
+      if(sachetLine) sachetLine.value = '';
+      return;
+    }
+
+    const list = modeVal === 'sachet' ? SACHET : LINAPACK;
+    machine.innerHTML = machinePlaceholder('เลือกเครื่อง') + list.map(x => `<option value="${x}">${x}</option>`).join('');
+    machine.value = '';
+    if(label) label.textContent = modeVal === 'sachet' ? 'เครื่อง Sachet' : 'เครื่อง Linapack';
+    if(sachetLine) sachetLine.value = '';
+  }
+
+  // Override every old machine function that used to auto-pick LP7/MS11.
+  window.setMachineOptionsForMode = function(){ forceMachinePlaceholder('override'); };
+  window.applyMachineByModeFinal = function(){ forceMachinePlaceholder('override'); };
+  window.setMachineList = function(){ forceMachinePlaceholder('override'); };
+  window.fillMachineUser = function(){ forceMachinePlaceholder('override'); };
+  window.setMachineOptions = function(){ forceMachinePlaceholder('override'); };
+
+  function installMachineFix(){
+    const mode = $('mode');
+    const machine = $('lpMachine');
+    const sachetLine = $('sachetLine');
+    if(!machine) return;
+
+    machine.setAttribute('autocomplete','off');
+    machine.addEventListener('pointerdown', () => { machine.dataset.openedByUser = '1'; }, true);
+    machine.addEventListener('touchstart', () => { machine.dataset.openedByUser = '1'; }, true);
+    machine.addEventListener('mousedown', () => { machine.dataset.openedByUser = '1'; }, true);
+    machine.addEventListener('change', () => {
+      if(machine.value){ machine.dataset.userPicked = '1'; }
+      if(sachetLine) sachetLine.value = (value('mode') === 'sachet' && machine.value) ? machine.value : '';
+      try{ if(typeof updateExpectedLinkedLots === 'function') updateExpectedLinkedLots(); }catch(e){}
+    }, true);
+
+    if(mode){
+      mode.setAttribute('autocomplete','off');
+      mode.addEventListener('change', () => {
+        setTimeout(() => forceMachinePlaceholder('mode-change'), 0);
+        setTimeout(() => forceMachinePlaceholder('mode-change-late'), 80);
+      }, true);
+    }
+
+    // Initial state: never show LP7/MS11 as selected unless the user picked it.
+    setTimeout(() => forceMachinePlaceholder('init'), 0);
+    setTimeout(() => forceMachinePlaceholder('init-late'), 120);
+
+    // Guard against old scripts/browser restore that silently put LP7/MS11 back.
+    const guard = setInterval(() => {
+      const m = $('lpMachine');
+      if(!m) return;
+      if(m.dataset.userPicked !== '1' && m.value){
+        // If user has not explicitly selected a machine, force it back to placeholder.
+        m.value = '';
+        if(sachetLine) sachetLine.value = '';
+      }
+    }, 250);
+    window.__machineNoDefaultGuard = guard;
+  }
+
+  function closePopupNow(e){
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const pop = $('resultPopup');
+    if(pop){
+      pop.classList.remove('show');
+      pop.style.display = 'none';
+    }
+    document.body.classList.remove('popup-open');
+    return false;
+  }
+
+  window.closeResultPopup = closePopupNow;
+
+  function openPopupNow(html){
+    const pop = $('resultPopup');
+    const content = $('resultPopupContent');
+    if(content) content.innerHTML = html || window.latestResultPopupHtml || '';
+    if(pop){
+      pop.style.display = 'flex';
+      pop.classList.add('show');
+    }
+    document.body.classList.add('popup-open');
+  }
+  window.openResultPopup = openPopupNow;
+  window.reopenLatestResultPopup = function(){ openPopupNow(window.latestResultPopupHtml || ''); };
+
+  function formatShareText(){
+    const machine = value('lpMachine') || window.latestShareMachine || '-';
+    const result = (window.latestShareResultText || '').toUpperCase() || '-';
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2,'0');
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const yyyy = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mi = String(now.getMinutes()).padStart(2,'0');
+    const ss = String(now.getSeconds()).padStart(2,'0');
+    return `ไลน์ ${machine} ตรวจสอบความถูกต้องของ Lot แล้ว (${result})\n\nวันที่ ${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+  }
+  window.getShareMessage = formatShareText;
+
+  window.shareResultImage = async function(imageUrl){
+    if(!imageUrl){ alert('ยังไม่มีรูปผลตรวจสำหรับแชร์'); return false; }
+    const url = new URL(imageUrl, location.href).href;
+    const text = formatShareText();
+    try{
+      if(navigator.share){
+        // iPhone/Android: try to share actual image first.
+        try{
+          const res = await fetch(url, {cache:'no-store'});
+          const blob = await res.blob();
+          const file = new File([blob], 'Lot_Check_Result.jpg', {type: blob.type || 'image/jpeg'});
+          if(!navigator.canShare || navigator.canShare({files:[file]})){
+            await navigator.share({title:'IP ONE Lot Check Result', text, files:[file]});
+            return false;
+          }
+        }catch(fileErr){ /* fallback below */ }
+        await navigator.share({title:'IP ONE Lot Check Result', text, url});
+        return false;
+      }
+    }catch(err){
+      if(err && err.name === 'AbortError') return false;
+      alert('แชร์รูปไม่สำเร็จ: ' + (err && err.message ? err.message : err));
+      return false;
+    }
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Lot_Check_Result.jpg';
+    document.body.appendChild(a); a.click(); a.remove();
+    alert('เครื่องนี้ไม่รองรับการแชร์ตรงไปยัง LINE ระบบจึงดาวน์โหลดรูปให้แทน\n\n' + text);
+    return false;
+  };
+
+  function installPopupAndShareHandlers(){
+    document.addEventListener('click', function(e){
+      const closeBtn = e.target.closest && e.target.closest('.result-popup-close, [data-close-result-popup]');
+      if(closeBtn){ closePopupNow(e); return; }
+
+      const overlay = $('resultPopup');
+      if(overlay && e.target === overlay){ closePopupNow(e); return; }
+
+      const shareBtn = e.target.closest && e.target.closest('.result-popup-actions button, button[data-share-result]');
+      if(shareBtn && /แชร์/.test(shareBtn.textContent || '')){
+        e.preventDefault(); e.stopPropagation();
+        let img = shareBtn.getAttribute('data-url') || shareBtn.getAttribute('data-share-url') || '';
+        if(!img){
+          const on = shareBtn.getAttribute('onclick') || '';
+          const m = on.match(/shareResultImage\(['"]([^'"]+)['"]\)/);
+          if(m) img = m[1];
+        }
+        if(!img){
+          const a = document.querySelector('.result-popup-actions a[href*="stamped_images"], .result-popup-actions a[href$=".jpg"], .result-popup-actions a[href$=".png"]');
+          if(a) img = a.getAttribute('href');
+        }
+        window.shareResultImage(img);
+      }
+    }, true);
+
+    document.addEventListener('touchend', function(e){
+      const closeBtn = e.target.closest && e.target.closest('.result-popup-close, [data-close-result-popup]');
+      if(closeBtn){ closePopupNow(e); }
+    }, true);
+  }
+
+  function initHardRepair(){
+    installMachineFix();
+    installPopupAndShareHandlers();
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHardRepair);
+  else initHardRepair();
+  window.addEventListener('pageshow', () => setTimeout(() => forceMachinePlaceholder('pageshow'), 60));
+})();
+</script>
+
+<style>
+/* HARD REPAIR: popup control must stay tappable; machine placeholder must be visible. */
+#resultPopup.result-popup-overlay{ display:none; }
+#resultPopup.result-popup-overlay.show{ display:flex !important; z-index:2147483000 !important; }
+.result-popup{ position:relative !important; z-index:2147483001 !important; }
+.result-popup-close{
+  pointer-events:auto !important;
+  cursor:pointer !important;
+  z-index:2147483002 !important;
+  position:relative !important;
+  touch-action:manipulation !important;
+  -webkit-tap-highlight-color:rgba(255,255,255,.25) !important;
+}
+#lpMachine option[value=""]{ color:#64748b; }
+</style>
 </body>
 </html>
 """
