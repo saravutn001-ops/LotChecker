@@ -2066,6 +2066,255 @@ button,#openCameraBtn,.btn-success{height:56px!important;border-radius:15px!impo
   .check-row .btn-secondary { display:none !important; }
 }
 
+
+
+/* ===== ULTIMATE OVERRIDE: FORCE MOBILE-SAFE ONE COLUMN, NO CUT-OFF ===== */
+html, body {
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:hidden !important;
+}
+body {
+    margin:0 !important;
+    padding:8px !important;
+    background:#eef5fb !important;
+}
+* {
+    box-sizing:border-box !important;
+}
+.box,
+#page1,
+#page2,
+#page3,
+#pouchHeader,
+#cartonSection,
+#pouchSection,
+.photo-card,
+.camera-card,
+.section-card,
+.mobile-card {
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    overflow:visible !important;
+}
+.box {
+    margin:0 auto !important;
+    padding:8px !important;
+    border-radius:18px !important;
+}
+#page1,
+#page2,
+#page3 {
+    display:block !important;
+    grid-template-columns:1fr !important;
+    background:transparent !important;
+    border:0 !important;
+    padding:0 !important;
+}
+#pouchHeader,
+#cartonSection,
+.photo-card,
+.camera-card {
+    display:block !important;
+    background:#fff !important;
+    border:1px solid #dbe7f3 !important;
+    border-radius:20px !important;
+    padding:14px !important;
+    margin:0 0 14px 0 !important;
+    box-shadow:0 5px 16px rgba(15,23,42,.04) !important;
+}
+.section-title {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    font-size:21px !important;
+    line-height:1.25 !important;
+    margin:0 0 14px 0 !important;
+    color:#0f172a !important;
+    white-space:normal !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+}
+/* Force every form group to stack, even on iPhone/LINE browser that reports wide viewport */
+.setup-field-grid,
+.carton-field-grid,
+.mobile-field-grid,
+.config-grid,
+.config-grid.grid-2,
+.config-grid.grid-3,
+.config-grid.grid-4,
+.config-grid.grid-5,
+.config-grid.grid-9,
+#pouchHeader .mobile-field-grid,
+#pouchHeader .config-grid,
+#cartonSection .mobile-field-grid,
+#cartonSection .config-grid,
+#cartonTHBox,
+#cartonExportBox {
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:14px !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    overflow:visible !important;
+}
+#cartonTHBox.hidden-market,
+#cartonExportBox.hidden-market,
+.hidden-market {
+    display:none !important;
+}
+.field-card,
+.mobile-field,
+#cartonSection .field-card,
+#pouchHeader .field-card {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:7px !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:visible !important;
+}
+.field-card label,
+.mobile-field label,
+#page1 label,
+#cartonSection label,
+#pouchHeader label {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    font-size:15px !important;
+    line-height:1.35 !important;
+    font-weight:800 !important;
+    color:#334155 !important;
+    white-space:normal !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+}
+.field-card input,
+.field-card select,
+.mobile-field input,
+.mobile-field select,
+#page1 input,
+#page1 select,
+#cartonSection input,
+#cartonSection select,
+#pouchHeader input,
+#pouchHeader select {
+    display:block !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    height:52px !important;
+    min-height:52px !important;
+    margin:0 !important;
+    padding:0 14px !important;
+    border-radius:16px !important;
+    border:1px solid #d5e1ee !important;
+    background:#f8fbff !important;
+    color:#1e293b !important;
+    font-size:17px !important;
+    font-weight:700 !important;
+    overflow:visible !important;
+}
+.field-card input[readonly],
+#page1 input[readonly] {
+    background:#f1f5f9 !important;
+    color:#334155 !important;
+}
+/* Remove light-blue info panels completely */
+#autoExpInfo,
+#linkedLotInfo,
+.info.compact-mode-info,
+.info:not(.capture-toast) {
+    display:none !important;
+    height:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+    border:0 !important;
+    overflow:hidden !important;
+}
+/* Photo upload cards */
+#page2.photo-grid,
+#page2 {
+    display:block !important;
+    grid-template-columns:1fr !important;
+    gap:0 !important;
+}
+#page2.photo-grid > *,
+#page2 > * {
+    grid-column:1 / -1 !important;
+    width:100% !important;
+    max-width:100% !important;
+}
+.photo-card h3 {
+    font-size:22px !important;
+    line-height:1.25 !important;
+    margin:0 0 8px 0 !important;
+}
+.photo-card .small {
+    font-size:16px !important;
+    line-height:1.45 !important;
+    margin:0 0 10px 0 !important;
+    color:#64748b !important;
+}
+.photo-card input[type="file"] {
+    position:absolute !important;
+    left:-9999px !important;
+    opacity:0 !important;
+    width:1px !important;
+    height:1px !important;
+}
+.static-mobile-file-btn,
+.mobile-file-btn {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    min-height:56px !important;
+    border-radius:16px !important;
+    margin:12px 0 !important;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8) !important;
+    color:#fff !important;
+    font-size:18px !important;
+    font-weight:900 !important;
+    text-align:center !important;
+}
+#previewPouch,
+#previewCarton,
+.static-upload-placeholder,
+.upload-placeholder {
+    display:flex !important;
+    width:100% !important;
+    max-width:100% !important;
+    height:220px !important;
+    max-height:220px !important;
+    object-fit:contain !important;
+    border-radius:18px !important;
+    margin-top:10px !important;
+    background:#fff !important;
+}
+button,
+.download {
+    width:100% !important;
+    max-width:100% !important;
+    min-height:56px !important;
+    font-size:18px !important;
+    font-weight:900 !important;
+    border-radius:16px !important;
+    white-space:normal !important;
+}
+@media (min-width: 921px) {
+    .box { max-width:760px !important; }
+}
+
 </style>
 </head>
 <body>
