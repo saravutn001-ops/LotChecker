@@ -501,6 +501,70 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
     #previewPouch, #previewCarton, #video { height:220px; max-height:220px; }
 }
 
+
+/* ===== Label row + input row compact form ===== */
+#page1 {
+    grid-template-columns: 1fr 1fr !important;
+    gap:8px !important;
+    align-items:start !important;
+}
+.compact-mode-info, #pouchHeader, #autoExpInfo, #linkedLotInfo { grid-column:1 / -1 !important; }
+.section-card {
+    background:#f8fafc !important;
+    border:1px solid #e2e8f0 !important;
+    border-radius:12px !important;
+    padding:8px !important;
+    margin:0 !important;
+}
+.section-title {
+    font-weight:800;
+    font-size:13px;
+    color:#0f172a;
+    margin:0 0 6px;
+}
+.config-grid {
+    display:grid !important;
+    gap:4px 8px !important;
+    align-items:end !important;
+    padding:0 !important;
+    margin:0 !important;
+    background:transparent !important;
+    border:0 !important;
+}
+.config-grid.grid-2 { grid-template-columns:repeat(2, minmax(0,1fr)) !important; }
+.config-grid.grid-3 { grid-template-columns:repeat(3, minmax(0,1fr)) !important; }
+.config-grid.grid-5 { grid-template-columns:repeat(5, minmax(0,1fr)) !important; }
+.config-grid.no-pad { padding:0 !important; }
+.config-grid label {
+    margin:0 !important;
+    font-size:12px !important;
+    line-height:1.1 !important;
+    color:#475569 !important;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.config-grid input, .config-grid select {
+    margin:0 !important;
+    height:34px !important;
+    font-size:13px !important;
+    padding:6px 8px !important;
+    min-width:0 !important;
+}
+.full-span { grid-column:1 / -1 !important; }
+#pouchSection, #cartonSection { display:block !important; }
+#sachetBox, #linapackBox, #cartonTHBox, #cartonExportBox { padding:0 !important; border:0 !important; background:transparent !important; }
+#mixCodeBox { margin-top:6px !important; }
+#mixCodeBox .small, #linapackHint, #cartonTHBox .small, #cartonExportBox .small { display:none !important; }
+#autoExpInfo, #linkedLotInfo { font-size:12px !important; padding:6px 8px !important; }
+@media (max-width:1100px) {
+    #page1 { grid-template-columns:1fr !important; }
+    .config-grid.grid-5 { grid-template-columns:repeat(3, minmax(0,1fr)) !important; }
+}
+@media (max-width:720px) {
+    .config-grid.grid-2, .config-grid.grid-3, .config-grid.grid-5 { grid-template-columns:1fr !important; }
+}
+
 </style>
 </head>
 <body>
@@ -523,88 +587,91 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
 <div id="page1" class="step-page active">
 
 <input type="hidden" id="checkType" value="both">
-<div class="info"><b>โหมดตรวจรวม:</b> ตรวจล็อตซองและล็อตกล่องพร้อมกัน โดยใช้ MFG เดียวกันเป็นตัวกลาง</div>
+<div class="info compact-mode-info"><b>โหมดตรวจรวม:</b> ตรวจล็อตซองและล็อตกล่องพร้อมกัน โดยใช้ MFG เดียวกันเป็นตัวกลาง</div>
 
-<div id="pouchHeader">
+<div id="pouchHeader" class="config-grid grid-5">
     <label>ประเภทไลน์</label>
+    <label>ประเภทผลิตภัณฑ์</label>
+    <label>ประเภทงาน</label>
+    <label>วันที่ผลิต (MFG)</label>
+    <label>MFG ที่ใช้ตรวจ</label>
+
     <select id="mode" onchange="changeMode()">
         <option value="sachet">Sachet</option>
         <option value="linapack">Linapack</option>
     </select>
-
-    <label>ประเภทผลิตภัณฑ์</label>
     <select id="productType" onchange="changeProduct()">
         <option value="EPC">EPC</option>
         <option value="EPW">EPW</option>
     </select>
+    <select id="marketType" onchange="changeProduct()">
+        <option value="TH">งานไทย</option>
+        <option value="EXPORT">งานต่างประเทศ</option>
+        <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
+    </select>
+    <input type="date" id="mfgDate" onchange="updateMFGFromDate()">
+    <input id="mfg" value="" readonly>
 </div>
 
-<label>ประเภทงาน</label>
-<select id="marketType" onchange="changeProduct()">
-    <option value="TH">งานไทย</option>
-    <option value="EXPORT">งานต่างประเทศ</option>
-    <option id="marketLaosOption" value="LAOS">งานต่างประเทศ ลาว</option>
-</select>
-
-<label>วันที่ผลิต (MFG)</label>
-<input type="date" id="mfgDate" onchange="updateMFGFromDate()">
-
-<label>MFG ที่ใช้ตรวจ</label>
-<input id="mfg" value="" readonly>
-
-<div id="pouchSection">
-    <div id="sachetBox">
+<div id="pouchSection" class="section-card">
+    <div class="section-title">ข้อมูลล็อตซอง</div>
+    <div id="sachetBox" class="config-grid grid-2">
         <label>Sachet Code</label>
-        <input id="sachetLine" value="MS11" placeholder="เช่น MS11">
-
         <label>EXP</label>
+
+        <input id="sachetLine" value="MS11" placeholder="เช่น MS11">
         <input id="sachetExp" value="" placeholder="Auto Calculated" readonly>
 
-        <p class="small">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
+        <p class="small full-span">Sachet: MFG 080626 MS11 1 EXP 080927 ถึง MS11 6</p>
     </div>
 
-    <div id="linapackBox" style="display:none;">
+    <div id="linapackBox" class="config-grid grid-2" style="display:none;">
         <label>เครื่อง Linapack</label>
+        <label>EXP</label>
+
         <select id="lpMachine" onchange="updateExpectedLinkedLots()">
             <option value="LP1">LP1</option><option value="LP2">LP2</option><option value="LP3">LP3</option>
             <option value="LP4">LP4</option><option value="LP5">LP5</option><option value="LP6">LP6</option>
             <option value="LP7" selected>LP7</option><option value="LP8">LP8</option><option value="LP9">LP9</option>
         </select>
+        <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
 
-        <div id="mixCodeBox">
-            <label>วันที่ผสม</label>
-            <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
-
-            <label>รหัสวันที่ผสม / Mix Code</label>
-            <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
+        <div id="mixCodeBox" class="full-span" style="display:none;">
+            <div class="config-grid grid-2 no-pad">
+                <label>วันที่ผสม</label>
+                <label>รหัสวันที่ผสม / Mix Code</label>
+                <input type="date" id="mixDate" onchange="updateMixCodeFromDate()">
+                <input id="mixCode" value="" placeholder="Auto เช่น 18F" readonly>
+            </div>
             <p class="small">เลือกวันที่จากปฏิทิน ระบบจะแปลงเดือนเป็น A-L อัตโนมัติ เช่น 18 มิถุนายน = 18F</p>
         </div>
 
-        <label>EXP</label>
-        <input id="linapackExp" value="" placeholder="Auto Calculated" readonly>
-
-        <p id="linapackHint" class="small"></p>
+        <p id="linapackHint" class="small full-span"></p>
     </div>
 </div>
 
-<div id="cartonSection">
-    <div id="cartonTHBox">
-        <p class="small">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
-        <p class="small">เลขลำดับกล่องต้องเป็นตัวเลข 5 หลัก / รหัสงานไทยต้องเป็น 00 / เลขอาคารเลือกได้ 1-6 หรือ ไม่มี</p>
-
+<div id="cartonSection" class="section-card">
+    <div class="section-title">ข้อมูลล็อตกล่อง</div>
+    <div id="cartonTHBox" class="config-grid grid-2">
         <label>เลขอาคาร</label>
+        <label>Suffix หลังเลขอาคาร</label>
+
         <select id="buildingNo" onchange="updateExpectedLinkedLots()">
             <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
-
-        <label>Suffix หลังเลขอาคาร</label>
         <input id="buildingSuffixTH" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
-        <p class="small">ถ้าเลือกเลขอาคารและมีการเติมท้ายเลขอาคาร เช่น 3N หรือ 3QR ให้กรอก N หรือ QR</p>
+
+        <p class="small full-span">กล่องงานไทย: ระบบจะตรวจรูปแบบ <b>00001 00 080626 3</b></p>
     </div>
 
-    <div id="cartonExportBox" style="display:none;">
+    <div id="cartonExportBox" class="config-grid grid-5" style="display:none;">
         <label>Prefix</label>
+        <label>Shipping Mark</label>
+        <label>เลขอาคาร</label>
+        <label>Suffix หลังเลขอาคาร</label>
+        <label>EXP สำหรับ Pattern ที่มี EXP</label>
+
         <select id="cartonPrefix" onchange="updateShippingMarkByPrefix()">
             <option value="KC">KC → ZZZZZ</option>
             <option value="VN">VN → IPO VN</option>
@@ -645,26 +712,15 @@ pre { max-height:240px; font-size:12px; padding:8px; border-radius:10px; }
             <option value="LQ">LQ → ZZZZZ</option>
             <option value="CUSTOM">CUSTOM → กรอกเอง</option>
         </select>
-
-        <label>Shipping Mark</label>
         <input id="shippingMark" value="" placeholder="ระบบเติมจาก Prefix อัตโนมัติ" readonly>
-
-        <p class="small">ตัวอย่าง: Prefix AC → Shipping Mark AKC / Prefix KC → ไม่มี Shipping Mark</p>
-
-        <label>เลขอาคาร</label>
         <select id="buildingNoExport" onchange="updateExpectedLinkedLots()">
             <option value="">ไม่มี</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
-
-        <label>Suffix หลังเลขอาคาร</label>
         <input id="buildingSuffixExport" value="" placeholder="เว้นว่างได้ เช่น N หรือ QR" oninput="updateExpectedLinkedLots()">
-        <p class="small">เช่น N = เปลี่ยน Artwork Packaging / QR = งาน XR STK แบบใหม่</p>
-
-        <label>EXP สำหรับ Pattern ที่มี EXP</label>
         <input id="cartonExp" value="" placeholder="Auto Calculated" readonly>
 
-        <p class="small">กล่องต่างประเทศ: มีหลายรูปแบบตาม D48 เช่น Shipping Mark + Running No. + รหัสตัวอักษร + MFG + EXP/K</p>
+        <p class="small full-span">กล่องต่างประเทศ: ตรวจ Prefix / Shipping Mark / Running No. / MFG / EXP ตาม Pattern</p>
     </div>
 </div>
 
