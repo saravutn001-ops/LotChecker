@@ -1496,7 +1496,7 @@ def append_carton_field_check(details, item, actual, expected):
     })
     return ok
 
-def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json):
+def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, ai_json, check_exp=True):
     """
     Carton verification แบบแยก field และเทียบทีละตัวอักษร
     เพื่อแสดงชัดเจนว่าตัวเลข/ตัวอักษรตำแหน่งไหนผิด
@@ -1686,7 +1686,16 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
         })
 
     # EXP
-    if expected_exp:
+    if not check_exp:
+        # ล็อตกล่องงานลาว: ไม่ตรวจ EXP เลย ไม่บังคับให้มี และไม่ NG ถ้า OCR อ่านเจอ
+        actual_exp = field_actual.get("exp")
+        details.append({
+            "item": "EXP",
+            "status": "PASS",
+            "actual": actual_exp if actual_exp else "ไม่ตรวจ",
+            "expected": "ไม่ตรวจ EXP สำหรับล็อตกล่องงานลาว"
+        })
+    elif expected_exp:
         if not append_carton_field_check(details, "EXP", field_actual.get("exp"), expected_exp):
             overall = False
     else:
@@ -1734,6 +1743,7 @@ def check():
         mode = data.get("mode", "sachet").strip().lower()
         product_type = data.get("productType", "EPC").strip().upper()
         market_type = data.get("marketType", "TH").strip().upper()
+        original_market_type = market_type
         expected_mfg = data.get("mfg", "").strip()
         expected_line = data.get("line", "").strip().upper()
         expected_line2 = data.get("line2", "").strip().upper()
@@ -1776,7 +1786,7 @@ def check():
         shipping_mark = data.get("shippingMark", "").strip().upper()
         carton_alpha_code = data.get("cartonAlphaCode", "").strip().upper()
 
-        # Carton lot does not separate Laos. Treat Laos as normal Export for carton mode.
+        # Carton lot does not separate Laos. Treat Laos as normal Export format, but do not verify EXP for Laos cartons.
         if check_type == "carton" and market_type == "LAOS":
             market_type = "EXPORT"
 
@@ -1848,9 +1858,11 @@ def check():
                 })
 
             carton_market_type = "EXPORT" if market_type == "LAOS" else market_type
+            carton_check_exp = original_market_type != "LAOS"
+            carton_expected_exp = expected_exp if carton_check_exp else ""
             raw_carton_ai = read_lot_with_ai(
                 carton_base64, "carton", mode, product_type, carton_market_type, expected_mfg, pouches[0].get("line", ""),
-                expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
+                carton_expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
             )
             carton_json = json.loads(clean_json_text(raw_carton_ai))
             carton_lines = carton_json.get("lines", [])
@@ -1858,8 +1870,8 @@ def check():
             mode_name = "Sachet + Carton" if mode == "sachet" else "Linapack + Carton"
 
             carton_overall, carton_details = check_carton(
-                carton_lines, carton_market_type, expected_mfg, expected_exp, building_no, building_suffix,
-                shipping_mark, carton_alpha_code, carton_json
+                carton_lines, carton_market_type, expected_mfg, carton_expected_exp, building_no, building_suffix,
+                shipping_mark, carton_alpha_code, carton_json, check_exp=carton_check_exp
             )
 
             details = []
@@ -1888,16 +1900,19 @@ def check():
             lines = result_json.get("lines", [])
 
         if check_type != "both" and check_type == "carton":
+            carton_check_exp = original_market_type != "LAOS"
+            carton_expected_exp = expected_exp if carton_check_exp else ""
             overall, details = check_carton(
                 lines,
                 market_type,
                 expected_mfg,
-                expected_exp,
+                carton_expected_exp,
                 building_no,
                 building_suffix,
                 shipping_mark,
                 carton_alpha_code,
-                result_json
+                result_json,
+                check_exp=carton_check_exp
             )
             mode_name = "Carton"
             check_type_name = "CARTON"
