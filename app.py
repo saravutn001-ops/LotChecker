@@ -3,6 +3,8 @@ import io
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 from calendar import monthrange
 from datetime import datetime, timedelta
 
@@ -14,7 +16,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 load_dotenv()
 
 app = Flask(__name__)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 STAMP_DIR = "stamped_images"
 os.makedirs(STAMP_DIR, exist_ok=True)
@@ -677,6 +680,173 @@ def enhance_lot_image_for_ai(image_base64, check_type=""):
     except Exception:
         return image_base64
 
+
+def should_use_gemini_ocr(check_type, product_type, market_type):
+    """
+    OCR_ENGINE env:
+    - auto   : ใช้ Gemini เฉพาะเคสที่อ่านยากก่อน (EPC + LAOS + CARTON) ถ้ามี GEMINI_API_KEY
+    - gemini : ใช้ Gemini ทุกภาพ
+    - openai : ใช้ OpenAI ทุกภาพ
+    """
+    engine = str(os.getenv("OCR_ENGINE", "auto") or "auto").strip().lower()
+    if engine == "openai":
+        return False
+    if engine == "gemini":
+        return True
+    return (
+        str(check_type or "").strip().lower() == "carton"
+        and str(product_type or "").strip().upper() == "EPC"
+        and str(market_type or "").strip().upper() == "LAOS"
+        and bool(os.getenv("GEMINI_API_KEY"))
+    )
+
+
+def call_gemini_vision_ocr(image_base64, prompt, check_type):
+    """Call Gemini Vision by REST API using only Python standard library."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("ไม่พบ GEMINI_API_KEY")
+
+    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    enhanced_base64 = enhance_lot_image_for_ai(image_base64, check_type)
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": enhanced_base64}},
+                ],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0,
+            "topP": 1,
+            "topK": 1,
+            "maxOutputTokens": 1024,
+            "response_mime_type": "application/json",
+        },
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as res:
+            data = json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Gemini OCR error: HTTP {e.code} {err_body[:500]}")
+
+    try:
+        parts = data["candidates"][0]["content"]["parts"]
+        text = "".join(part.get("text", "") for part in parts).strip()
+        return text
+    except Exception:
+        raise RuntimeError("Gemini OCR response ไม่อยู่ในรูปแบบที่อ่านได้")
+
+
+def call_openai_vision_ocr(image_base64, prompt, check_type):
+    """Call OpenAI Vision OCR and return raw JSON text."""
+    if not client:
+        raise RuntimeError("ไม่พบ OPENAI_API_KEY")
+    response = client.responses.create(
+        model=os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{enhance_lot_image_for_ai(image_base64, check_type)}"},
+                ],
+            }
+        ],
+    )
+    return response.output_text
+
+def _safe_ocr_lines(result_text):
+    try:
+        data = json.loads(clean_json_text(result_text))
+        lines = data.get("lines", [])
+        if isinstance(lines, str):
+            lines = [lines]
+        return data, [str(x).strip().upper() for x in lines if str(x).strip()]
+    except Exception:
+        return {}, []
+
+def score_ocr_candidate(result_text, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, shipping_mark, carton_alpha_code):
+    """
+    Give a simple rule-based score to decide between OpenAI and Gemini output.
+    Verification still happens later; this only chooses the better transcription.
+    """
+    data, lines = _safe_ocr_lines(result_text)
+    joined = " ".join(lines)
+    score = 0
+
+    if lines:
+        score += 5
+    if "UNCLEAR" in joined or "?" in joined:
+        score -= 2
+
+    # Date / expected values visible in OCR result.
+    if expected_mfg and expected_mfg in joined:
+        score += 4
+    if expected_exp and expected_exp in joined:
+        score += 4
+    if expected_line and expected_line.upper() in joined:
+        score += 2
+
+    if check_type == "carton":
+        # Laos carton does not require EXP and should not be forced into MFG/EXP pouch format.
+        if market_type == "LAOS":
+            if "EXP" in joined:
+                score -= 5
+            if re.search(r"\bMFG\b", joined):
+                score -= 4
+            # Strongly prefer the known export carton visual pattern: AAA 00000 AA DDMMYY N AA
+            for line in lines:
+                if re.search(r"\b[A-Z]{3}\s+\d{5}\s+[A-Z]{2}\s+\d{6}\s+\d+\s+[A-Z]{1,5}\b", line):
+                    score += 12
+                if shipping_mark and shipping_mark.upper() in line:
+                    score += 5
+                if carton_alpha_code and carton_alpha_code.upper() in line:
+                    score += 3
+                # Common wrong hallucination in previous tests: AKX -> MFG, AX -> PK
+                if re.search(r"\bMFG\s+\d{5}\s+PK\b", line):
+                    score -= 10
+        else:
+            if shipping_mark and shipping_mark.upper() in joined:
+                score += 4
+            if carton_alpha_code and carton_alpha_code.upper() in joined:
+                score += 3
+    else:
+        # Pouch/sachet codes usually need MFG; EXP depends on product/market rules and is verified later.
+        if re.search(r"\bMFG\b", joined):
+            score += 3
+        if expected_exp and re.search(r"\bEXP\b", joined):
+            score += 3
+
+    # Prefer parseable JSON with a lines list.
+    if isinstance(data.get("lines"), list):
+        score += 3
+    return score
+
+def choose_dual_ocr_result(openai_text, gemini_text, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, shipping_mark, carton_alpha_code):
+    openai_score = score_ocr_candidate(openai_text, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, shipping_mark, carton_alpha_code)
+    gemini_score = score_ocr_candidate(gemini_text, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp, shipping_mark, carton_alpha_code)
+    selected_text = gemini_text if gemini_score > openai_score else openai_text
+    try:
+        selected_json = json.loads(clean_json_text(selected_text))
+        selected_json["ocr_engine_selected"] = "gemini" if gemini_score > openai_score else "openai"
+        selected_json["ocr_scores"] = {"openai": openai_score, "gemini": gemini_score}
+        return json.dumps(selected_json, ensure_ascii=False)
+    except Exception:
+        return selected_text
+
 def read_lot_with_ai(image_base64, check_type, mode, product_type, market_type, expected_mfg, expected_line, expected_exp,
                      mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code):
     """
@@ -832,20 +1002,46 @@ OUTPUT RULE:
 - Do not explain.
 """
 
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": prompt},
-                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{enhance_lot_image_for_ai(image_base64, check_type)}"},
-                ],
-            }
-        ],
-    )
+    # OCR engine selection.
+    # OCR_ENGINE=openai : OpenAI only
+    # OCR_ENGINE=gemini : Gemini only
+    # OCR_ENGINE=auto   : Gemini for difficult EPC Laos carton, otherwise OpenAI
+    # OCR_ENGINE=dual   : Read with both OpenAI + Gemini, then choose the result that matches product rules better
+    engine = str(os.getenv("OCR_ENGINE", "auto") or "auto").strip().lower()
 
-    return response.output_text
+    if engine == "dual":
+        errors = []
+        openai_text = None
+        gemini_text = None
+        try:
+            openai_text = call_openai_vision_ocr(image_base64, prompt, check_type)
+        except Exception as e:
+            errors.append(f"OpenAI: {e}")
+        try:
+            gemini_text = call_gemini_vision_ocr(image_base64, prompt, check_type)
+        except Exception as e:
+            errors.append(f"Gemini: {e}")
+
+        if openai_text and gemini_text:
+            return choose_dual_ocr_result(
+                openai_text, gemini_text, check_type, mode, product_type, market_type,
+                expected_mfg, expected_line, expected_exp, shipping_mark, carton_alpha_code
+            )
+        if gemini_text:
+            return gemini_text
+        if openai_text:
+            return openai_text
+        raise RuntimeError(" / ".join(errors) if errors else "OCR engine ใช้งานไม่ได้")
+
+    if should_use_gemini_ocr(check_type, product_type, market_type):
+        try:
+            return call_gemini_vision_ocr(image_base64, prompt, check_type)
+        except Exception:
+            # In auto mode, fall back to OpenAI if Gemini is unavailable.
+            if engine == "gemini" or not client:
+                raise
+
+    return call_openai_vision_ocr(image_base64, prompt, check_type)
 
 def build_abnormal_points(details):
     abnormal_points = []
@@ -1892,8 +2088,15 @@ def check():
         elif not image_data:
             return jsonify({"error": "กรุณาอัปโหลดรูปหรือถ่ายรูปก่อน"}), 400
 
-        if not os.getenv("OPENAI_API_KEY"):
+        engine = str(os.getenv("OCR_ENGINE", "auto") or "auto").strip().lower()
+        if engine == "openai" and not os.getenv("OPENAI_API_KEY"):
             return jsonify({"error": "ไม่พบ OPENAI_API_KEY"}), 500
+        if engine == "gemini" and not os.getenv("GEMINI_API_KEY"):
+            return jsonify({"error": "ไม่พบ GEMINI_API_KEY"}), 500
+        if engine == "dual" and not os.getenv("OPENAI_API_KEY") and not os.getenv("GEMINI_API_KEY"):
+            return jsonify({"error": "ไม่พบ OPENAI_API_KEY หรือ GEMINI_API_KEY สำหรับ dual mode"}), 500
+        if engine == "auto" and not os.getenv("OPENAI_API_KEY") and not os.getenv("GEMINI_API_KEY"):
+            return jsonify({"error": "ไม่พบ OPENAI_API_KEY หรือ GEMINI_API_KEY"}), 500
 
         # EXP is locked by system. Do not trust editable/browser-submitted value.
         auto_exp = calculate_exp(product_type, market_type, expected_mfg)
