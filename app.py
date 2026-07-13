@@ -878,7 +878,7 @@ def call_openai_vision_ocr(image_base64, prompt, check_type):
     if not client:
         raise RuntimeError("ไม่พบ OPENAI_API_KEY")
     response = client.responses.create(
-        model=os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
+        model=os.getenv("OPENAI_VISION_MODEL", "gpt-5.6"),
         input=[
             {
                 "role": "user",
