@@ -1377,7 +1377,7 @@ def call_openai_batch_ocr(image_items, prompt):
         content.append({"type": "input_text", "text": f"IMAGE_ID: {item['id']} ({item.get('check_type','')})"})
         content.append({"type": "input_image", "image_url": f"data:image/jpeg;base64,{enhanced}"})
     response = client.responses.create(
-        model=os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
+        model=os.getenv("OPENAI_VISION_MODEL", "gpt-5.6"),
         input=[{"role": "user", "content": content}],
     )
     return response.output_text
