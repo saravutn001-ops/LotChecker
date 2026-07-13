@@ -932,6 +932,12 @@ The image may show pouch lot code, carton lot code, or both in the same photo.
 Read ONLY the printed lot/batch/MFG/EXP text visible in the image.
 Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits.
 
+If the image includes carton dot-matrix / inkjet text, use these rules:
+- Read the full visible carton lot line as printed, preserving order and spaces.
+- Do not infer, repair, or change the text to match an expected pattern.
+- Do not over-analyze individual letters; transcribe what the whole visible line clearly shows.
+- If the carton lot line is not readable, return UNCLEAR instead of guessing.
+
 Return JSON only:
 {
   "lines": ["every visible pouch/carton lot line exactly as seen"],
@@ -953,11 +959,19 @@ AAA 00000 AA DDMMYY N AA
 Example visual structure only: AKX 00001 AX 250626 1 PE
 
 Important for this carton type:
-- The first 3 letters are a shipping mark such as AKX, not MFG.
-- The 2 letters before the date may be AX, not PK.
-- If the first letters are unclear between AKX and MFG, return A?X or UNCLEAR; do not guess MFG.
-- If AX is unclear between AX and PK, return A? / ?X / UNCLEAR; do not guess PK.
+- The first 3 letters are a shipping mark such as AKX, AKC, etc., not MFG.
+- The 2 letters before the date may be AX or AC, not PK.
+- If the first letters are unclear between AKX and MFG, return UNCLEAR; do not guess MFG.
+- If AX/AC is unclear between AX/AC and PK, return UNCLEAR; do not guess PK.
 - Return exactly what is printed, including spaces.
+
+DOT MATRIX CARTON OCR RULES:
+- Carton lot codes may be dot-matrix / inkjet text made from separate dots.
+- Read the full visible carton lot line as printed, preserving order and spaces.
+- Do not infer, repair, or change the text to match an expected pattern.
+- Do not over-analyze individual letters; transcribe what the whole visible line clearly shows.
+- If the carton lot line is not readable, return UNCLEAR instead of guessing.
+- Example visible line format: AKC 00001 AC 300626 1.
 
 Return JSON only:
 {"lines":["carton lot exactly as seen"],"has_exp":false}
@@ -973,6 +987,14 @@ Likely Thailand carton visual pattern:
 - sales code digits
 - MFG date digits
 - optional building number and optional suffix
+
+DOT MATRIX CARTON OCR RULES:
+- Carton lot codes may be dot-matrix / inkjet text made from separate dots.
+- Read the full visible carton lot line as printed, preserving order and spaces.
+- Do not infer, repair, or change the text to match an expected pattern.
+- Do not over-analyze individual letters; transcribe what the whole visible line clearly shows.
+- If the carton lot line is not readable, return UNCLEAR instead of guessing.
+- Example visible line format: AKC 00001 AC 300626 1.
 
 Return JSON only:
 {"lines":["carton lot exactly as seen"]}
@@ -990,6 +1012,14 @@ Likely export carton visual parts may include:
 - MFG date
 - optional building number and suffix
 - optional EXP date
+
+DOT MATRIX CARTON OCR RULES:
+- Carton lot codes may be dot-matrix / inkjet text made from separate dots.
+- Read the full visible carton lot line as printed, preserving order and spaces.
+- Do not infer, repair, or change the text to match an expected pattern.
+- Do not over-analyze individual letters; transcribe what the whole visible line clearly shows.
+- If the carton lot line is not readable, return UNCLEAR instead of guessing.
+- Example visible line format: AKC 00001 AC 300626 1.
 
 Return JSON only:
 {
@@ -1054,19 +1084,18 @@ STRICT OCR / NO GUESSING MODE:
 - Never remove leading zero.
 
 CRITICAL DIGIT RULES:
-- Read every digit one by one from left to right.
 - If the image shows 220026, return 220026 exactly. Do NOT return 220626.
 - If the image shows 2200626, return 2200626 exactly. Do NOT return 220626.
 - If the image shows 220626, return 220626 only when every digit is clearly visible as 2 2 0 6 2 6.
-- If the middle digit is unclear between 0 and 6, return 220?26 or UNCLEAR, not 220626.
-- If a digit is broken, faint, smeared, or ambiguous, use ? for that digit.
+- If the date is unclear, return UNCLEAR instead of guessing a corrected date.
+- If a digit is broken, faint, smeared, or ambiguous, return UNCLEAR instead of guessing.
 
 CHARACTER RULES:
 - If a character looks like IR, return IR. Do not change it to XR.
 - If a character looks like O, return O. Do not change it to Q.
 - If only R is visible, return R. Do not change it to QR.
 - Return QR only when both Q and R are clearly visible.
-- If Q or R is unclear, return Q? / ?R / UNCLEAR.
+- If Q or R is unclear, return UNCLEAR.
 
 WORD RULES:
 - Never add missing words MFG or EXP.
@@ -1077,7 +1106,7 @@ TIME RULES:
 - Do not convert invalid time into a valid time.
 
 UNCLEAR RULE:
-- If confidence is not high, choose ? or UNCLEAR instead of the most likely correct value.
+- If confidence is not high, return UNCLEAR instead of the most likely correct value.
 - The safest output for unclear text is UNCLEAR, not a guessed correction.
 
 OUTPUT RULE:
@@ -1219,12 +1248,30 @@ CARTON NOTE FOR EPC LAOS:
 - Do NOT add EXP.
 - Typical visible structure may be like: AKC 00001 AC DDMMYY 3
 - Some countries/prefixes have no shipping mark; if no shipping mark is visible, do not invent one.
+
+DOT MATRIX CARTON OCR RULES:
+- Carton lot codes may be dot-matrix / inkjet text made from separate dots.
+- Read the full visible carton lot line as printed, preserving order and spaces.
+- Do not infer, repair, or change the text to match an expected pattern.
+- Do not over-analyze individual letters; transcribe what the whole visible line clearly shows.
+- If the carton lot line is not readable, return UNCLEAR instead of guessing.
+- Example visible line format: AKC 00001 AC 300626 1.
+
 """
     else:
         carton_note = """
 CARTON NOTE:
 - Read only the carton batch/lot line visible on the carton.
 - Some countries/prefixes have no shipping mark; if no shipping mark is visible, do not invent one.
+
+DOT MATRIX CARTON OCR RULES:
+- Carton lot codes may be dot-matrix / inkjet text made from separate dots.
+- Read the full visible carton lot line as printed, preserving order and spaces.
+- Do not infer, repair, or change the text to match an expected pattern.
+- Do not over-analyze individual letters; transcribe what the whole visible line clearly shows.
+- If the carton lot line is not readable, return UNCLEAR instead of guessing.
+- Example visible line format: AKC 00001 AC 300626 1.
+
 """
     return f"""
 You are an OCR transcriber for a factory lot verification system.
@@ -1239,7 +1286,7 @@ Read ONLY the visible printed lot/batch/MFG/EXP text from each labeled image.
 Do NOT verify correctness.
 Do NOT use expected values.
 Do NOT correct digits, dates, line codes, MFG, EXP, prefixes, or suffixes.
-If a character is unclear, use ? or UNCLEAR.
+If the text is unclear, return UNCLEAR instead of guessing.
 
 POUCH RULES:
 - Return all visible lot rows for each pouch image.
@@ -1250,7 +1297,7 @@ POUCH RULES:
 {carton_note}
 
 STRICT NO-GUESSING RULES:
-- If a digit/letter is broken, faint, smeared, or ambiguous, use ? for that character.
+- If the text is broken, faint, smeared, or ambiguous, return UNCLEAR instead of guessing.
 - If the text is not readable, return an empty lines array or UNCLEAR for that image.
 - Return JSON only. Do not explain.
 
