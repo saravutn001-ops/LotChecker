@@ -5,13 +5,8 @@ import os
 import re
 import urllib.error
 import urllib.request
-import uuid
-import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
 from calendar import monthrange
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
@@ -21,9 +16,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 load_dotenv()
 
 app = Flask(__name__)
-# Allow high-quality phone photos and multiple pouch/carton images.
-# Keep OCR strict, but do not reject the upload too early.
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
@@ -31,7 +23,7 @@ STAMP_DIR = "stamped_images"
 os.makedirs(STAMP_DIR, exist_ok=True)
 
 
-HTML = '<!DOCTYPE html>\n<html lang="th">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">\n<title>IP ONE Lot Checker</title>\n<link rel="icon" type="image/png" href="data:image/png;base64,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">\n<link rel="shortcut icon" type="image/png" href="data:image/png;base64,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">\n<link rel="apple-touch-icon" href="data:image/png;base64,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">\n<style>\n:root{--blue:#0b63ce;--navy:#071f38;--bg:#eef4fb;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#dbe4ef;--green:#16a34a;--red:#dc2626;}\n*{box-sizing:border-box}\nhtml,body{margin:0;padding:0;font-family:Arial,\'Tahoma\',sans-serif;background:var(--bg);color:var(--text);}\nbody{padding:10px;}\n.app{max-width:1180px;margin:0 auto;}\n.header{display:flex;align-items:center;justify-content:center;gap:12px;background:var(--navy);color:#fff;border-radius:18px;padding:12px 14px;box-shadow:0 8px 24px rgba(15,23,42,.18);text-align:left;}\n.logo{width:52px;height:52px;object-fit:contain;background:#fff;border-radius:12px;padding:5px;}\n.header h1{font-size:22px;margin:0;line-height:1.1;}\n.header p{margin:3px 0 0;font-size:12px;color:#cbd5e1;}\n.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;margin-top:12px;box-shadow:0 6px 18px rgba(15,23,42,.06);}\n.card-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;margin-bottom:12px;color:#0f172a;}\n.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}\n.field{min-width:0;}\n.field label{display:block;font-size:13px;font-weight:700;color:#475569;margin:0 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}\n.field input,.field select{width:100%;height:44px;line-height:44px;font-size:15px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);outline:none;min-width:0;}\n.field input:focus,.field select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,99,206,.12)}\n.field input[readonly],.field select:disabled{background:#f8fafc;color:#64748b;}\n.hidden{display:none!important;}\n.photo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}\n.photo-card{border:1px dashed #c8d5e4;border-radius:16px;padding:12px;background:#f8fbff;}\n.photo-card h3{margin:0 0 8px;font-size:15px;}\n.file-btn{display:block;width:100%;text-align:center;background:#eaf3ff;border:1px solid #b9d7ff;color:#0757b7;border-radius:12px;padding:12px;font-weight:800;cursor:pointer;}\n.file-btn input{display:none;}\n.preview{display:none;width:100%;max-height:300px;object-fit:contain;margin-top:10px;border-radius:14px;background:#0f172a;border:1px solid var(--border);}\n.time-label{font-size:12px;color:var(--muted);margin-top:6px;}\n.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}\nbutton{border:0;border-radius:14px;padding:13px 14px;font-size:16px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--blue),#084c9e);cursor:pointer;}\nbutton.secondary{background:#475569;}\nbutton.success{background:linear-gradient(135deg,#16a34a,#15803d);font-size:18px;}\nbutton.danger{background:#dc2626;}\nbutton:disabled{opacity:.55;cursor:not-allowed;}\n.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:800;z-index:100000;box-shadow:0 10px 28px rgba(0,0,0,.25);max-width:92vw;text-align:center;}\n.toast.error{background:#dc2626;}\n.camera-modal{display:none;position:fixed;inset:0;background:#000;z-index:99999;flex-direction:column;}\n.camera-modal.active{display:flex;}\n.camera-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;}\n#cameraVideo{width:100%;height:100%;object-fit:contain;background:#000;}\n.scan-guide{position:absolute;left:14%;top:38%;width:72%;height:22%;border:4px solid #22c55e;border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.12);pointer-events:none;}\n.camera-toolbar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;background:#111827;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom));}\n.result-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:99998;align-items:center;justify-content:center;padding:16px;}\n.result-modal.active{display:flex;}\n.result-box{background:#fff;border-radius:22px;width:min(980px,96vw);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.35);}\n.result-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;color:#fff;border-radius:22px 22px 0 0;}\n.result-head.pass{background:#16a34a;}\n.result-head.ng{background:#dc2626;}\n.result-head h2{margin:0;font-size:22px;}\n.close-x{background:rgba(255,255,255,.18);width:44px;height:44px;border-radius:999px;padding:0;font-size:26px;line-height:44px;}\n.result-body{padding:14px;}\n.evidence{display:block;width:100%;max-height:58vh;object-fit:contain;background:#f8fafc;border:1px solid var(--border);border-radius:16px;}\n.result-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}\n.result-mini{background:#f8fafc;border:1px solid var(--border);border-radius:14px;padding:10px;font-size:14px;}\n.result-mini b{display:block;color:#334155;margin-bottom:4px;}\n.ng-list{margin-top:12px;background:#fff7f7;border:1px solid #fecaca;border-radius:14px;padding:10px;}\n.ng-list ul{margin:6px 0 0 20px;padding:0;}\n.share-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}\n@media (max-width:720px){\n body{padding:8px;background:#f2f7fd;}\n .header{border-radius:16px;padding:10px;justify-content:center;}\n .logo{width:46px;height:46px;}\n .header h1{font-size:19px;}\n .grid{grid-template-columns:1fr;gap:10px;}\n .photo-grid{grid-template-columns:1fr;}\n .actions{grid-template-columns:1fr;}\n .card{padding:12px;border-radius:16px;margin-top:10px;}\n .field input,.field select{height:48px;line-height:48px;font-size:16px;}\n .camera-toolbar{grid-template-columns:1fr;}\n .result-box{width:100vw;max-height:100vh;border-radius:0;}\n .result-head{border-radius:0;}\n .result-summary,.share-row{grid-template-columns:1fr;}\n .evidence{max-height:44vh;}\n}\n\n.dynamic-machine-list{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}\n.dynamic-pouch-cards{display:contents;}\n.dynamic-machine-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;}\n.machine-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}\n.machine-card-head b{font-size:14px;}\n.btn-small{width:auto;padding:8px 10px;font-size:13px;margin:0;} .flip-btn{display:block;margin-top:8px;width:100%;background:#64748b;}\n.camera-toolbar #extraCaptureButtons{display:contents;}\n@media(max-width:720px){.dynamic-machine-list{grid-template-columns:1fr;} .camera-toolbar #extraCaptureButtons{display:contents;}}\n</style>\n</head>\n<body>\n<div class="app"><div style="background:#fff3cd;border:1px solid #ffe08a;border-radius:12px;padding:8px 12px;margin:8px 0;font-weight:800;color:#7c4a00;text-align:center;">VERSION MESPACK2/3 LANE LOT FIX / 2026-07-01</div>\n  <div class="header">\n    <img class="logo" src="data:image/png;base64,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" alt="IP One Logo">\n    <div><h1>IP ONE LOT CHECKER</h1><p>POUCH + CARTON VERIFICATION</p></div>\n  </div>\n  <div style="margin:10px 0 0;padding:8px 12px;border-radius:12px;background:#dcfce7;color:#166534;font-weight:800;text-align:center;font-size:13px;">VERSION MESPACK2/3 LANE LOT FIX / 2026-07-01</div>\n\n  <div class="card">\n    <div class="card-title">ตั้งค่าการตรวจ</div>\n    <div class="grid">\n      <div class="field"><label>ประเภทไลน์</label><select id="mode"><option value="">เลือกประเภทไลน์</option><option value="linapack">Linapack</option><option value="sachet">Sachet</option><option value="auto">Auto</option></select></div>\n      <div class="field"><label>เครื่องซองที่ 1</label><select id="line" disabled><option value="">เลือกประเภทไลน์ก่อน</option></select></div>\n      <div class="field" id="addMachineField"><label>&nbsp;</label><button type="button" class="secondary" id="addPouchMachineBtn">+ เพิ่มเครื่องซอง</button></div>\n      <div id="extraMachineFields" class="dynamic-machine-list"></div>\n      <div class="field"><label>ผลิตภัณฑ์</label><select id="productType"><option value="">เลือกผลิตภัณฑ์</option><option value="EPC">EPC</option><option value="EPW">EPW</option><option value="FS">FS</option><option value="IS">IS</option><option value="SS">SS</option></select></div>\n      <div class="field"><label>ประเภทงาน</label><select id="marketType"><option value="">เลือกประเภทงาน</option><option value="TH">งานไทย</option><option value="EXPORT">งานต่างประเทศ</option><option value="LAOS">งานต่างประเทศ ลาว</option></select></div>\n      <div class="field" id="epcLaosShelfLifeField"><label>อายุ EPC งานลาว</label><select id="epcLaosShelfLife" disabled><option value="24">2 ปี</option><option value="15">1 ปี 3 เดือน (บางไลน์)</option></select></div>\n      <div class="field"><label>วันที่ผลิต</label><input type="date" id="mfgDate"></div>\n      <div class="field mix-field" id="mixDateField"><label>วันที่ผสม</label><input type="date" id="mixDate"></div>\n      <div class="field mix-field" id="mixCodeField"><label>Mix Code</label><input id="mixCode" readonly placeholder="Auto"></div>\n    </div>\n    <input type="hidden" id="mfg"><input type="hidden" id="exp">\n  </div>\n\n  <div class="card">\n    <div class="card-title">ข้อมูลล็อตกล่อง</div>\n    <div class="grid">\n      <div class="field"><label>Shipping Mark</label><input id="shippingMark" readonly placeholder="เลือก Prefix"></div>\n      <div class="field"><label>Prefix</label><select id="cartonPrefix" disabled><option value="">เลือกประเภทงานก่อน</option></select></div>\n      <div class="field"><label>เลขอาคาร</label><select id="buildingNo"><option value="">เลือกเลขอาคาร</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>\n      <div class="field"><label>Suffix</label><input id="buildingSuffix" placeholder="เช่น QR / N"></div>\n    </div>\n  </div>\n\n  <div class="card">\n    <div class="card-title">รูปสำหรับตรวจ</div>\n    <div class="photo-grid">\n      <div class="photo-card"><h3>รูปซอง เครื่องที่ 1</h3><label class="file-btn">เลือกรูปซองเครื่องที่ 1<input type="file" id="fileInputPouch" accept="image/*"></label><img id="previewPouch" class="preview"><button type="button" class="secondary btn-small flip-btn" id="flipPouchBtn">↔ พลิกรูปกลับด้าน</button><div id="pouchTime" class="time-label"></div></div>\n      <div id="extraPouchCards" class="dynamic-pouch-cards"></div>\n      <div class="photo-card"><h3>รูปกล่อง</h3><label class="file-btn">เลือกรูปกล่อง<input type="file" id="fileInputCarton" accept="image/*"></label><img id="previewCarton" class="preview"><button type="button" class="secondary btn-small flip-btn" id="flipCartonBtn">↔ พลิกรูปกลับด้าน</button><div id="cartonTime" class="time-label"></div></div>\n    </div>\n    <div class="actions"><button type="button" id="openCameraBtn">เปิดกล้อง</button><button type="button" class="success" id="checkBtn">ตรวจสอบล็อตซอง + กล่อง</button></div>\n  </div>\n</div>\n\n<div class="camera-modal" id="cameraModal">\n  <div class="camera-wrap"><video id="cameraVideo" autoplay playsinline muted></video><div class="scan-guide"></div></div>\n  <div class="camera-toolbar"><button type="button" id="capturePouchBtn">ถ่ายซอง 1</button><span id="extraCaptureButtons"></span><button type="button" id="captureCartonBtn">ถ่ายกล่อง</button><button type="button" class="danger" id="closeCameraBtn">ปิดกล้อง</button></div>\n</div>\n<canvas id="cameraCanvas" class="hidden"></canvas>\n\n<div class="result-modal" id="resultModal">\n  <div class="result-box">\n    <div class="result-head" id="resultHead"><h2 id="resultTitle">ผลตรวจ</h2><button type="button" class="close-x" id="closeResultBtn">×</button></div>\n    <div class="result-body">\n      <img id="evidenceImg" class="evidence" alt="หลักฐานการตรวจ">\n      <div class="result-summary">\n        <div class="result-mini"><b>Lot ซองที่ควรเป็น</b><span id="expectedPouchLot">-</span></div>\n        <div class="result-mini"><b>Lot กล่องที่ควรเป็น</b><span id="expectedCartonLot">-</span></div>\n      </div>\n      <div class="ng-list" id="ngBox"><b>รายการ NG</b><div id="ngContent">-</div></div>\n      <div class="share-row"><button type="button" id="shareBtn">แชร์รูปเข้า LINE / แอปอื่น</button><button type="button" class="secondary" id="closeResultBtn2">ปิด</button></div>\n    </div>\n  </div>\n</div>\n\n<script>const $ = (id) => document.getElementById(id);\nlet pouchImageData = "";\nlet cartonImageData = "";\nlet cameraStream = null;\nlet lastResult = null;\nlet pouchMachines = [];\nlet pouchSeq = 1;\n\nconst PREFIX_SHIPPING_MAP = {\n  KC:"", VN:"IPO VN", VT:"VN-MT", KK:"AKK", CT:"CDT", TS:"TS", AC:"AKC", SM:"SOMCHAICHALUEN", AX:"AKX", MM:"I.P. ONE-MYANMAR",\n  ML:"ML", KT:"KT", MW:"MWD", MK:"MK", MY:"MDY", TG:"TG", MN:"MNJM", MA:"MLA", LM:"MT/LM+VY", DK:"DKSH", NT:"NTPL",\n  XR:"XR", BU:"BUL", UK:"U,K,T-7", DB:"DBL INDUSTRIES PLC", OL:"IMPORTER:ORGANIC LINE CO., LTD", OD:"IMPORTER:ORGANIC LINE CO., LTD",\n  MI:"", WD:"WEDAR", CZ:"", ND:"NDF", CS:"CSMS", FN:"FENIX", CD:"CDM", DT:"DBT", YP:"YPG", LB:"", LQ:""\n};\nconst EXPORT_PREFIXES = Object.keys(PREFIX_SHIPPING_MAP);\nconst NO_SHIPPING_MARK_PREFIXES = new Set(EXPORT_PREFIXES.filter(code => !String(PREFIX_SHIPPING_MAP[code] || "").trim() || String(PREFIX_SHIPPING_MAP[code] || "").trim().toUpperCase() === "ZZZZZ"));\nfunction shippingMarkRequiredForPrefix(prefix){\n  return !!prefix && !NO_SHIPPING_MARK_PREFIXES.has(String(prefix || "").toUpperCase());\n}\nconst MONTH_CODES = ["A","B","C","D","E","F","G","H","I","J","K","L"];\n\nfunction showToast(msg, type="success"){\n  const t = document.createElement("div");\n  t.className = "toast" + (type === "error" ? " error" : "");\n  t.textContent = msg;\n  document.body.appendChild(t);\n  setTimeout(() => t.remove(), 2600);\n}\n\nfunction ddmmyyFromDate(v){\n  if(!v) return "";\n  const parts = v.split("-");\n  if(parts.length !== 3) return "";\n  const [y,m,d] = parts;\n  return `${d}${m}${String(y).slice(-2)}`;\n}\n\nfunction addMonths(dateStr, months){\n  if(!dateStr) return "";\n  const [y,m,d] = dateStr.split("-").map(Number);\n  const dt = new Date(y, m - 1, d);\n  dt.setMonth(dt.getMonth() + months);\n  return `${String(dt.getDate()).padStart(2,"0")}${String(dt.getMonth()+1).padStart(2,"0")}${String(dt.getFullYear()).slice(-2)}`;\n}\n\nfunction isAutoMespackLaneValue(v){\n  const code = String(v || "").trim().toUpperCase();\n  return ["MESPACK2","MESPACK3","MH2","MH3"].includes(code);\n}\n\nfunction hasSelectedAutoMespackLane(){\n  if(($("mode")?.value || "") !== "auto") return false;\n  if(isAutoMespackLaneValue($("line")?.value || "")) return true;\n  return pouchMachines.some(pm => isAutoMespackLaneValue($(pm.lineId)?.value || ""));\n}\n\nfunction updateDates(){\n  const mfgEl = $("mfg");\n  const expEl = $("exp");\n  const mfgDate = $("mfgDate")?.value || "";\n  if(mfgEl) mfgEl.value = ddmmyyFromDate(mfgDate);\n  let exp = "";\n  const product = $("productType")?.value || "";\n  const market = $("marketType")?.value || "";\n  if(hasSelectedAutoMespackLane()){\n    exp = product && product !== "EPW" ? addMonths(mfgDate, 12) : "";\n    if(expEl) expEl.value = exp;\n    return;\n  }\n  if(product === "FS" && market === "TH") exp = addMonths(mfgDate, 12);\n  if(product === "FS" && (market === "EXPORT" || market === "LAOS")) exp = addMonths(mfgDate, 24);\n  if(["IS","SS"].includes(product) && market === "TH") exp = addMonths(mfgDate, 24);\n  if(["IS","SS"].includes(product) && (market === "EXPORT" || market === "LAOS")) exp = addMonths(mfgDate, 36);\n  if(product === "EPC" && market === "TH") exp = addMonths(mfgDate, 15);\n  if(product === "EPC" && market === "LAOS") exp = addMonths(mfgDate, Number($("epcLaosShelfLife")?.value || 24));\n  if(product === "EPW" && market === "LAOS") exp = addMonths(mfgDate, 36);\n  if(expEl) expEl.value = exp;\n}\n\nfunction updateMix(){\n  const mixDate = $("mixDate")?.value || "";\n  const mixCode = $("mixCode");\n  if(!mixCode) return;\n  if(!mixDate){ mixCode.value = ""; return; }\n  const [y,m,d] = mixDate.split("-");\n  mixCode.value = `${d}${MONTH_CODES[Number(m)-1] || ""}`;\n}\n\nfunction updateProductUI(){\n  const product = $("productType")?.value || "";\n  const market = $("marketType")?.value || "";\n  // EPW งานไทย และ EPW งานลาว ต้องมีวันที่ผสม\n  // Mespack2/Mespack3 งาน EPW ต้องมีวันที่ผสมทุกประเภทงาน เพราะรูปแบบคือ MFG DDMMYY MIX MH2/MH3 LANE\n  // EPW งานต่างประเทศทั่วไปของไลน์อื่น ไม่ต้องมีวันที่ผสม\n  const needsMix = product === "EPW" && ((market === "TH" || market === "LAOS") || hasSelectedAutoMespackLane());\n  const mixDateField = $("mixDateField");\n  const mixCodeField = $("mixCodeField");\n  if(mixDateField) mixDateField.classList.toggle("hidden", !needsMix);\n  if(mixCodeField) mixCodeField.classList.toggle("hidden", !needsMix);\n  document.querySelectorAll(".mix-field").forEach(el => el.classList.toggle("hidden", !needsMix));\n  if(!needsMix){\n    if($("mixDate")) $("mixDate").value = "";\n    if($("mixCode")) $("mixCode").value = "";\n  }\n  const epcLife = $("epcLaosShelfLife");\n  const epcLifeField = $("epcLaosShelfLifeField");\n  const showEpcLife = product === "EPC" && market === "LAOS";\n  if(epcLife){\n    epcLife.disabled = !showEpcLife;\n    if(!showEpcLife) epcLife.value = "24";\n  }\n  if(epcLifeField){\n    epcLifeField.style.opacity = showEpcLife ? "1" : ".55";\n  }\n  updateDates();\n}\n\nfunction machineListForMode(mode){\n  if(mode === "linapack") return ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];\n  if(mode === "sachet") return ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];\n  if(mode === "auto") return ["V1","V3","Mespack1","Mespack2","Mespack3"];\n  return [];\n}\n\nfunction fillMachineSelect(selectEl, mode, placeholder){\n  if(!selectEl) return;\n  const oldValue = selectEl.value;\n  selectEl.innerHTML = "";\n  const list = machineListForMode(mode);\n  if(!list.length){\n    selectEl.disabled = true;\n    selectEl.appendChild(new Option("เลือกประเภทไลน์ก่อน", ""));\n    return;\n  }\n  selectEl.disabled = false;\n  selectEl.appendChild(new Option(placeholder || "เลือกเครื่อง", ""));\n  list.forEach(code => selectEl.appendChild(new Option(code, code)));\n  if(list.includes(oldValue)) selectEl.value = oldValue;\n  else selectEl.value = "";\n}\n\nfunction updateAllMachineOptions(){\n  const mode = $("mode")?.value || "";\n  fillMachineSelect($("line"), mode, "เลือกเครื่อง");\n  pouchMachines.forEach(pm => fillMachineSelect($(pm.lineId), mode, `เลือกเครื่องซองที่ ${pm.index}`));\n}\n\nfunction updateMarketUI(){\n  const market = $("marketType")?.value || "";\n  const prefix = $("cartonPrefix");\n  const shipping = $("shippingMark");\n  if(!prefix) return;\n  prefix.innerHTML = "";\n  if(shipping) shipping.value = "";\n  if(!market){\n    prefix.disabled = true;\n    prefix.appendChild(new Option("เลือกประเภทงานก่อน", ""));\n  } else if(market === "TH"){\n    prefix.disabled = true;\n    prefix.appendChild(new Option("00", "00"));\n    prefix.value = "00";\n    if(shipping) shipping.value = "-";\n  } else {\n    prefix.disabled = false;\n    prefix.appendChild(new Option("เลือก Prefix", ""));\n    EXPORT_PREFIXES.forEach(code => prefix.appendChild(new Option(`${code} → ${PREFIX_SHIPPING_MAP[code]}`, code)));\n  }\n  updateProductUI();\n  updateDates();\n  updateShippingMark();\n}\n\nfunction updateShippingMark(){\n  const market = $("marketType")?.value || "";\n  const prefix = ($("cartonPrefix")?.value || "").toUpperCase();\n  const shipping = $("shippingMark");\n  if(!shipping) return;\n  if(market === "TH"){\n    shipping.value = "ไม่ตรวจ";\n    return;\n  }\n  if(!prefix){\n    shipping.value = "";\n    return;\n  }\n  if(!shippingMarkRequiredForPrefix(prefix)){\n    shipping.value = "ไม่ตรวจ";\n    return;\n  }\n  shipping.value = PREFIX_SHIPPING_MAP[prefix] || "";\n}\n\nfunction setPreview(which, data){\n  let imgId = "previewPouch";\n  let timeId = "pouchTime";\n  if(which === "carton"){\n    imgId = "previewCarton";\n    timeId = "cartonTime";\n  } else if(which.startsWith("pouch_")){\n    const id = which.slice(6);\n    imgId = `previewPouch_${id}`;\n    timeId = `pouchTime_${id}`;\n  }\n  const img = $(imgId);\n  const tm = $(timeId);\n  if(img){\n    img.src = data;\n    img.style.display = "block";\n  }\n  if(tm){\n    tm.textContent = "บันทึกล่าสุด " + new Date().toLocaleTimeString("th-TH", {hour12:false});\n  }\n}\n\nfunction storeImageData(which, data){\n  if(which === "pouch") pouchImageData = data;\n  else if(which === "carton") cartonImageData = data;\n  else if(which.startsWith("pouch_")){\n    const id = which.slice(6);\n    const pm = pouchMachines.find(x => String(x.id) === String(id));\n    if(pm) pm.image = data;\n  }\n  setPreview(which, data);\n}\n\nfunction getStoredImageData(which){\n  if(which === "pouch") return pouchImageData;\n  if(which === "carton") return cartonImageData;\n  if(which.startsWith("pouch_")){\n    const id = which.slice(6);\n    const pm = pouchMachines.find(x => String(x.id) === String(id));\n    return pm ? (pm.image || "") : "";\n  }\n  return "";\n}\n\nfunction flipImage(which){\n  const data = getStoredImageData(which);\n  if(!data) return showToast("ยังไม่มีรูปให้พลิก", "error");\n  const img = new Image();\n  img.onload = () => {\n    try{\n      const canvas = document.createElement("canvas");\n      const w = img.naturalWidth || img.width;\n      const h = img.naturalHeight || img.height;\n      canvas.width = w;\n      canvas.height = h;\n      const ctx = canvas.getContext("2d");\n      ctx.translate(w, 0);\n      ctx.scale(-1, 1);\n      ctx.drawImage(img, 0, 0, w, h);\n      const flipped = canvas.toDataURL("image/jpeg", 0.95);\n      storeImageData(which, flipped);\n      showToast("พลิกรูปกลับด้านแล้ว");\n    }catch(err){\n      showToast("พลิกรูปไม่ได้: " + err.message, "error");\n    }\n  };\n  img.onerror = () => showToast("อ่านรูปเพื่อพลิกไม่ได้", "error");\n  img.src = data;\n}\nfunction normalizeImageFile(file){\n  return new Promise((resolve, reject) => {\n    const reader = new FileReader();\n    reader.onerror = () => reject(new Error("อ่านไฟล์รูปไม่ได้"));\n    reader.onload = () => {\n      const rawData = reader.result;\n      const img = new Image();\n      img.onload = () => {\n        try{\n          const maxSide = 2200;\n          let w = img.naturalWidth || img.width;\n          let h = img.naturalHeight || img.height;\n          if(w > maxSide || h > maxSide){\n            const scale = Math.min(maxSide / w, maxSide / h);\n            w = Math.round(w * scale);\n            h = Math.round(h * scale);\n          }\n          const canvas = document.createElement("canvas");\n          canvas.width = w;\n          canvas.height = h;\n          const ctx = canvas.getContext("2d");\n          ctx.drawImage(img, 0, 0, w, h);\n          // แปลงรูปที่อัปโหลดเป็น JPEG คุณภาพสูง เพื่อลดการสูญเสียรายละเอียด dot matrix บนมือถือ\n          resolve(canvas.toDataURL("image/jpeg", 0.95));\n        }catch(e){\n          resolve(rawData);\n        }\n      };\n      img.onerror = () => resolve(rawData);\n      img.src = rawData;\n    };\n    reader.readAsDataURL(file);\n  });\n}\n\nasync function handleFile(which, input){\n  const file = input.files && input.files[0];\n  if(!file) return;\n  try{\n    const data = await normalizeImageFile(file);\n    storeImageData(which, data);\n    showToast("บันทึกรูปเรียบร้อย");\n  }catch(err){\n    showToast("บันทึกรูปไม่ได้: " + err.message, "error");\n  }\n}\n\nfunction renumberPouchMachines(){\n  pouchMachines.forEach((pm, i) => {\n    pm.index = i + 2;\n    const card = $(`machineCard_${pm.id}`);\n    if(card){\n      const title = card.querySelector("b");\n      if(title) title.textContent = `เครื่องซองที่ ${pm.index}`;\n      const sel = $(pm.lineId);\n      if(sel && sel.options.length) sel.options[0].textContent = `เลือกเครื่องซองที่ ${pm.index}`;\n    }\n    const photo = $(`pouchCard_${pm.id}`);\n    if(photo){\n      const h = photo.querySelector("h3");\n      if(h) h.textContent = `รูปซอง เครื่องที่ ${pm.index}`;\n      const label = photo.querySelector(".file-text");\n      if(label) label.textContent = `เลือกรูปซองเครื่องที่ ${pm.index}`;\n    }\n    const cap = $(pm.captureId);\n    if(cap) cap.textContent = `ถ่ายซอง ${pm.index}`;\n  });\n}\n\nfunction removePouchMachine(id){\n  pouchMachines = pouchMachines.filter(pm => String(pm.id) !== String(id));\n  [`machineCard_${id}`, `pouchCard_${id}`, `capturePouch_${id}`].forEach(elId => {\n    const el = $(elId);\n    if(el) el.remove();\n  });\n  renumberPouchMachines();\n}\n\nfunction addPouchMachine(){\n  const id = `p${++pouchSeq}_${Date.now().toString(36)}`;\n  const index = pouchMachines.length + 2;\n  const pm = {\n    id,\n    index,\n    lineId: `line_${id}`,\n    fileId: `fileInputPouch_${id}`,\n    previewId: `previewPouch_${id}`,\n    timeId: `pouchTime_${id}`,\n    captureId: `capturePouch_${id}`,\n    image: ""\n  };\n  pouchMachines.push(pm);\n\n  const machineWrap = document.createElement("div");\n  machineWrap.className = "dynamic-machine-card";\n  machineWrap.id = `machineCard_${id}`;\n  machineWrap.innerHTML = `\n    <div class="machine-card-head">\n      <b>เครื่องซองที่ ${index}</b>\n      <button type="button" class="secondary btn-small" data-remove-pouch="${id}">ลบ</button>\n    </div>\n    <select id="${pm.lineId}"></select>\n  `;\n  $("extraMachineFields").appendChild(machineWrap);\n\n  const photoWrap = document.createElement("div");\n  photoWrap.className = "photo-card";\n  photoWrap.id = `pouchCard_${id}`;\n  photoWrap.innerHTML = `\n    <h3>รูปซอง เครื่องที่ ${index}</h3>\n    <label class="file-btn"><span class="file-text">เลือกรูปซองเครื่องที่ ${index}</span><input type="file" id="${pm.fileId}" accept="image/*"></label>\n    <img id="${pm.previewId}" class="preview">\n    <button type="button" class="secondary btn-small flip-btn" id="flipPouch_${id}">↔ พลิกรูปกลับด้าน</button>\n    <div id="${pm.timeId}" class="time-label"></div>\n  `;\n  $("extraPouchCards").appendChild(photoWrap);\n\n  const capBtn = document.createElement("button");\n  capBtn.type = "button";\n  capBtn.id = pm.captureId;\n  capBtn.textContent = `ถ่ายซอง ${index}`;\n  $("extraCaptureButtons").appendChild(capBtn);\n\n  fillMachineSelect($(pm.lineId), $("mode")?.value || "", `เลือกเครื่องซองที่ ${index}`);\n  $(pm.lineId)?.addEventListener("change", () => { updateProductUI(); updateDates(); });\n  $(pm.fileId).addEventListener("change", e => handleFile(`pouch_${id}`, e.target));\n  $(pm.captureId).addEventListener("click", () => captureTo(`pouch_${id}`));\n  const flipBtn = $(`flipPouch_${id}`);\n  if(flipBtn) flipBtn.addEventListener("click", () => flipImage(`pouch_${id}`));\n  const removeBtn = machineWrap.querySelector(`[data-remove-pouch="${id}"]`);\n  if(removeBtn) removeBtn.addEventListener("click", () => removePouchMachine(id));\n}\n\nasync function openCamera(){\n  try{\n    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("browser ไม่รองรับกล้อง");\n    cameraStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" }, width:{ ideal:2560 }, height:{ ideal:1440 } }, audio:false });\n    $("cameraVideo").srcObject = cameraStream;\n    $("cameraModal").classList.add("active");\n  }catch(err){\n    showToast("เปิดกล้องไม่ได้: " + err.message, "error");\n  }\n}\n\nfunction closeCamera(){\n  if(cameraStream) cameraStream.getTracks().forEach(t => t.stop());\n  cameraStream = null;\n  if($("cameraVideo")) $("cameraVideo").srcObject = null;\n  if($("cameraModal")) $("cameraModal").classList.remove("active");\n}\n\nfunction captureTo(which){\n  const video = $("cameraVideo");\n  if(!video || !video.videoWidth) return showToast("ยังไม่พบภาพจากกล้อง", "error");\n  const canvas = $("cameraCanvas");\n  const maxSide = 2200;\n  let w = video.videoWidth;\n  let h = video.videoHeight;\n  if(w > maxSide || h > maxSide){\n    const scale = Math.min(maxSide / w, maxSide / h);\n    w = Math.round(w * scale);\n    h = Math.round(h * scale);\n  }\n  canvas.width = w;\n  canvas.height = h;\n  canvas.getContext("2d").drawImage(video, 0, 0, w, h);\n  const data = canvas.toDataURL("image/jpeg", 0.95);\n  storeImageData(which, data);\n  showToast("บันทึกรูปเรียบร้อย");\n}\n\nfunction getPouchesForPayload(){\n  const list = [{ line: $("line")?.value || "", image: pouchImageData }];\n  pouchMachines.forEach(pm => {\n    list.push({ line: $(pm.lineId)?.value || "", image: pm.image || "" });\n  });\n  return list;\n}\n\nfunction validateBeforeCheck(){\n  const miss = [];\n  if(!$("mode")?.value) miss.push("ประเภทไลน์");\n  if(!$("line")?.value) miss.push("เครื่องซองที่ 1");\n  if(!$("productType")?.value) miss.push("ผลิตภัณฑ์");\n  if(!$("marketType")?.value) miss.push("ประเภทงาน");\n  if(!$("mfgDate")?.value) miss.push("วันที่ผลิต");\n  if($("productType")?.value === "EPW" && (["TH","LAOS"].includes($("marketType")?.value || "") || hasSelectedAutoMespackLane()) && !$("mixDate")?.value) miss.push("วันที่ผสม");\n  if(($("marketType")?.value === "EXPORT" || $("marketType")?.value === "LAOS") && !$("cartonPrefix")?.value) miss.push("Prefix");\n  if(!$("buildingNo")?.value) miss.push("เลขอาคาร");\n  if(!pouchImageData) miss.push("รูปซองเครื่องที่ 1");\n  if(!cartonImageData) miss.push("รูปกล่อง");\n  pouchMachines.forEach(pm => {\n    if(!$(pm.lineId)?.value) miss.push(`เครื่องซองที่ ${pm.index}`);\n    if(!pm.image) miss.push(`รูปซองเครื่องที่ ${pm.index}`);\n  });\n  if(miss.length){\n    showToast("กรุณาเลือก/กรอก: " + miss.join(", "), "error");\n    return false;\n  }\n  return true;\n}\n\nasync function sendCheck(){\n  updateDates();\n  updateMix();\n  updateShippingMark();\n  if(!validateBeforeCheck()) return;\n  const btn = $("checkBtn");\n  btn.disabled = true;\n  btn.textContent = "กำลังตรวจสอบ... รอได้ยาว ห้ามปิดหน้านี้";\n  try{\n    const pouches = getPouchesForPayload();\n    const payload = {\n      checkType:"both",\n      mode: $("mode").value,\n      productType: $("productType").value,\n      marketType: $("marketType").value,\n      epcLaosShelfLifeMonths: $("epcLaosShelfLife")?.value || "24",\n      mfg: $("mfg")?.value || ddmmyyFromDate($("mfgDate").value),\n      line: $("line").value,\n      exp: $("exp")?.value || "",\n      mixCode: $("mixCode")?.value || "",\n      pouchImage: pouchImageData,\n      cartonImage: cartonImageData,\n      pouches,\n      buildingNo: $("buildingNo").value,\n      buildingSuffix: $("buildingSuffix")?.value || "",\n      shippingMark: (($("marketType").value === "TH" || !shippingMarkRequiredForPrefix($("cartonPrefix")?.value || "")) ? "" : ($("shippingMark")?.value || "")),\n      cartonAlphaCode: $("marketType").value === "TH" ? "00" : $("cartonPrefix").value\n    };\n    const bodyText = JSON.stringify(payload);\n    const approxMB = new Blob([bodyText]).size / 1024 / 1024;\n    if(approxMB > 35){\n      throw new Error(`รูปภาพรวมมีขนาดใหญ่เกินไป (${approxMB.toFixed(1)} MB) กรุณาลดจำนวนรูปหรือถ่ายเฉพาะบริเวณล็อต`);\n    }\n    async function readJsonResponse(res){\n      const responseText = await res.text();\n      try{\n        return responseText ? JSON.parse(responseText) : {};\n      }catch(parseErr){\n        if(responseText && responseText.trim().startsWith("<")){\n          throw new Error("หลังบ้านตอบเป็น HTML แทน JSON: ให้ตรวจว่าใช้ไฟล์ ASYNC JOB OCR เวอร์ชันล่าสุด และดู Render Logs");\n        }\n        throw new Error("ระบบหลังบ้านตอบกลับไม่ถูกต้อง กรุณาดู Render Logs");\n      }\n    }\n\n    const startRes = await fetch("/check", {\n      method:"POST",\n      headers:{"Content-Type":"application/json", "Accept":"application/json"},\n      body: bodyText\n    });\n    const startData = await readJsonResponse(startRes);\n    if(!startRes.ok) throw new Error(startData.error || startData.message || `เริ่มตรวจสอบไม่สำเร็จ (HTTP ${startRes.status})`);\n\n    if(startData.jobId){\n      const jobId = startData.jobId;\n      const started = Date.now();\n      while(true){\n        await new Promise(resolve => setTimeout(resolve, 2500));\n        const waitSec = Math.round((Date.now() - started) / 1000);\n        btn.textContent = `กำลัง OCR... รอแล้ว ${waitSec} วินาที ห้ามปิดหน้านี้`;\n        const stRes = await fetch(`/check_status/${encodeURIComponent(jobId)}`, {headers:{"Accept":"application/json"}});\n        const stData = await readJsonResponse(stRes);\n        if(!stRes.ok) throw new Error(stData.error || stData.message || `ตรวจสอบสถานะไม่สำเร็จ (HTTP ${stRes.status})`);\n        if(stData.status === "done"){\n          showResult(stData.result);\n          break;\n        }\n        if(stData.status === "error"){\n          throw new Error(stData.error || "ตรวจสอบไม่สำเร็จ");\n        }\n        if(waitSec > 600){\n          throw new Error("ระบบใช้เวลานานเกิน 10 นาที กรุณาลองใหม่หรือตรวจสอบ Render Logs");\n        }\n      }\n    } else {\n      showResult(startData);\n    }\n  }catch(err){\n    const msg = String(err && err.message ? err.message : err);\n    if(msg.includes("expected pattern") || msg.includes("did not match")){\n      showToast("รูปที่ส่งไปอ่านไม่ได้ตามรูปแบบที่ระบบ/API รองรับ กรุณาถ่ายใหม่หรือเลือกรูปใหม่", "error");\n    } else {\n      showToast(msg, "error");\n    }\n  }finally{\n    btn.disabled = false;\n    btn.textContent = "ตรวจสอบล็อตซอง + กล่อง";\n  }\n}\n\nfunction showResult(data){\n  lastResult = data;\n  const pass = data.summary === "PASS";\n  if($("resultHead")) $("resultHead").className = "result-head " + (pass ? "pass" : "ng");\n  if($("resultTitle")) $("resultTitle").textContent = pass ? "PASS" : "NG";\n  if($("evidenceImg")) $("evidenceImg").src = data.stampedImageUrl || "";\n  if($("expectedPouchLot")) $("expectedPouchLot").textContent = data.expectedPouchLot || "-";\n  if($("expectedCartonLot")) $("expectedCartonLot").textContent = data.expectedCartonLot || "-";\n  const ngs = (data.details || []).filter(d => d.status === "NG");\n  if($("ngContent")){\n    $("ngContent").innerHTML = ngs.length\n      ? "<ul>" + ngs.map(d => `<li><b>${d.item}</b>: อ่านได้ ${d.actual || "-"} / ควรเป็น ${d.expected || "-"}</li>`).join("") + "</ul>"\n      : "ไม่พบรายการ NG";\n  }\n  if($("resultModal")) $("resultModal").classList.add("active");\n}\n\nfunction closeResult(){\n  if($("resultModal")) $("resultModal").classList.remove("active");\n}\n\nfunction formatShareDate(){\n  const now = new Date();\n  return `${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;\n}\n\nasync function shareResult(){\n  if(!lastResult) return;\n  const machineText = getPouchesForPayload().map(x => x.line).filter(v => v && v.trim()).join(", ") || "-";\n  const text = `ไลน์ ${machineText} ตรวจสอบความถูกต้องของ Lot แล้ว (${lastResult.summary})\\n\\nวันที่ ${formatShareDate()}`;\n  try{\n    const imageUrl = lastResult.stampedImageUrl || "";\n    if(imageUrl){\n      const resp = await fetch(imageUrl);\n      const blob = await resp.blob();\n      const file = new File([blob], "lot-check.jpg", {type:"image/jpeg"});\n      if(navigator.canShare && navigator.canShare({files:[file]})){\n        await navigator.share({text, files:[file]});\n        return;\n      }\n      if(navigator.share){\n        await navigator.share({text, url: location.origin + imageUrl});\n        return;\n      }\n    }\n    await navigator.clipboard.writeText(text);\n    showToast("คัดลอกข้อความแล้ว");\n  }catch(err){\n    showToast("แชร์ไม่ได้: " + err.message, "error");\n  }\n}\n\nfunction bindEvents(){\n  $("mode")?.addEventListener("change", () => { updateAllMachineOptions(); updateProductUI(); updateDates(); });\n  $("line")?.addEventListener("change", () => { updateProductUI(); updateDates(); });\n  $("productType")?.addEventListener("change", updateProductUI);\n  $("marketType")?.addEventListener("change", updateMarketUI);\n  $("epcLaosShelfLife")?.addEventListener("change", updateDates);\n  $("cartonPrefix")?.addEventListener("change", updateShippingMark);\n  $("mfgDate")?.addEventListener("change", updateDates);\n  $("mixDate")?.addEventListener("change", updateMix);\n  $("fileInputPouch")?.addEventListener("change", e => handleFile("pouch", e.target));\n  $("fileInputCarton")?.addEventListener("change", e => handleFile("carton", e.target));\n  $("flipPouchBtn")?.addEventListener("click", () => flipImage("pouch"));\n  $("flipCartonBtn")?.addEventListener("click", () => flipImage("carton"));\n  $("addPouchMachineBtn")?.addEventListener("click", addPouchMachine);\n  $("openCameraBtn")?.addEventListener("click", openCamera);\n  $("closeCameraBtn")?.addEventListener("click", closeCamera);\n  $("capturePouchBtn")?.addEventListener("click", () => captureTo("pouch"));\n  $("captureCartonBtn")?.addEventListener("click", () => captureTo("carton"));\n  $("checkBtn")?.addEventListener("click", sendCheck);\n  $("closeResultBtn")?.addEventListener("click", closeResult);\n  $("closeResultBtn2")?.addEventListener("click", closeResult);\n  $("shareBtn")?.addEventListener("click", shareResult);\n}\n\nwindow.addEventListener("DOMContentLoaded", () => {\n  bindEvents();\n  updateAllMachineOptions();\n  updateProductUI();\n  updateMarketUI();\n});\n</script>\n</body>\n</html>'
+HTML = '<!DOCTYPE html>\n<html lang="th">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">\n<title>IP ONE Lot Checker</title>\n<link rel="icon" type="image/png" href="data:image/png;base64,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">\n<link rel="shortcut icon" type="image/png" href="data:image/png;base64,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">\n<link rel="apple-touch-icon" href="data:image/png;base64,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">\n<style>\n:root{--blue:#0b63ce;--navy:#071f38;--bg:#eef4fb;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#dbe4ef;--green:#16a34a;--red:#dc2626;}\n*{box-sizing:border-box}\nhtml,body{margin:0;padding:0;font-family:Arial,\'Tahoma\',sans-serif;background:var(--bg);color:var(--text);}\nbody{padding:10px;}\n.app{max-width:1180px;margin:0 auto;}\n.header{display:flex;align-items:center;justify-content:center;gap:12px;background:var(--navy);color:#fff;border-radius:18px;padding:12px 14px;box-shadow:0 8px 24px rgba(15,23,42,.18);text-align:left;}\n.logo{width:52px;height:52px;object-fit:contain;background:#fff;border-radius:12px;padding:5px;}\n.header h1{font-size:22px;margin:0;line-height:1.1;}\n.header p{margin:3px 0 0;font-size:12px;color:#cbd5e1;}\n.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;margin-top:12px;box-shadow:0 6px 18px rgba(15,23,42,.06);}\n.card-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;margin-bottom:12px;color:#0f172a;}\n.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}\n.field{min-width:0;}\n.field label{display:block;font-size:13px;font-weight:700;color:#475569;margin:0 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}\n.field input,.field select{width:100%;height:44px;line-height:44px;font-size:15px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);outline:none;min-width:0;}\n.field input:focus,.field select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,99,206,.12)}\n.field input[readonly],.field select:disabled{background:#f8fafc;color:#64748b;}\n.hidden{display:none!important;}\n.photo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}\n.photo-card{border:1px dashed #c8d5e4;border-radius:16px;padding:12px;background:#f8fbff;}\n.photo-card h3{margin:0 0 8px;font-size:15px;}\n.file-btn{display:block;width:100%;text-align:center;background:#eaf3ff;border:1px solid #b9d7ff;color:#0757b7;border-radius:12px;padding:12px;font-weight:800;cursor:pointer;}\n.file-btn input{display:none;}\n.preview{display:none;width:100%;max-height:300px;object-fit:contain;margin-top:10px;border-radius:14px;background:#0f172a;border:1px solid var(--border);}\n.time-label{font-size:12px;color:var(--muted);margin-top:6px;}\n.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}\nbutton{border:0;border-radius:14px;padding:13px 14px;font-size:16px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--blue),#084c9e);cursor:pointer;}\nbutton.secondary{background:#475569;}\nbutton.success{background:linear-gradient(135deg,#16a34a,#15803d);font-size:18px;}\nbutton.danger{background:#dc2626;}\nbutton:disabled{opacity:.55;cursor:not-allowed;}\n.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:800;z-index:100000;box-shadow:0 10px 28px rgba(0,0,0,.25);max-width:92vw;text-align:center;}\n.toast.error{background:#dc2626;}\n.camera-modal{display:none;position:fixed;inset:0;background:#000;z-index:99999;flex-direction:column;}\n.camera-modal.active{display:flex;}\n.camera-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;}\n#cameraVideo{width:100%;height:100%;object-fit:contain;background:#000;}\n.scan-guide{position:absolute;left:14%;top:38%;width:72%;height:22%;border:4px solid #22c55e;border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.12);pointer-events:none;}\n.camera-toolbar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;background:#111827;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom));}\n.result-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:99998;align-items:center;justify-content:center;padding:16px;}\n.result-modal.active{display:flex;}\n.result-box{background:#fff;border-radius:22px;width:min(980px,96vw);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.35);}\n.result-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;color:#fff;border-radius:22px 22px 0 0;}\n.result-head.pass{background:#16a34a;}\n.result-head.ng{background:#dc2626;}\n.result-head h2{margin:0;font-size:22px;}\n.close-x{background:rgba(255,255,255,.18);width:44px;height:44px;border-radius:999px;padding:0;font-size:26px;line-height:44px;}\n.result-body{padding:14px;}\n.evidence{display:block;width:100%;max-height:58vh;object-fit:contain;background:#f8fafc;border:1px solid var(--border);border-radius:16px;}\n.result-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}\n.result-mini{background:#f8fafc;border:1px solid var(--border);border-radius:14px;padding:10px;font-size:14px;}\n.result-mini b{display:block;color:#334155;margin-bottom:4px;}\n.ng-list{margin-top:12px;background:#fff7f7;border:1px solid #fecaca;border-radius:14px;padding:10px;}\n.ng-list ul{margin:6px 0 0 20px;padding:0;}\n.share-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}\n@media (max-width:720px){\n body{padding:8px;background:#f2f7fd;}\n .header{border-radius:16px;padding:10px;justify-content:center;}\n .logo{width:46px;height:46px;}\n .header h1{font-size:19px;}\n .grid{grid-template-columns:1fr;gap:10px;}\n .photo-grid{grid-template-columns:1fr;}\n .actions{grid-template-columns:1fr;}\n .card{padding:12px;border-radius:16px;margin-top:10px;}\n .field input,.field select{height:48px;line-height:48px;font-size:16px;}\n .camera-toolbar{grid-template-columns:1fr;}\n .result-box{width:100vw;max-height:100vh;border-radius:0;}\n .result-head{border-radius:0;}\n .result-summary,.share-row{grid-template-columns:1fr;}\n .evidence{max-height:44vh;}\n}\n\n.dynamic-machine-list{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}\n.dynamic-pouch-cards{display:contents;}\n.dynamic-machine-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;}\n.machine-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}\n.machine-card-head b{font-size:14px;}\n.btn-small{width:auto;padding:8px 10px;font-size:13px;margin:0;}\n.camera-toolbar #extraCaptureButtons{display:contents;}\n@media(max-width:720px){.dynamic-machine-list{grid-template-columns:1fr;} .camera-toolbar #extraCaptureButtons{display:contents;}}\n</style>\n</head>\n<body>\n<div class="app">\n  <div class="header">\n    <img class="logo" src="data:image/png;base64,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" alt="IP One Logo">\n    <div><h1>IP ONE LOT CHECKER</h1><p>POUCH + CARTON VERIFICATION</p></div>\n  </div>\n\n  <div class="card">\n    <div class="card-title">ตั้งค่าการตรวจ</div>\n    <div class="grid">\n      <div class="field"><label>ประเภทไลน์</label><select id="mode"><option value="">เลือกประเภทไลน์</option><option value="linapack">Linapack</option><option value="sachet">Sachet</option></select></div>\n      <div class="field"><label>เครื่องซองที่ 1</label><select id="line" disabled><option value="">เลือกประเภทไลน์ก่อน</option></select></div>\n      <div class="field" id="addMachineField"><label>&nbsp;</label><button type="button" class="secondary" id="addPouchMachineBtn">+ เพิ่มเครื่องซอง</button></div>\n      <div id="extraMachineFields" class="dynamic-machine-list"></div>\n      <div class="field"><label>ผลิตภัณฑ์</label><select id="productType"><option value="">เลือกผลิตภัณฑ์</option><option value="EPC">EPC</option><option value="EPW">EPW</option><option value="FS">FS</option><option value="IS">IS</option><option value="SS">SS</option></select></div>\n      <div class="field"><label>ประเภทงาน</label><select id="marketType"><option value="">เลือกประเภทงาน</option><option value="TH">งานไทย</option><option value="EXPORT">งานต่างประเทศ</option><option value="LAOS">งานต่างประเทศ ลาว</option></select></div>\n      <div class="field"><label>วันที่ผลิต</label><input type="date" id="mfgDate"></div>\n      <div class="field mix-field" id="mixDateField"><label>วันที่ผสม</label><input type="date" id="mixDate"></div>\n      <div class="field mix-field" id="mixCodeField"><label>Mix Code</label><input id="mixCode" readonly placeholder="Auto"></div>\n    </div>\n    <input type="hidden" id="mfg"><input type="hidden" id="exp">\n  </div>\n\n  <div class="card">\n    <div class="card-title">ข้อมูลล็อตกล่อง</div>\n    <div class="grid">\n      <div class="field"><label>Shipping Mark</label><input id="shippingMark" readonly placeholder="เลือก Prefix"></div>\n      <div class="field"><label>Prefix</label><select id="cartonPrefix" disabled><option value="">เลือกประเภทงานก่อน</option></select></div>\n      <div class="field"><label>เลขอาคาร</label><select id="buildingNo"><option value="">เลือกเลขอาคาร</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>\n      <div class="field"><label>Suffix</label><input id="buildingSuffix" placeholder="เช่น QR / N"></div>\n    </div>\n  </div>\n\n  <div class="card">\n    <div class="card-title">รูปสำหรับตรวจ</div>\n    <div class="photo-grid">\n      <div class="photo-card"><h3>รูปซอง เครื่องที่ 1</h3><label class="file-btn">เลือกรูปซองเครื่องที่ 1<input type="file" id="fileInputPouch" accept="image/*"></label><img id="previewPouch" class="preview"><div id="pouchTime" class="time-label"></div></div>\n      <div id="extraPouchCards" class="dynamic-pouch-cards"></div>\n      <div class="photo-card"><h3>รูปกล่อง</h3><label class="file-btn">เลือกรูปกล่อง<input type="file" id="fileInputCarton" accept="image/*"></label><img id="previewCarton" class="preview"><div id="cartonTime" class="time-label"></div></div>\n    </div>\n    <div class="actions"><button type="button" id="openCameraBtn">เปิดกล้อง</button><button type="button" class="success" id="checkBtn">ตรวจสอบล็อตซอง + กล่อง</button></div>\n  </div>\n</div>\n\n<div class="camera-modal" id="cameraModal">\n  <div class="camera-wrap"><video id="cameraVideo" autoplay playsinline muted></video><div class="scan-guide"></div></div>\n  <div class="camera-toolbar"><button type="button" id="capturePouchBtn">ถ่ายซอง 1</button><span id="extraCaptureButtons"></span><button type="button" id="captureCartonBtn">ถ่ายกล่อง</button><button type="button" class="danger" id="closeCameraBtn">ปิดกล้อง</button></div>\n</div>\n<canvas id="cameraCanvas" class="hidden"></canvas>\n\n<div class="result-modal" id="resultModal">\n  <div class="result-box">\n    <div class="result-head" id="resultHead"><h2 id="resultTitle">ผลตรวจ</h2><button type="button" class="close-x" id="closeResultBtn">×</button></div>\n    <div class="result-body">\n      <img id="evidenceImg" class="evidence" alt="หลักฐานการตรวจ">\n      <div class="result-summary">\n        <div class="result-mini"><b>Lot ซองที่ควรเป็น</b><span id="expectedPouchLot">-</span></div>\n        <div class="result-mini"><b>Lot กล่องที่ควรเป็น</b><span id="expectedCartonLot">-</span></div>\n      </div>\n      <div class="ng-list" id="ngBox"><b>รายการ NG</b><div id="ngContent">-</div></div>\n      <div class="share-row"><button type="button" id="shareBtn">แชร์รูปเข้า LINE / แอปอื่น</button><button type="button" class="secondary" id="closeResultBtn2">ปิด</button></div>\n    </div>\n  </div>\n</div>\n\n<script>const $ = (id) => document.getElementById(id);\nlet pouchImageData = "";\nlet cartonImageData = "";\nlet cameraStream = null;\nlet lastResult = null;\nlet pouchMachines = [];\nlet pouchSeq = 1;\n\nconst PREFIX_SHIPPING_MAP = {\n  KC:"ZZZZZ", VN:"IPO VN", VT:"VN-MT", KK:"AKK", CT:"CDT", TS:"TS", AC:"AKC", SM:"SOMCHAICHALUEN", AX:"AKX", MM:"I.P. ONE-MYANMAR",\n  ML:"ML", KT:"KT", MW:"MWD", MK:"MK", MY:"MDY", TG:"TG", MN:"MNJM", MA:"MLA", LM:"MT/LM+VY", DK:"DKSH", NT:"NTPL",\n  XR:"XR", BU:"BUL", UK:"U,K,T-7", DB:"DBL INDUSTRIES PLC", OL:"IMPORTER:ORGANIC LINE CO., LTD", OD:"IMPORTER:ORGANIC LINE CO., LTD",\n  MI:"ZZZZZ", WD:"WEDAR", CZ:"ZZZZZ", ND:"NDF", CS:"CSMS", FN:"FENIX", CD:"CDM", DT:"DBT", YP:"YPG", LB:"ZZZZZ", LQ:"ZZZZZ"\n};\nconst EXPORT_PREFIXES = Object.keys(PREFIX_SHIPPING_MAP);\nconst MONTH_CODES = ["A","B","C","D","E","F","G","H","I","J","K","L"];\n\nfunction showToast(msg, type="success"){\n  const t = document.createElement("div");\n  t.className = "toast" + (type === "error" ? " error" : "");\n  t.textContent = msg;\n  document.body.appendChild(t);\n  setTimeout(() => t.remove(), 2600);\n}\n\nfunction ddmmyyFromDate(v){\n  if(!v) return "";\n  const parts = v.split("-");\n  if(parts.length !== 3) return "";\n  const [y,m,d] = parts;\n  return `${d}${m}${String(y).slice(-2)}`;\n}\n\nfunction addMonths(dateStr, months){\n  if(!dateStr) return "";\n  const [y,m,d] = dateStr.split("-").map(Number);\n  const dt = new Date(y, m - 1, d);\n  dt.setMonth(dt.getMonth() + months);\n  return `${String(dt.getDate()).padStart(2,"0")}${String(dt.getMonth()+1).padStart(2,"0")}${String(dt.getFullYear()).slice(-2)}`;\n}\n\nfunction updateDates(){\n  const mfgEl = $("mfg");\n  const expEl = $("exp");\n  const mfgDate = $("mfgDate")?.value || "";\n  if(mfgEl) mfgEl.value = ddmmyyFromDate(mfgDate);\n  let exp = "";\n  const product = $("productType")?.value || "";\n  const market = $("marketType")?.value || "";\n  if(product === "FS" && market === "TH") exp = addMonths(mfgDate, 12);\n  if(product === "FS" && (market === "EXPORT" || market === "LAOS")) exp = addMonths(mfgDate, 24);\n  if(["IS","SS"].includes(product) && market === "TH") exp = addMonths(mfgDate, 24);\n  if(["IS","SS"].includes(product) && (market === "EXPORT" || market === "LAOS")) exp = addMonths(mfgDate, 36);\n  if(product === "EPC" && market === "TH") exp = addMonths(mfgDate, 15);\n  if(product === "EPC" && market === "LAOS") exp = addMonths(mfgDate, 24);\n  if(product === "EPW" && market === "LAOS") exp = addMonths(mfgDate, 36);\n  if(expEl) expEl.value = exp;\n}\n\nfunction updateMix(){\n  const mixDate = $("mixDate")?.value || "";\n  const mixCode = $("mixCode");\n  if(!mixCode) return;\n  if(!mixDate){ mixCode.value = ""; return; }\n  const [y,m,d] = mixDate.split("-");\n  mixCode.value = `${d}${MONTH_CODES[Number(m)-1] || ""}`;\n}\n\nfunction updateProductUI(){\n  const product = $("productType")?.value || "";\n  const needsMix = product === "EPW";\n  const mixDateField = $("mixDateField");\n  const mixCodeField = $("mixCodeField");\n  if(mixDateField) mixDateField.classList.toggle("hidden", !needsMix);\n  if(mixCodeField) mixCodeField.classList.toggle("hidden", !needsMix);\n  document.querySelectorAll(".mix-field").forEach(el => el.classList.toggle("hidden", !needsMix));\n  if(!needsMix){\n    if($("mixDate")) $("mixDate").value = "";\n    if($("mixCode")) $("mixCode").value = "";\n  }\n  updateDates();\n}\n\nfunction machineListForMode(mode){\n  if(mode === "linapack") return ["LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9"];\n  if(mode === "sachet") return ["MS1","MS2","MS3","MS4","MS5","MS6","MS7","MS8","MS9","MS10","MS11","MS12","AS1","AS2"];\n  return [];\n}\n\nfunction fillMachineSelect(selectEl, mode, placeholder){\n  if(!selectEl) return;\n  const oldValue = selectEl.value;\n  selectEl.innerHTML = "";\n  const list = machineListForMode(mode);\n  if(!list.length){\n    selectEl.disabled = true;\n    selectEl.appendChild(new Option("เลือกประเภทไลน์ก่อน", ""));\n    return;\n  }\n  selectEl.disabled = false;\n  selectEl.appendChild(new Option(placeholder || "เลือกเครื่อง", ""));\n  list.forEach(code => selectEl.appendChild(new Option(code, code)));\n  if(list.includes(oldValue)) selectEl.value = oldValue;\n  else selectEl.value = "";\n}\n\nfunction updateAllMachineOptions(){\n  const mode = $("mode")?.value || "";\n  fillMachineSelect($("line"), mode, "เลือกเครื่อง");\n  pouchMachines.forEach(pm => fillMachineSelect($(pm.lineId), mode, `เลือกเครื่องซองที่ ${pm.index}`));\n}\n\nfunction updateMarketUI(){\n  const market = $("marketType")?.value || "";\n  const prefix = $("cartonPrefix");\n  const shipping = $("shippingMark");\n  if(!prefix) return;\n  prefix.innerHTML = "";\n  if(shipping) shipping.value = "";\n  if(!market){\n    prefix.disabled = true;\n    prefix.appendChild(new Option("เลือกประเภทงานก่อน", ""));\n  } else if(market === "TH"){\n    prefix.disabled = true;\n    prefix.appendChild(new Option("00", "00"));\n    prefix.value = "00";\n    if(shipping) shipping.value = "-";\n  } else {\n    prefix.disabled = false;\n    prefix.appendChild(new Option("เลือก Prefix", ""));\n    EXPORT_PREFIXES.forEach(code => prefix.appendChild(new Option(`${code} → ${PREFIX_SHIPPING_MAP[code]}`, code)));\n  }\n  updateDates();\n  updateShippingMark();\n}\n\nfunction updateShippingMark(){\n  const market = $("marketType")?.value || "";\n  const prefix = $("cartonPrefix")?.value || "";\n  const shipping = $("shippingMark");\n  if(!shipping) return;\n  if(market === "TH") shipping.value = "-";\n  else shipping.value = prefix ? (PREFIX_SHIPPING_MAP[prefix] || "") : "";\n}\n\nfunction setPreview(which, data){\n  let imgId = "previewPouch";\n  let timeId = "pouchTime";\n  if(which === "carton"){\n    imgId = "previewCarton";\n    timeId = "cartonTime";\n  } else if(which.startsWith("pouch_")){\n    const id = which.slice(6);\n    imgId = `previewPouch_${id}`;\n    timeId = `pouchTime_${id}`;\n  }\n  const img = $(imgId);\n  const tm = $(timeId);\n  if(img){\n    img.src = data;\n    img.style.display = "block";\n  }\n  if(tm){\n    tm.textContent = "บันทึกล่าสุด " + new Date().toLocaleTimeString("th-TH", {hour12:false});\n  }\n}\n\nfunction handleFile(which, input){\n  const file = input.files && input.files[0];\n  if(!file) return;\n  const reader = new FileReader();\n  reader.onload = () => {\n    const data = reader.result;\n    if(which === "pouch") pouchImageData = data;\n    else if(which === "carton") cartonImageData = data;\n    else if(which.startsWith("pouch_")){\n      const id = which.slice(6);\n      const pm = pouchMachines.find(x => String(x.id) === String(id));\n      if(pm) pm.image = data;\n    }\n    setPreview(which, data);\n    showToast("บันทึกรูปเรียบร้อย");\n  };\n  reader.readAsDataURL(file);\n}\n\nfunction renumberPouchMachines(){\n  pouchMachines.forEach((pm, i) => {\n    pm.index = i + 2;\n    const card = $(`machineCard_${pm.id}`);\n    if(card){\n      const title = card.querySelector("b");\n      if(title) title.textContent = `เครื่องซองที่ ${pm.index}`;\n      const sel = $(pm.lineId);\n      if(sel && sel.options.length) sel.options[0].textContent = `เลือกเครื่องซองที่ ${pm.index}`;\n    }\n    const photo = $(`pouchCard_${pm.id}`);\n    if(photo){\n      const h = photo.querySelector("h3");\n      if(h) h.textContent = `รูปซอง เครื่องที่ ${pm.index}`;\n      const label = photo.querySelector(".file-text");\n      if(label) label.textContent = `เลือกรูปซองเครื่องที่ ${pm.index}`;\n    }\n    const cap = $(pm.captureId);\n    if(cap) cap.textContent = `ถ่ายซอง ${pm.index}`;\n  });\n}\n\nfunction removePouchMachine(id){\n  pouchMachines = pouchMachines.filter(pm => String(pm.id) !== String(id));\n  [`machineCard_${id}`, `pouchCard_${id}`, `capturePouch_${id}`].forEach(elId => {\n    const el = $(elId);\n    if(el) el.remove();\n  });\n  renumberPouchMachines();\n}\n\nfunction addPouchMachine(){\n  const id = `p${++pouchSeq}_${Date.now().toString(36)}`;\n  const index = pouchMachines.length + 2;\n  const pm = {\n    id,\n    index,\n    lineId: `line_${id}`,\n    fileId: `fileInputPouch_${id}`,\n    previewId: `previewPouch_${id}`,\n    timeId: `pouchTime_${id}`,\n    captureId: `capturePouch_${id}`,\n    image: ""\n  };\n  pouchMachines.push(pm);\n\n  const machineWrap = document.createElement("div");\n  machineWrap.className = "dynamic-machine-card";\n  machineWrap.id = `machineCard_${id}`;\n  machineWrap.innerHTML = `\n    <div class="machine-card-head">\n      <b>เครื่องซองที่ ${index}</b>\n      <button type="button" class="secondary btn-small" data-remove-pouch="${id}">ลบ</button>\n    </div>\n    <select id="${pm.lineId}"></select>\n  `;\n  $("extraMachineFields").appendChild(machineWrap);\n\n  const photoWrap = document.createElement("div");\n  photoWrap.className = "photo-card";\n  photoWrap.id = `pouchCard_${id}`;\n  photoWrap.innerHTML = `\n    <h3>รูปซอง เครื่องที่ ${index}</h3>\n    <label class="file-btn"><span class="file-text">เลือกรูปซองเครื่องที่ ${index}</span><input type="file" id="${pm.fileId}" accept="image/*"></label>\n    <img id="${pm.previewId}" class="preview">\n    <div id="${pm.timeId}" class="time-label"></div>\n  `;\n  $("extraPouchCards").appendChild(photoWrap);\n\n  const capBtn = document.createElement("button");\n  capBtn.type = "button";\n  capBtn.id = pm.captureId;\n  capBtn.textContent = `ถ่ายซอง ${index}`;\n  $("extraCaptureButtons").appendChild(capBtn);\n\n  fillMachineSelect($(pm.lineId), $("mode")?.value || "", `เลือกเครื่องซองที่ ${index}`);\n  $(pm.fileId).addEventListener("change", e => handleFile(`pouch_${id}`, e.target));\n  $(pm.captureId).addEventListener("click", () => captureTo(`pouch_${id}`));\n  const removeBtn = machineWrap.querySelector(`[data-remove-pouch="${id}"]`);\n  if(removeBtn) removeBtn.addEventListener("click", () => removePouchMachine(id));\n}\n\nasync function openCamera(){\n  try{\n    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("browser ไม่รองรับกล้อง");\n    cameraStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false });\n    $("cameraVideo").srcObject = cameraStream;\n    $("cameraModal").classList.add("active");\n  }catch(err){\n    showToast("เปิดกล้องไม่ได้: " + err.message, "error");\n  }\n}\n\nfunction closeCamera(){\n  if(cameraStream) cameraStream.getTracks().forEach(t => t.stop());\n  cameraStream = null;\n  if($("cameraVideo")) $("cameraVideo").srcObject = null;\n  if($("cameraModal")) $("cameraModal").classList.remove("active");\n}\n\nfunction captureTo(which){\n  const video = $("cameraVideo");\n  if(!video || !video.videoWidth) return showToast("ยังไม่พบภาพจากกล้อง", "error");\n  const canvas = $("cameraCanvas");\n  canvas.width = video.videoWidth;\n  canvas.height = video.videoHeight;\n  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);\n  const data = canvas.toDataURL("image/jpeg", 0.92);\n  if(which === "pouch") pouchImageData = data;\n  else if(which === "carton") cartonImageData = data;\n  else if(which.startsWith("pouch_")){\n    const id = which.slice(6);\n    const pm = pouchMachines.find(x => String(x.id) === String(id));\n    if(pm) pm.image = data;\n  }\n  setPreview(which, data);\n  showToast("บันทึกรูปเรียบร้อย");\n}\n\nfunction getPouchesForPayload(){\n  const list = [{ line: $("line")?.value || "", image: pouchImageData }];\n  pouchMachines.forEach(pm => {\n    list.push({ line: $(pm.lineId)?.value || "", image: pm.image || "" });\n  });\n  return list;\n}\n\nfunction validateBeforeCheck(){\n  const miss = [];\n  if(!$("mode")?.value) miss.push("ประเภทไลน์");\n  if(!$("line")?.value) miss.push("เครื่องซองที่ 1");\n  if(!$("productType")?.value) miss.push("ผลิตภัณฑ์");\n  if(!$("marketType")?.value) miss.push("ประเภทงาน");\n  if(!$("mfgDate")?.value) miss.push("วันที่ผลิต");\n  if($("productType")?.value === "EPW" && !$("mixDate")?.value) miss.push("วันที่ผสม");\n  if(($("marketType")?.value === "EXPORT" || $("marketType")?.value === "LAOS") && !$("cartonPrefix")?.value) miss.push("Prefix");\n  if(!$("buildingNo")?.value) miss.push("เลขอาคาร");\n  if(!pouchImageData) miss.push("รูปซองเครื่องที่ 1");\n  if(!cartonImageData) miss.push("รูปกล่อง");\n  pouchMachines.forEach(pm => {\n    if(!$(pm.lineId)?.value) miss.push(`เครื่องซองที่ ${pm.index}`);\n    if(!pm.image) miss.push(`รูปซองเครื่องที่ ${pm.index}`);\n  });\n  if(miss.length){\n    showToast("กรุณาเลือก/กรอก: " + miss.join(", "), "error");\n    return false;\n  }\n  return true;\n}\n\nasync function sendCheck(){\n  updateDates();\n  updateMix();\n  updateShippingMark();\n  if(!validateBeforeCheck()) return;\n  const btn = $("checkBtn");\n  btn.disabled = true;\n  btn.textContent = "กำลังตรวจสอบ...";\n  try{\n    const pouches = getPouchesForPayload();\n    const payload = {\n      checkType:"both",\n      mode: $("mode").value,\n      productType: $("productType").value,\n      marketType: $("marketType").value,\n      mfg: $("mfg")?.value || ddmmyyFromDate($("mfgDate").value),\n      line: $("line").value,\n      exp: $("exp")?.value || "",\n      mixCode: $("mixCode")?.value || "",\n      pouchImage: pouchImageData,\n      cartonImage: cartonImageData,\n      pouches,\n      buildingNo: $("buildingNo").value,\n      buildingSuffix: $("buildingSuffix")?.value || "",\n      shippingMark: $("shippingMark")?.value || "",\n      cartonAlphaCode: $("marketType").value === "TH" ? "00" : $("cartonPrefix").value\n    };\n    const res = await fetch("/check", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload) });\n    const data = await res.json();\n    if(!res.ok) throw new Error(data.error || "ตรวจสอบไม่สำเร็จ");\n    showResult(data);\n  }catch(err){\n    showToast(err.message, "error");\n  }finally{\n    btn.disabled = false;\n    btn.textContent = "ตรวจสอบล็อตซอง + กล่อง";\n  }\n}\n\nfunction showResult(data){\n  lastResult = data;\n  const pass = data.summary === "PASS";\n  if($("resultHead")) $("resultHead").className = "result-head " + (pass ? "pass" : "ng");\n  if($("resultTitle")) $("resultTitle").textContent = pass ? "PASS" : "NG";\n  if($("evidenceImg")) $("evidenceImg").src = data.stampedImageUrl || "";\n  if($("expectedPouchLot")) $("expectedPouchLot").textContent = data.expectedPouchLot || "-";\n  if($("expectedCartonLot")) $("expectedCartonLot").textContent = data.expectedCartonLot || "-";\n  const ngs = (data.details || []).filter(d => d.status === "NG");\n  if($("ngContent")){\n    $("ngContent").innerHTML = ngs.length\n      ? "<ul>" + ngs.map(d => `<li><b>${d.item}</b>: อ่านได้ ${d.actual || "-"} / ควรเป็น ${d.expected || "-"}</li>`).join("") + "</ul>"\n      : "ไม่พบรายการ NG";\n  }\n  if($("resultModal")) $("resultModal").classList.add("active");\n}\n\nfunction closeResult(){\n  if($("resultModal")) $("resultModal").classList.remove("active");\n}\n\nfunction formatShareDate(){\n  const now = new Date();\n  return `${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;\n}\n\nasync function shareResult(){\n  if(!lastResult) return;\n  const machineText = getPouchesForPayload().map(x => x.line).filter(v => v && v.trim()).join(", ") || "-";\n  const text = `ไลน์ ${machineText} ตรวจสอบความถูกต้องของ Lot แล้ว (${lastResult.summary})\\n\\nวันที่ ${formatShareDate()}`;\n  try{\n    const imageUrl = lastResult.stampedImageUrl || "";\n    if(imageUrl){\n      const resp = await fetch(imageUrl);\n      const blob = await resp.blob();\n      const file = new File([blob], "lot-check.jpg", {type:"image/jpeg"});\n      if(navigator.canShare && navigator.canShare({files:[file]})){\n        await navigator.share({text, files:[file]});\n        return;\n      }\n      if(navigator.share){\n        await navigator.share({text, url: location.origin + imageUrl});\n        return;\n      }\n    }\n    await navigator.clipboard.writeText(text);\n    showToast("คัดลอกข้อความแล้ว");\n  }catch(err){\n    showToast("แชร์ไม่ได้: " + err.message, "error");\n  }\n}\n\nfunction bindEvents(){\n  $("mode")?.addEventListener("change", updateAllMachineOptions);\n  $("productType")?.addEventListener("change", updateProductUI);\n  $("marketType")?.addEventListener("change", updateMarketUI);\n  $("cartonPrefix")?.addEventListener("change", updateShippingMark);\n  $("mfgDate")?.addEventListener("change", updateDates);\n  $("mixDate")?.addEventListener("change", updateMix);\n  $("fileInputPouch")?.addEventListener("change", e => handleFile("pouch", e.target));\n  $("fileInputCarton")?.addEventListener("change", e => handleFile("carton", e.target));\n  $("addPouchMachineBtn")?.addEventListener("click", addPouchMachine);\n  $("openCameraBtn")?.addEventListener("click", openCamera);\n  $("closeCameraBtn")?.addEventListener("click", closeCamera);\n  $("capturePouchBtn")?.addEventListener("click", () => captureTo("pouch"));\n  $("captureCartonBtn")?.addEventListener("click", () => captureTo("carton"));\n  $("checkBtn")?.addEventListener("click", sendCheck);\n  $("closeResultBtn")?.addEventListener("click", closeResult);\n  $("closeResultBtn2")?.addEventListener("click", closeResult);\n  $("shareBtn")?.addEventListener("click", shareResult);\n}\n\nwindow.addEventListener("DOMContentLoaded", () => {\n  bindEvents();\n  updateAllMachineOptions();\n  updateProductUI();\n  updateMarketUI();\n});\n</script>\n</body>\n</html>'
 
 
 def now_thai():
@@ -85,84 +77,7 @@ def format_ddmmyy(dt):
     return dt.strftime("%d%m%y")
 
 
-def normalize_epc_laos_exp_months(value):
-    """EPC Laos can be either 24 months or 15 months depending on line."""
-    try:
-        months = int(str(value or "24").strip())
-    except Exception:
-        months = 24
-    return 15 if months == 15 else 24
-
-
-AUTO_MACHINE_MAP = {
-    "V1": "VH1",
-    "V3": "VH3",
-    "MESPACK1": "MH1",
-    "MESPACK2": "MH2",
-    "MESPACK3": "MH3",
-    "VH1": "VH1",
-    "VH3": "VH3",
-    "MH1": "MH1",
-    "MH2": "MH2",
-    "MH3": "MH3",
-}
-
-# Mespack2 / Mespack3 lane rules
-# Mespack2 = MH2 has lanes 1-3, Mespack3 = MH3 has lanes 1-4.
-MESPACK_AUTO_LANE_RULES = {
-    "MH2": ("1", "2", "3"),
-    "MH3": ("1", "2", "3", "4"),
-}
-
-
-def map_auto_machine(ui_code):
-    return AUTO_MACHINE_MAP.get(str(ui_code or "").strip().upper(), str(ui_code or "").strip().upper())
-
-
-def auto_lane_numbers(machine_code):
-    """Return valid lane numbers for Mespack2/Mespack3 auto lines."""
-    code = map_auto_machine(machine_code)
-    return MESPACK_AUTO_LANE_RULES.get(code, ())
-
-
-def is_mespack_lane_machine(machine_code):
-    return bool(auto_lane_numbers(machine_code))
-
-
-def auto_requires_mix(product_type, machine_code):
-    """Mespack2/3 EPW uses mix code: MFG DDMMYY MIX MH2/MH3 LANE."""
-    return str(product_type or "").strip().upper() == "EPW" and is_mespack_lane_machine(machine_code)
-
-
-def calculate_expected_auto_exp(product_type, market_type, mfg, machine_code):
-    """
-    Auto line EXP rule.
-    - Mespack2/Mespack3 non-EPW: MFG DDMMYY MH2/MH3 LANE EXP DDMMYY, EXP = MFG + 1 year.
-    - Mespack2/Mespack3 EPW: no EXP; uses mix code before machine.
-    - Other Auto machines keep the original market-based rule.
-    """
-    code = map_auto_machine(machine_code)
-    if is_mespack_lane_machine(code):
-        if str(product_type or "").strip().upper() == "EPW":
-            return ""
-        dt = parse_ddmmyy(mfg)
-        return format_ddmmyy(add_months(dt, 12)) if dt else ""
-    return calculate_auto_exp(market_type, mfg)
-
-
-def calculate_auto_exp(market_type, mfg):
-    dt = parse_ddmmyy(mfg)
-    if not dt:
-        return ""
-    market_type = str(market_type or "").upper()
-    if market_type == "TH":
-        return format_ddmmyy(add_months(dt, 12))
-    if market_type == "LAOS":
-        return format_ddmmyy(add_months(dt, 24))
-    return ""
-
-
-def calculate_exp(product_type, market_type, mfg, epc_laos_exp_months=24):
+def calculate_exp(product_type, market_type, mfg):
     dt = parse_ddmmyy(mfg)
     if not dt:
         return ""
@@ -185,7 +100,7 @@ def calculate_exp(product_type, market_type, mfg, epc_laos_exp_months=24):
         if market_type == "TH":
             return format_ddmmyy(add_months(dt, 15))
         if market_type == "LAOS":
-            return format_ddmmyy(add_months(dt, normalize_epc_laos_exp_months(epc_laos_exp_months)))
+            return format_ddmmyy(add_months(dt, 24))
         return ""
 
     if product_type == "EPW":
@@ -257,7 +172,7 @@ def linapack_requires_exp(product_type, market_type):
     return False
 
 
-def expected_linapack_exp(product_type, market_type, expected_mfg, epc_laos_exp_months=24):
+def expected_linapack_exp(product_type, market_type, expected_mfg):
     product_type = str(product_type or "").upper()
     market_type = str(market_type or "").upper()
     if product_type == "FS" and market_type == "TH":
@@ -271,7 +186,7 @@ def expected_linapack_exp(product_type, market_type, expected_mfg, epc_laos_exp_
     if product_type == "EPC" and market_type == "TH":
         return exp_date_plus_months(expected_mfg, 15)
     if product_type == "EPC" and market_type == "LAOS":
-        return exp_date_plus_months(expected_mfg, normalize_epc_laos_exp_months(epc_laos_exp_months))
+        return exp_date_plus_months(expected_mfg, 24)
     if product_type == "EPW" and market_type == "LAOS":
         return exp_date_plus_years(expected_mfg, 3)
     return ""
@@ -284,7 +199,7 @@ def no_exp_required(product_type, market_type):
     Linapack rules:
     EPC TH      : MFG DDMMYY เลขเครื่อง เวลา + EXP DDMMYY อายุ 1 ปี 3 เดือน
     EPC EXPORT  : MFG DDMMYY เลขเครื่อง เวลา
-    EPC LAOS    : MFG DDMMYY เลขเครื่อง เวลา + EXP DDMMYY อายุ 2 ปี หรือ 1 ปี 3 เดือน (เลือกได้ตามไลน์)
+    EPC LAOS    : MFG DDMMYY เลขเครื่อง เวลา + EXP DDMMYY อายุ 2 ปี
     EPW TH      : MFG DDMMYY วันผสม เลขเครื่อง เวลา
     EPW EXPORT  : MFG DDMMYY เลขเครื่อง เวลา
     EPW LAOS    : MFG DDMMYY วันผสม เลขเครื่อง เวลา + EXP DDMMYY อายุ 3 ปี
@@ -599,41 +514,10 @@ def draw_red_boxes_on_image(image, boxes):
 
 
 def _open_base64_image(image_base64):
-    image_base64 = _extract_base64_payload(image_base64)
-    image_bytes = base64.b64decode(image_base64, validate=True)
+    if "," in image_base64:
+        image_base64 = image_base64.split(",", 1)[1]
+    image_bytes = base64.b64decode(image_base64)
     return Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-
-def _extract_base64_payload(image_base64):
-    """Return pure base64 payload from a data URL or raw base64 string."""
-    value = str(image_base64 or "").strip()
-    if not value:
-        return ""
-    if "," in value and value.lower().startswith("data:"):
-        value = value.split(",", 1)[1]
-    return value.strip()
-
-
-def normalize_image_base64_for_ai(image_base64, max_side=2000):
-    """
-    Convert any uploaded/captured image data URL to clean JPEG base64.
-    This prevents OpenAI/Gemini errors such as:
-    'The string did not match the expected pattern' when an image is WebP/HEIC/data URL malformed.
-    """
-    raw = _extract_base64_payload(image_base64)
-    if not raw:
-        raise RuntimeError("ไม่พบข้อมูลรูปภาพ กรุณาถ่าย/อัปโหลดรูปใหม่")
-    try:
-        img = Image.open(io.BytesIO(base64.b64decode(raw, validate=True))).convert("RGB")
-        w, h = img.size
-        if max(w, h) > max_side:
-            scale = max_side / max(w, h)
-            img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.Resampling.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=95, optimize=True)
-        return base64.b64encode(buf.getvalue()).decode("utf-8")
-    except Exception as e:
-        raise RuntimeError("รูปภาพไม่อยู่ในรูปแบบที่ระบบอ่านได้ กรุณาถ่ายใหม่หรือเลือกรูปใหม่") from e
 
 
 def _resize_to_fit(image, max_w, max_h):
@@ -765,44 +649,37 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 def enhance_lot_image_for_ai(image_base64, check_type=""):
     """
     Improve OCR readability before sending to Vision AI.
-    Always returns pure JPEG base64, never a data URL.
+    - Keeps the whole image to avoid cutting off lots printed in unusual positions.
+    - Upscales small images, applies autocontrast, contrast, and sharpness.
     """
     try:
-        clean_b64 = normalize_image_base64_for_ai(image_base64, max_side=2000)
-        img = Image.open(io.BytesIO(base64.b64decode(clean_b64, validate=True))).convert("RGB")
+        raw = image_base64.split(",", 1)[1] if "," in str(image_base64) else image_base64
+        img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGB")
         w, h = img.size
 
-        check_kind = str(check_type or "").lower()
-        is_auto_emboss = "auto" in check_kind or "emboss" in check_kind
-
-        # Upscale small images; emboss/dot-matrix codes need enough pixels per character.
-        target_min_w = 1750 if is_auto_emboss else (1400 if check_kind == "carton" else 1300)
+        # Upscale small images; dot-matrix codes need enough pixels per dot.
+        target_min_w = 1600 if str(check_type).lower() == "carton" else 1400
         if w < target_min_w:
-            scale = min(2.2 if is_auto_emboss else 1.8, target_min_w / max(1, w))
+            scale = min(3.0, target_min_w / max(1, w))
             img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
 
-        if is_auto_emboss:
-            # Auto line uses emboss blocks: letters are seen by relief/shadow, not ink.
-            # Stronger contrast/sharpening helps Vision OCR see MFG/EXP on the block.
-            img = ImageOps.autocontrast(img)
-            img = ImageEnhance.Contrast(img).enhance(1.85)
-            img = ImageEnhance.Sharpness(img).enhance(2.6)
-        else:
-            img = ImageOps.autocontrast(img)
-            img = ImageEnhance.Contrast(img).enhance(1.45)
-            img = ImageEnhance.Sharpness(img).enhance(1.8)
+        # Keep color, but improve contrast/sharpness for brown carton / faint dot matrix.
+        img = ImageOps.autocontrast(img)
+        img = ImageEnhance.Contrast(img).enhance(1.45)
+        img = ImageEnhance.Sharpness(img).enhance(1.8)
 
-        max_w = 2200 if is_auto_emboss else 2000
+        # Limit very large upload size.
+        max_w = 2200
         if img.width > max_w:
             ratio = max_w / img.width
             img = img.resize((max_w, int(img.height * ratio)), Image.Resampling.LANCZOS)
 
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=96 if is_auto_emboss else 95)
+        img.save(buf, format="JPEG", quality=95)
         return base64.b64encode(buf.getvalue()).decode("utf-8")
     except Exception:
-        # Last fallback: still return pure payload, not a full data URL.
-        return _extract_base64_payload(image_base64)
+        return image_base64
+
 
 def should_use_gemini_ocr(check_type, product_type, market_type):
     """
@@ -831,7 +708,7 @@ def call_gemini_vision_ocr(image_base64, prompt, check_type):
         raise RuntimeError("ไม่พบ GEMINI_API_KEY")
 
     model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    enhanced_base64 = _extract_base64_payload(enhance_lot_image_for_ai(image_base64, check_type))
+    enhanced_base64 = enhance_lot_image_for_ai(image_base64, check_type)
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
@@ -859,7 +736,7 @@ def call_gemini_vision_ocr(image_base64, prompt, check_type):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=180) as res:
+        with urllib.request.urlopen(req, timeout=60) as res:
             data = json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="ignore")
@@ -878,13 +755,13 @@ def call_openai_vision_ocr(image_base64, prompt, check_type):
     if not client:
         raise RuntimeError("ไม่พบ OPENAI_API_KEY")
     response = client.responses.create(
-        model=os.getenv("OPENAI_VISION_MODEL", "gpt-5.6"),
+        model=os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
         input=[
             {
                 "role": "user",
                 "content": [
                     {"type": "input_text", "text": prompt},
-                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{_extract_base64_payload(enhance_lot_image_for_ai(image_base64, check_type))}"},
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{enhance_lot_image_for_ai(image_base64, check_type)}"},
                 ],
             }
         ],
@@ -1042,7 +919,7 @@ Read ONLY the printed lot/batch text visible in the image.
 Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits.
 
 Likely export carton visual parts may include:
-- Optional shipping mark before running number; some prefixes/countries such as CZ have no shipping mark
+- Shipping mark before running number
 - Running number
 - Prefix before date
 - MFG date
@@ -1052,7 +929,7 @@ Likely export carton visual parts may include:
 Return JSON only:
 {
   "lines": ["carton batch/lot exactly as seen"],
-  "has_shipping_mark": false,
+  "has_shipping_mark": true,
   "has_alpha_code": true,
   "has_mfg": true,
   "has_exp": true,
@@ -1068,28 +945,6 @@ Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits 
 
 Return JSON only:
 {"lines":["line 1 exactly as seen","line 2 exactly as seen","line 3 exactly as seen","line 4 exactly as seen","line 5 exactly as seen","line 6 exactly as seen"]}
-"""
-    elif mode == "auto":
-        prompt = """
-You are an OCR transcriber for AUTO line emboss block lot codes.
-The lot is embossed/engraved on metal or molded blocks, so letters may be visible by shadows and relief, not ink.
-
-Read ONLY the visible emboss lot text.
-Do NOT verify correctness. Do NOT use any expected value. Do NOT correct digits or words.
-
-Expected visual structures for this OCR target:
-- Normal auto: MFG DDMMYY MACHINE EXP DDMMYY
-- Mespack2/MH2 lanes: MFG DDMMYY MH2 1 EXP DDMMYY, MFG DDMMYY MH2 2 EXP DDMMYY, MFG DDMMYY MH2 3 EXP DDMMYY
-- Mespack3/MH3 lanes: MFG DDMMYY MH3 1 EXP DDMMYY through lane 4
-- EPW on Mespack2/3: MFG DDMMYY MIX MH2/MH3 LANE, for example MFG 010726 01G MH2 1. EPW has no EXP.
-
-MACHINE can visually be VH1, VH3, MH1, MH2, or MH3.
-For MH2/MH3, read the lane number immediately after the machine code. Do not treat lane 1/2/3/4 as time.
-MFG may appear as MFG., MFG>, MFG|, or with a small separator immediately after G. If M F G are visible, transcribe the word as MFG.
-EXP may appear as EXP., EXP>, EXP|, or with a small separator immediately after P. If E X P are visible, transcribe the word as EXP.
-
-Return JSON only:
-{"lines":["emboss lot line exactly as seen","second visible lane line if present","third visible lane line if present","fourth visible lane line if present"]}
 """
     else:
         prompt = """
@@ -1147,9 +1002,6 @@ OUTPUT RULE:
 - Do not explain.
 """
 
-    if str(mode or "").lower() == "auto" and str(check_type or "").lower() == "pouch":
-        check_type = "auto_pouch_emboss"
-
     # OCR engine selection.
     # OCR_ENGINE=openai : OpenAI only
     # OCR_ENGINE=gemini : Gemini only
@@ -1158,23 +1010,27 @@ OUTPUT RULE:
     engine = str(os.getenv("OCR_ENGINE", "auto") or "auto").strip().lower()
 
     if engine == "dual":
-        # RENDER-SAFE FAST OCR MODE:
-        # The previous dual mode called both OpenAI and Gemini for some images.
-        # With 2 pouch machines + carton this can create too many slow external calls and Render may return HTML/timeout.
-        # This mode still uses both providers as failover, but only ONE provider per image:
-        # - Prefer Gemini first when available because it handled dot-matrix carton text better in tests.
-        # - Fall back to OpenAI if Gemini fails.
         errors = []
-        if os.getenv("GEMINI_API_KEY"):
-            try:
-                return call_gemini_vision_ocr(image_base64, prompt, check_type)
-            except Exception as e:
-                errors.append(f"Gemini: {e}")
-        if os.getenv("OPENAI_API_KEY"):
-            try:
-                return call_openai_vision_ocr(image_base64, prompt, check_type)
-            except Exception as e:
-                errors.append(f"OpenAI: {e}")
+        openai_text = None
+        gemini_text = None
+        try:
+            openai_text = call_openai_vision_ocr(image_base64, prompt, check_type)
+        except Exception as e:
+            errors.append(f"OpenAI: {e}")
+        try:
+            gemini_text = call_gemini_vision_ocr(image_base64, prompt, check_type)
+        except Exception as e:
+            errors.append(f"Gemini: {e}")
+
+        if openai_text and gemini_text:
+            return choose_dual_ocr_result(
+                openai_text, gemini_text, check_type, mode, product_type, market_type,
+                expected_mfg, expected_line, expected_exp, shipping_mark, carton_alpha_code
+            )
+        if gemini_text:
+            return gemini_text
+        if openai_text:
+            return openai_text
         raise RuntimeError(" / ".join(errors) if errors else "OCR engine ใช้งานไม่ได้")
 
     if should_use_gemini_ocr(check_type, product_type, market_type):
@@ -1186,241 +1042,6 @@ OUTPUT RULE:
                 raise
 
     return call_openai_vision_ocr(image_base64, prompt, check_type)
-
-
-def _safe_json_loads_from_ai(raw_text):
-    """Parse AI JSON robustly and raise a Thai-friendly error when parsing fails."""
-    try:
-        return json.loads(clean_json_text(raw_text))
-    except Exception as e:
-        preview = str(raw_text or "")[:300].replace("\n", " ")
-        raise RuntimeError(f"AI OCR ตอบกลับไม่เป็น JSON ที่อ่านได้: {preview}") from e
-
-
-def _normalize_batch_ocr_result(batch_json, pouch_count):
-    """
-    Normalize batch OCR response to:
-    {"pouches": {1: {"lines": [...]}, ...}, "carton": {"lines": [...]}}
-    Supports a few common model response variants.
-    """
-    if not isinstance(batch_json, dict):
-        raise RuntimeError("ผล Batch OCR ไม่ใช่ JSON object")
-
-    pouch_map = {}
-    pouches_obj = batch_json.get("pouches") or batch_json.get("pouch") or []
-    if isinstance(pouches_obj, dict):
-        # Accept {"1": {"lines": [...]}, "2": ...}
-        for k, v in pouches_obj.items():
-            try:
-                idx = int(str(k).replace("POUCH", "").replace("pouch", "").replace("_", "").strip())
-            except Exception:
-                continue
-            pouch_map[idx] = v if isinstance(v, dict) else {"lines": v if isinstance(v, list) else [str(v)]}
-    elif isinstance(pouches_obj, list):
-        for pos, item in enumerate(pouches_obj, start=1):
-            if isinstance(item, dict):
-                idx = item.get("index") or item.get("pouch") or item.get("id") or pos
-                try:
-                    idx = int(str(idx).replace("POUCH", "").replace("pouch", "").replace("_", "").strip())
-                except Exception:
-                    idx = pos
-                pouch_map[idx] = item
-            else:
-                pouch_map[pos] = {"lines": [str(item)]}
-
-    # Fallback for top-level pouch1/pouch_1 keys.
-    for idx in range(1, pouch_count + 1):
-        if idx not in pouch_map:
-            for key in (f"pouch{idx}", f"pouch_{idx}", f"POUCH_{idx}", f"POUCH{idx}"):
-                if key in batch_json:
-                    v = batch_json[key]
-                    pouch_map[idx] = v if isinstance(v, dict) else {"lines": v if isinstance(v, list) else [str(v)]}
-                    break
-
-    normalized_pouches = {}
-    for idx in range(1, pouch_count + 1):
-        item = pouch_map.get(idx, {})
-        lines = item.get("lines", []) if isinstance(item, dict) else []
-        if isinstance(lines, str):
-            lines = [lines]
-        normalized_pouches[idx] = {
-            "lines": [str(x).strip().upper() for x in lines if str(x).strip()],
-            "raw": item,
-        }
-
-    carton_obj = batch_json.get("carton") or batch_json.get("CARTON") or batch_json.get("box") or {}
-    if not isinstance(carton_obj, dict):
-        carton_obj = {"lines": carton_obj if isinstance(carton_obj, list) else [str(carton_obj)]}
-    carton_lines = carton_obj.get("lines", [])
-    if isinstance(carton_lines, str):
-        carton_lines = [carton_lines]
-    carton_obj["lines"] = [str(x).strip().upper() for x in carton_lines if str(x).strip()]
-
-    return {"pouches": normalized_pouches, "carton": carton_obj, "raw": batch_json}
-
-
-def _batch_ocr_prompt(pouches, product_type, market_type, mode):
-    pouch_desc = "\n".join([f"- POUCH_{idx}: sachet/pouch lot rows for machine {item.get('line','').strip().upper()}" for idx, item in enumerate(pouches, start=1)])
-    auto_note = ""
-    if str(mode or "").lower() == "auto":
-        auto_note = """
-AUTO LINE EMBOSS POUCH NOTE:
-- POUCH images are emboss block codes, not normal inkjet text.
-- Normal auto structure: MFG DDMMYY MACHINE EXP DDMMYY.
-- Mespack2/MH2 has lanes 1-3: MFG DDMMYY MH2 LANE EXP DDMMYY.
-- Mespack3/MH3 has lanes 1-4: MFG DDMMYY MH3 LANE EXP DDMMYY.
-- EPW on Mespack2/3 uses mix code and no EXP: MFG DDMMYY MIX MH2/MH3 LANE.
-- MACHINE can be VH1, VH3, MH1, MH2, or MH3.
-- For MH2/MH3, read the lane number immediately after the machine code. Do not treat lane 1/2/3/4 as time.
-- MFG may be embossed with a dot, arrow, notch, or separator after G, such as MFG. or MFG>. If the letters M F G are visible, transcribe the word as MFG.
-- EXP may also have a separator after P. If E X P are visible, transcribe as EXP.
-- Do not omit MFG just because emboss contrast is low; read the raised/engraved letters and their shadows.
-"""
-    carton_note = ""
-    if str(product_type).upper() == "EPC" and str(market_type).upper() == "LAOS":
-        carton_note = """
-CARTON NOTE FOR EPC LAOS:
-- The carton code is NOT a pouch MFG/EXP code.
-- Do NOT add MFG.
-- Do NOT add EXP.
-- Typical visible structure may be like: AKC 00001 AC DDMMYY 3
-- Some countries/prefixes have no shipping mark; if no shipping mark is visible, do not invent one.
-"""
-    else:
-        carton_note = """
-CARTON NOTE:
-- Read only the carton batch/lot line visible on the carton.
-- Some countries/prefixes have no shipping mark; if no shipping mark is visible, do not invent one.
-"""
-    return f"""
-You are an OCR transcriber for a factory lot verification system.
-You will receive multiple images in one request. Each image is labeled before it.
-
-IMAGE LIST:
-{pouch_desc}
-- CARTON: carton lot/batch code image
-
-TASK:
-Read ONLY the visible printed lot/batch/MFG/EXP text from each labeled image.
-Do NOT verify correctness.
-Do NOT use expected values.
-Do NOT correct digits, dates, line codes, MFG, EXP, prefixes, or suffixes.
-If a character is unclear, use ? or UNCLEAR.
-
-POUCH RULES:
-- Return all visible lot rows for each pouch image.
-- Never add missing MFG or EXP. If MFG/EXP is not clearly visible, return exactly what is visible or UNCLEAR.
-- Do not normalize dates. Example: if visible is 300626, return 300626 exactly.
-
-{auto_note}
-{carton_note}
-
-STRICT NO-GUESSING RULES:
-- If a digit/letter is broken, faint, smeared, or ambiguous, use ? for that character.
-- If the text is not readable, return an empty lines array or UNCLEAR for that image.
-- Return JSON only. Do not explain.
-
-REQUIRED JSON FORMAT:
-{{
-  "pouches": [
-    {{"index": 1, "lines": ["visible line 1", "visible line 2"]}},
-    {{"index": 2, "lines": ["visible line 1"]}}
-  ],
-  "carton": {{"lines": ["visible carton lot line"]}}
-}}
-"""
-
-
-def call_gemini_batch_ocr(image_items, prompt):
-    """One Gemini request for all pouch/carton images to reduce Render/Gunicorn timeout."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("ไม่พบ GEMINI_API_KEY")
-    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    parts = [{"text": prompt}]
-    for item in image_items:
-        enhanced = _extract_base64_payload(enhance_lot_image_for_ai(item["image"], item.get("check_type", "")))
-        parts.append({"text": f"\nIMAGE_ID: {item['id']} ({item.get('check_type','')})\n"})
-        parts.append({"inline_data": {"mime_type": "image/jpeg", "data": enhanced}})
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {
-            "temperature": 0,
-            "topP": 1,
-            "topK": 1,
-            "maxOutputTokens": 4096,
-            "response_mime_type": "application/json",
-        },
-    }
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=int(os.getenv("OCR_REQUEST_TIMEOUT", "240"))) as res:
-            data = json.loads(res.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Gemini Batch OCR error: HTTP {e.code} {err_body[:500]}")
-    parts_out = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    text = "".join(part.get("text", "") for part in parts_out).strip()
-    if not text:
-        raise RuntimeError("Gemini Batch OCR ไม่ส่งข้อความกลับมา")
-    return text
-
-
-def call_openai_batch_ocr(image_items, prompt):
-    """One OpenAI request for all pouch/carton images to reduce Render/Gunicorn timeout."""
-    if not client:
-        raise RuntimeError("ไม่พบ OPENAI_API_KEY")
-    content = [{"type": "input_text", "text": prompt}]
-    for item in image_items:
-        enhanced = _extract_base64_payload(enhance_lot_image_for_ai(item["image"], item.get("check_type", "")))
-        content.append({"type": "input_text", "text": f"IMAGE_ID: {item['id']} ({item.get('check_type','')})"})
-        content.append({"type": "input_image", "image_url": f"data:image/jpeg;base64,{enhanced}"})
-    response = client.responses.create(
-        model=os.getenv("OPENAI_VISION_MODEL", "gpt-5.6"),
-        input=[{"role": "user", "content": content}],
-    )
-    return response.output_text
-
-
-def read_both_batch_with_ai(pouches, carton_image_base64, product_type, market_type, mode):
-    """
-    Batch OCR for checkType='both'. This is the timeout fix:
-    4 pouch images + 1 carton image become 1 OCR request instead of 5 slow requests.
-    """
-    image_items = []
-    for idx, item in enumerate(pouches, start=1):
-        pouch_check_type = "auto_pouch_emboss" if str(mode or "").lower() == "auto" else "pouch"
-        image_items.append({"id": f"POUCH_{idx}", "check_type": pouch_check_type, "image": item.get("image", "")})
-    image_items.append({"id": "CARTON", "check_type": "carton", "image": carton_image_base64})
-    prompt = _batch_ocr_prompt(pouches, product_type, market_type, mode)
-    engine = str(os.getenv("OCR_ENGINE", "auto") or "auto").strip().lower()
-    errors = []
-
-    # Prefer Gemini in batch mode because one multi-image Gemini call is usually faster than many separate calls.
-    provider_order = []
-    if engine == "openai":
-        provider_order = ["openai"]
-    elif engine == "gemini":
-        provider_order = ["gemini"]
-    else:
-        provider_order = ["gemini", "openai"]
-
-    for provider in provider_order:
-        try:
-            if provider == "gemini" and os.getenv("GEMINI_API_KEY"):
-                raw = call_gemini_batch_ocr(image_items, prompt)
-                parsed = _safe_json_loads_from_ai(raw)
-                parsed["ocr_batch_provider"] = "gemini"
-                return _normalize_batch_ocr_result(parsed, len(pouches))
-            if provider == "openai" and os.getenv("OPENAI_API_KEY"):
-                raw = call_openai_batch_ocr(image_items, prompt)
-                parsed = _safe_json_loads_from_ai(raw)
-                parsed["ocr_batch_provider"] = "openai"
-                return _normalize_batch_ocr_result(parsed, len(pouches))
-        except Exception as e:
-            errors.append(f"{provider}: {friendly_error_message(e)}")
-    raise RuntimeError("Batch OCR ล้มเหลว: " + " / ".join(errors))
 
 def build_abnormal_points(details):
     abnormal_points = []
@@ -1570,36 +1191,10 @@ def append_field_check(details, item, actual, expected, overall_ref=None, allow_
     return ok
 
 
-
-def _parse_emboss_joined_mfg_exp(text):
-    """
-    Robust parser for Auto emboss lot, where OCR may return joined/separated forms:
-    MFG>300626, MFG.300626, M F G 300626, EXP:300628, etc.
-    """
-    t = normalize(text)
-    result = {}
-    mfg_match = re.search(r"M\s*F\s*G[\s\.\:\-\>\|]*([0-9?]{6})", t)
-    if mfg_match:
-        result["mfg_word"] = "MFG"
-        result["mfg_date"] = mfg_match.group(1)
-    exp_match = re.search(r"E\s*X\s*P[\s\.\:\-\>\|]*([0-9?]{6})", t)
-    if exp_match:
-        result["exp_word"] = "EXP"
-        result["exp_date"] = exp_match.group(1)
-    machine_match = re.search(r"\b(?:VH|MH|LP|MS|AS)\d{1,2}\b", t)
-    if machine_match:
-        result["machine"] = machine_match.group(0)
-    return result
-
-
 def parse_pouch_lot_fields(line, exp_line=""):
     """
-    Parse pouch/sachet/linapack/auto lot fields:
-    MFG / DDMMYY / optional mix / machine / optional lane / time / EXP / expiry date
-    Examples:
-      MFG 010726 MH2 1 EXP 010727
-      MFG 010726 01G MH2 1
-      MFG 230626 22F LP4 07:45
+    Parse pouch/sachet/linapack lot fields:
+    MFG / DDMMYY / machine_or_mix / time / EXP / expiry date
     """
     text = normalize(line)
     exp_text = normalize(exp_line)
@@ -1610,7 +1205,6 @@ def parse_pouch_lot_fields(line, exp_line=""):
         "mfg_date": "",
         "mix_code": "",
         "machine": "",
-        "lane": "",
         "time": "",
         "exp_word": "",
         "exp_date": "",
@@ -1618,43 +1212,22 @@ def parse_pouch_lot_fields(line, exp_line=""):
         "exp_raw": exp_text,
     }
 
-    # MFG - exact token plus emboss-friendly joined forms such as MFG>300626
-    emboss_fields = _parse_emboss_joined_mfg_exp(" ".join([text, exp_text]))
-    if emboss_fields.get("mfg_word"):
-        result["mfg_word"] = "MFG"
-    if emboss_fields.get("mfg_date"):
-        result["mfg_date"] = emboss_fields.get("mfg_date", "")
-    if emboss_fields.get("machine"):
-        result["machine"] = emboss_fields.get("machine", "")
-
+    # MFG
     if "MFG" in tokens:
         idx = tokens.index("MFG")
         result["mfg_word"] = "MFG"
         if idx + 1 < len(tokens):
             result["mfg_date"] = tokens[idx + 1]
-
-        # After the date can be:
-        #   MACHINE LANE EXP DATE
-        #   MIX MACHINE LANE
-        #   MIX MACHINE TIME
-        after = tokens[idx + 2:]
-        machine_pos = None
-        for j, v in enumerate(after):
-            if re.fullmatch(r"(?:LP|MS|AS|VH|MH)\d{1,2}", v):
+        if idx + 2 < len(tokens):
+            v = tokens[idx + 2]
+            if re.fullmatch(r"(?:LP|MS|AS)\d{1,2}", v):
                 result["machine"] = v
-                machine_pos = j
-                break
-        if machine_pos is not None:
-            if machine_pos > 0:
-                mix_candidate = after[0]
-                if not re.fullmatch(r"(?:LP|MS|AS|VH|MH)\d{1,2}", mix_candidate):
-                    result["mix_code"] = mix_candidate
-            if machine_pos + 1 < len(after) and re.fullmatch(r"[1-9]", after[machine_pos + 1]):
-                result["lane"] = after[machine_pos + 1]
-        elif after:
-            # No machine found yet. Keep the old behavior: token after date may be mix.
-            if not re.fullmatch(r"(?:LP|MS|AS|VH|MH)\d{1,2}", after[0]):
-                result["mix_code"] = after[0]
+            else:
+                result["mix_code"] = v
+        if idx + 3 < len(tokens):
+            v = tokens[idx + 3]
+            if re.fullmatch(r"(?:LP|MS|AS)\d{1,2}", v):
+                result["machine"] = v
 
     # fallback date
     if not result["mfg_date"]:
@@ -1664,49 +1237,33 @@ def parse_pouch_lot_fields(line, exp_line=""):
 
     # fallback machine
     if not result["machine"]:
-        m = re.search(r"\b(?:LP|MS|AS|VH|MH)\d{1,2}\b", text)
+        m = re.search(r"\b(?:LP|MS|AS)\d{1,2}\b", text)
         if m:
             result["machine"] = m.group(0)
-
-    # fallback lane: only trust a single digit immediately after the machine code.
-    if result["machine"] and not result["lane"]:
-        m = re.search(rf"\b{re.escape(result['machine'])}\s+([1-9])\b", text)
-        if m:
-            result["lane"] = m.group(1)
 
     # time
     m = re.search(r"\b([0-2]?\d:[0-5]\d)\b", text)
     if m:
         result["time"] = m.group(1)
 
-    # EXP line - exact token plus emboss-friendly joined forms such as EXP:300628
+    # EXP line
     exp_source = exp_text if exp_text else text
     exp_tokens = exp_source.split()
-    if emboss_fields.get("exp_word"):
-        result["exp_word"] = "EXP"
-    if emboss_fields.get("exp_date"):
-        result["exp_date"] = emboss_fields.get("exp_date", "")
-
     if "EXP" in exp_tokens:
         idx = exp_tokens.index("EXP")
         result["exp_word"] = "EXP"
         if idx + 1 < len(exp_tokens):
             result["exp_date"] = exp_tokens[idx + 1]
     else:
+        # fallback: if EXP appears joined or date exists in exp line
         if "EXP" in exp_source:
             result["exp_word"] = "EXP"
-        if not result["exp_date"]:
-            exp_m = re.search(r"E\s*X\s*P[\s\.\:\-\>\|]*([0-9?]{6})", exp_source)
-            if exp_m:
-                result["exp_word"] = "EXP"
-                result["exp_date"] = exp_m.group(1)
-        if not result["exp_date"] and result["exp_word"]:
-            # First 6-digit token after EXP if possible.
-            m = re.search(r"\bEXP\b\s*([0-9?]{6})", exp_source)
-            if m:
-                result["exp_date"] = m.group(1)
+        m = re.search(r"\b\d{6}\b", exp_source)
+        if m:
+            result["exp_date"] = m.group(0)
 
     return result
+
 
 def check_time_field(actual_time):
     actual_time = str(actual_time or "").strip()
@@ -1805,161 +1362,7 @@ def extract_time(text):
     return match.group(1) if match else ""
 
 
-def split_visible_lot_lines(lines):
-    """Normalize OCR output and split when multiple MFG rows are returned in one string."""
-    out = []
-    for line in lines or []:
-        text = normalize(line)
-        if not text:
-            continue
-        # Split repeated MFG rows while keeping MFG in each part.
-        parts = re.split(r"(?=\bM\s*F\s*G\b)", text)
-        parts = [p.strip() for p in parts if p.strip()]
-        out.extend(parts if parts else [text])
-    return out
-
-
-def check_pouch_auto(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code=""):
-    """
-    Auto emboss lot verification.
-
-    Normal Auto format:
-      MFG DDMMYY MACHINE EXP DDMMYY
-
-    Mespack2 / Mespack3 format:
-      Mespack2 (MH2) has lane 1-3:
-        MFG DDMMYY MH2 1 EXP DDMMYY
-        MFG DDMMYY MH2 2 EXP DDMMYY
-        MFG DDMMYY MH2 3 EXP DDMMYY
-      Mespack3 (MH3) has lane 1-4:
-        MFG DDMMYY MH3 1 EXP DDMMYY ... lane 4
-      EPW for Mespack2/3 uses mix code and no EXP:
-        MFG DDMMYY MIX MH2/MH3 LANE
-    """
-    details = []
-    overall = True
-
-    product_type = str(product_type or "").strip().upper()
-    market_type = str(market_type or "").strip().upper()
-    expected_line = map_auto_machine(expected_line)
-    expected_exp_calc = calculate_expected_auto_exp(product_type, market_type, expected_mfg, expected_line)
-    if expected_exp_calc or is_mespack_lane_machine(expected_line):
-        expected_exp = expected_exp_calc
-
-    lines = split_visible_lot_lines(lines)
-    all_text = " ".join(lines)
-    lanes = auto_lane_numbers(expected_line)
-    require_mix = auto_requires_mix(product_type, expected_line)
-    require_exp = bool(expected_exp)
-
-    if lanes:
-        parsed_rows = []
-        for line in lines:
-            fields = parse_pouch_lot_fields(line)
-            parsed_rows.append((line, fields))
-
-        for lane in lanes:
-            row_line = ""
-            fields = None
-            for line, f in parsed_rows:
-                if str(f.get("lane") or "") == lane:
-                    row_line, fields = line, f
-                    break
-            if fields is None:
-                # Fallback for OCR output that missed parsing but contains machine + lane as text.
-                for line, f in parsed_rows:
-                    if re.search(rf"\b{re.escape(expected_line)}\s+{re.escape(lane)}\b", line):
-                        row_line, fields = line, f
-                        break
-            if fields is None:
-                fields = {"mfg_word":"", "mfg_date":"", "mix_code":"", "machine":"", "lane":"", "exp_word":"", "exp_date":""}
-                row_line = ""
-
-            row_ok = True
-            checks = [
-                (f"เลน {lane} - MFG", fields.get("mfg_word"), "MFG"),
-                (f"เลน {lane} - วันผลิต", fields.get("mfg_date"), expected_mfg),
-            ]
-            if require_mix:
-                checks.append((f"เลน {lane} - วันผสม", fields.get("mix_code"), mix_code))
-            else:
-                actual_mix = str(fields.get("mix_code") or "").strip().upper()
-                if actual_mix:
-                    details.append({"item": f"เลน {lane} - วันผสม", "status": "NG", "actual": actual_mix, "expected": "ไม่ต้องมีวันผสม"})
-                    row_ok = False
-                    overall = False
-                else:
-                    details.append({"item": f"เลน {lane} - วันผสม", "status": "PASS", "actual": "ไม่ต้องมี", "expected": "ไม่ตรวจ"})
-            checks.extend([
-                (f"เลน {lane} - เลขเครื่อง", fields.get("machine"), expected_line),
-                (f"เลน {lane} - เลขเลน", fields.get("lane"), lane),
-            ])
-
-            for item, actual, expected in checks:
-                ok = append_field_check(details, item, actual, expected)
-                if not ok:
-                    row_ok = False
-                    overall = False
-
-            has_exp = "EXP" in row_line
-            if require_exp:
-                if not append_field_check(details, f"เลน {lane} - EXP", fields.get("exp_word"), "EXP"):
-                    row_ok = False
-                    overall = False
-                if not append_field_check(details, f"เลน {lane} - วันหมดอายุ", fields.get("exp_date"), expected_exp):
-                    row_ok = False
-                    overall = False
-            else:
-                exp_ok = not has_exp and not str(fields.get("exp_date") or "").strip()
-                details.append({
-                    "item": f"เลน {lane} - EXP",
-                    "status": "PASS" if exp_ok else "NG",
-                    "actual": "พบ EXP" if not exp_ok else "ไม่ต้องมี EXP",
-                    "expected": "ไม่ควรมี EXP"
-                })
-                if not exp_ok:
-                    row_ok = False
-                    overall = False
-
-        return overall, details
-
-    # Original Auto verification for V1/V3/Mespack1 or other non-lane machines.
-    mfg_line = lines[0] if len(lines) > 0 else all_text
-    exp_line = " ".join(lines[1:]) if len(lines) > 1 else all_text
-    fields = parse_pouch_lot_fields(mfg_line, exp_line)
-
-    machine_actual = fields.get("machine", "")
-    if not machine_actual:
-        alt_machine = str(fields.get("mix_code") or "").strip().upper()
-        if re.fullmatch(r"(?:VH|MH)\d{1,2}", alt_machine):
-            machine_actual = alt_machine
-
-    if not append_field_check(details, "MFG", fields.get("mfg_word"), "MFG"):
-        overall = False
-    if not append_field_check(details, "วันผลิต", fields.get("mfg_date"), expected_mfg):
-        overall = False
-    if not append_field_check(details, "เลขเครื่อง", machine_actual, expected_line):
-        overall = False
-    if require_exp:
-        if not append_field_check(details, "EXP", fields.get("exp_word"), "EXP"):
-            overall = False
-        if not append_field_check(details, "วันหมดอายุ", fields.get("exp_date"), expected_exp):
-            overall = False
-    else:
-        has_exp = "EXP" in all_text
-        exp_ok = not has_exp
-        details.append({
-            "item": "EXP",
-            "status": "PASS" if exp_ok else "NG",
-            "actual": "พบ EXP" if has_exp else "ไม่ต้องมี EXP",
-            "expected": "ไม่ควรมี EXP"
-        })
-        if not exp_ok:
-            overall = False
-
-    return overall, details
-
-def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time="", epc_laos_exp_months=24):
+def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expected_line, expected_exp, mix_code, ai_time=""):
     """
     Linapack field-by-field verification with fixed master rules.
     """
@@ -1980,13 +1383,13 @@ def check_pouch_linapack(lines, product_type, market_type, expected_mfg, expecte
     require_mix = linapack_requires_mix(product_type, market_type)
     require_exp = linapack_requires_exp(product_type, market_type)
 
-    expected_exp_calc = expected_linapack_exp(product_type, market_type, expected_mfg, epc_laos_exp_months)
+    expected_exp_calc = expected_linapack_exp(product_type, market_type, expected_mfg)
     if expected_exp_calc:
         expected_exp = expected_exp_calc
         # LINAPACK_RULE_EXPECTED_EXP_OVERRIDE
         try:
             if str(mode).lower() == "linapack":
-                expected_exp = expected_linapack_exp(product_type, market_type, expected_mfg, epc_laos_exp_months)
+                expected_exp = expected_linapack_exp(product_type, market_type, expected_mfg)
         except Exception:
             pass
 
@@ -2069,27 +1472,6 @@ def clean_lot_token(token):
     """Keep only A-Z and 0-9 for carton parsing."""
     return re.sub(r"[^A-Z0-9]", "", str(token).upper())
 
-NO_SHIPPING_MARK_CODES = {"KC", "MI", "CZ", "LB", "LQ"}
-NO_SHIPPING_MARK_VALUES = {"", "-", "ZZZZZ", "ไม่ตรวจ", "NO", "NONE", "N/A", "NA"}
-
-def shipping_mark_is_required(shipping_mark="", carton_alpha_code=""):
-    """Return False when the selected country/prefix has no shipping mark to verify.
-    CZ and any code mapped to blank/ZZZZZ are intentionally skipped.
-    """
-    code = clean_lot_token(carton_alpha_code)
-    mark_raw = str(shipping_mark or "").strip()
-    mark_upper = mark_raw.upper()
-    if code in NO_SHIPPING_MARK_CODES:
-        return False
-    if mark_upper in NO_SHIPPING_MARK_VALUES:
-        return False
-    if clean_lot_token(mark_raw) == "ZZZZZ":
-        return False
-    return bool(mark_raw)
-
-def normalize_shipping_mark_for_check(shipping_mark="", carton_alpha_code=""):
-    return str(shipping_mark or "").strip().upper() if shipping_mark_is_required(shipping_mark, carton_alpha_code) else ""
-
 
 def lot_tokens(text):
     text = normalize(text)
@@ -2105,7 +1487,7 @@ def shipping_mark_before_running_ok(all_text, shipping_mark):
       00001 XR 080626 3 QR     -> Shipping Mark XR NG
     Blank shipping mark = not required.
     """
-    shipping_mark = normalize_shipping_mark_for_check(shipping_mark, "")
+    shipping_mark = str(shipping_mark or "").strip().upper()
     if not shipping_mark:
         return True
 
@@ -2306,7 +1688,6 @@ def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code=""
 
     expected_mfg = clean_lot_token(expected_mfg)
     expected_prefix = clean_lot_token(carton_alpha_code)
-    shipping_mark_required = shipping_mark_is_required(shipping_mark, carton_alpha_code)
 
     # Running No. = first 4-5 digit token. MFG date is 6 digits, so it is ignored here.
     run_index = None
@@ -2317,8 +1698,7 @@ def extract_carton_actual_fields(all_text, expected_mfg="", carton_alpha_code=""
             break
 
     # Shipping Mark = token before Running No.
-    # If this country/prefix has no shipping mark (for example CZ), do not extract/check it.
-    if shipping_mark_required and run_index is not None and run_index > 0:
+    if run_index is not None and run_index > 0:
         result["shipping_mark"] = tokens[run_index - 1]
 
     # MFG date = expected MFG if found, otherwise first 6 digit token
@@ -2403,7 +1783,6 @@ def check_carton(lines, market_type, expected_mfg, expected_exp, building_no, bu
     Carton verification แบบแยก field และเทียบทีละตัวอักษร
     เพื่อแสดงชัดเจนว่าตัวเลข/ตัวอักษรตำแหน่งไหนผิด
     """
-    shipping_mark = normalize_shipping_mark_for_check(shipping_mark, carton_alpha_code)
     details = []
     overall = True
     lines = [normalize(x) for x in lines]
@@ -2620,49 +1999,6 @@ def index():
     return HTML
 
 
-def friendly_error_message(err):
-    raw = str(err or "")
-    low = raw.lower()
-    if "expected pattern" in low or "did not match" in low:
-        return "ระบบอ่านรูปไม่สำเร็จ: รูปหรือข้อมูลที่ส่งไปไม่ตรงรูปแบบที่ API รองรับ กรุณาถ่ายใหม่/เลือกรูปใหม่ แล้วลองอีกครั้ง"
-    if "unexpected token" in low or "not valid json" in low:
-        return "ระบบประมวลผลไม่สำเร็จ: หลังบ้านไม่ได้ส่ง JSON กลับมา กรุณาดู Render Logs"
-    if "quota" in low or "429" in low or "rate" in low:
-        return "OCR ถูกจำกัดจำนวนครั้งชั่วคราว/เรียกพร้อมกันมากเกินไป กรุณาลองใหม่ หรือกำหนด OCR_MAX_WORKERS=1 ใน Render"
-    if "timeout" in low or "timed out" in low:
-        return "OCR ใช้เวลานานเกินไป กรุณาลองใหม่ หรือตั้ง Start Command เป็น gunicorn app:app --timeout 300"
-    if "gemini" in low and ("400" in low or "api" in low):
-        return "Gemini OCR ใช้งานไม่สำเร็จ กรุณาตรวจสอบ GEMINI_API_KEY / GEMINI_MODEL หรือเปลี่ยน OCR_ENGINE=openai ชั่วคราว"
-    if "openai" in low and ("api" in low or "key" in low):
-        return "OpenAI OCR ใช้งานไม่สำเร็จ กรุณาตรวจสอบ OPENAI_API_KEY"
-    return raw
-
-
-@app.errorhandler(413)
-def handle_request_too_large(e):
-    return jsonify({"error": "รูปภาพรวมมีขนาดใหญ่เกิน 64MB กรุณาลดจำนวนรูปหรือครอปเฉพาะบริเวณล็อต"}), 413
-
-
-@app.errorhandler(400)
-def handle_bad_request(e):
-    if request.path == "/check":
-        return jsonify({"error": "ข้อมูลที่ส่งมาไม่ถูกต้อง กรุณาลองใหม่"}), 400
-    return e
-
-
-@app.errorhandler(504)
-def handle_gateway_timeout(e):
-    if request.path == "/check":
-        return jsonify({"error": "ระบบใช้เวลาประมวลผลนานเกินไป กรุณาลองใหม่ หรือเพิ่ม Gunicorn timeout เป็น 300 วินาที"}), 504
-    return e
-
-@app.errorhandler(500)
-def handle_internal_error(e):
-    if request.path == "/check":
-        return jsonify({"error": "ระบบหลังบ้านประมวลผลไม่สำเร็จ กรุณาลองใหม่ โดยถ่ายรูปเฉพาะบริเวณล็อตให้ใกล้ขึ้น"}), 500
-    return e
-
-
 @app.route("/stamped/<filename>")
 def stamped_file(filename):
     return send_from_directory(STAMP_DIR, filename)
@@ -2680,64 +2016,19 @@ def index():
 def health():
     return jsonify({"status": "ok"})
 
-
-# Async job store: prevents Render/Gunicorn request timeout during slow OCR.
-# /check returns a jobId immediately, then the browser polls /check_status/<jobId>.
-JOBS = {}
-JOBS_LOCK = threading.Lock()
-OCR_EXECUTOR = ThreadPoolExecutor(max_workers=int(os.getenv("OCR_JOB_WORKERS", "2")))
-JOB_TTL_SECONDS = int(os.getenv("OCR_JOB_TTL_SECONDS", "1800"))
-JOB_DIR = os.getenv("OCR_JOB_DIR", "ocr_jobs")
-os.makedirs(JOB_DIR, exist_ok=True)
-
-def _job_path(job_id):
-    safe = re.sub(r"[^a-fA-F0-9]", "", str(job_id))[:64]
-    return os.path.join(JOB_DIR, f"{safe}.json")
-
-def _save_job(job_id, job):
+@app.route("/check", methods=["POST"])
+def check():
     try:
-        path = _job_path(job_id)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(job, f, ensure_ascii=False)
-        os.replace(tmp, path)
-    except Exception:
-        pass
-
-def _load_job(job_id):
-    try:
-        with open(_job_path(job_id), "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-def _cleanup_jobs():
-    now = time.time()
-    with JOBS_LOCK:
-        old_ids = [jid for jid, job in JOBS.items() if now - job.get("created", now) > JOB_TTL_SECONDS]
-        for jid in old_ids:
-            JOBS.pop(jid, None)
-            try:
-                os.remove(_job_path(jid))
-            except Exception:
-                pass
-
-def _check_sync_from_data(data):
-    try:
-        data = data or {}
+        data = request.json
 
         check_type = data.get("checkType", "pouch").strip().lower()
         mode = data.get("mode", "sachet").strip().lower()
         product_type = data.get("productType", "EPC").strip().upper()
         market_type = data.get("marketType", "TH").strip().upper()
         original_market_type = market_type
-        epc_laos_exp_months = normalize_epc_laos_exp_months(data.get("epcLaosShelfLifeMonths", 24))
         expected_mfg = data.get("mfg", "").strip()
         expected_line = data.get("line", "").strip().upper()
         expected_line2 = data.get("line2", "").strip().upper()
-        if mode == "auto":
-            expected_line = map_auto_machine(expected_line)
-            expected_line2 = map_auto_machine(expected_line2)
         expected_exp = data.get("exp", "").strip()
         # Special LAOS EXP examples: EPC +2 years, EPW +3 years. Backend recalculates again below.
         try:
@@ -2760,8 +2051,6 @@ def _check_sync_from_data(data):
             if not isinstance(item, dict):
                 continue
             line_code = str(item.get("line", "")).strip().upper()
-            if mode == "auto":
-                line_code = map_auto_machine(line_code)
             img_data = item.get("image", "") or ""
             if line_code or img_data:
                 clean_pouches.append({"line": line_code, "image": img_data})
@@ -2776,8 +2065,8 @@ def _check_sync_from_data(data):
         building_suffix = data.get("buildingSuffix", "").strip().upper()
         if not building_no:
             building_suffix = ""
+        shipping_mark = data.get("shippingMark", "").strip().upper()
         carton_alpha_code = data.get("cartonAlphaCode", "").strip().upper()
-        shipping_mark = normalize_shipping_mark_for_check(data.get("shippingMark", ""), carton_alpha_code)
 
         # Carton lot does not separate Laos. Treat Laos as normal Export format, but do not verify EXP for Laos cartons.
         if check_type == "carton" and market_type == "LAOS":
@@ -2810,17 +2099,10 @@ def _check_sync_from_data(data):
             return jsonify({"error": "ไม่พบ OPENAI_API_KEY หรือ GEMINI_API_KEY"}), 500
 
         # EXP is locked by system. Do not trust editable/browser-submitted value.
-        if mode == "auto":
-            # Mespack2/3 has special lane format and EPW mix-code/no-EXP rule.
-            auto_exp = calculate_expected_auto_exp(product_type, market_type, expected_mfg, expected_line)
-            expected_exp = auto_exp if auto_exp else ""
-            skip_exp = not bool(expected_exp)
-            if any(auto_requires_mix(product_type, item.get("line", "")) for item in pouches) and not mix_code:
-                return jsonify({"error": "กรุณาเลือกวันที่ผสมสำหรับ Mespack2/Mespack3 งาน EPW"}), 400
-        else:
-            auto_exp = calculate_exp(product_type, market_type, expected_mfg, epc_laos_exp_months)
-            expected_exp = auto_exp if auto_exp else ""
-            skip_exp = no_exp_required(product_type, market_type)
+        auto_exp = calculate_exp(product_type, market_type, expected_mfg)
+        expected_exp = auto_exp if auto_exp else ""
+
+        skip_exp = no_exp_required(product_type, market_type)
 
         if check_type in ["pouch", "both"] and not skip_exp and not expected_exp:
             return jsonify({"error": "กรุณากรอก EXP หรือเลือกประเภทงานที่ไม่ต้องมี EXP"}), 400
@@ -2832,56 +2114,49 @@ def _check_sync_from_data(data):
                 return jsonify({"error": "Suffix ต้องเป็นตัวอักษร/ตัวเลข 1-5 ตัว เช่น N หรือ QR"}), 400
 
         if check_type == "both":
-            # BATCH OCR TIMEOUT FIX:
-            # 4 pouch images + 1 carton image are sent to the OCR provider in ONE request.
-            # This avoids Render/Gunicorn timeout caused by many slow sequential/concurrent OCR calls.
-            carton_market_type = "EXPORT" if market_type == "LAOS" else market_type
-            carton_check_exp = original_market_type != "LAOS"
-            carton_expected_exp = expected_exp if carton_check_exp else ""
-
-            batch_result = read_both_batch_with_ai(
-                pouches=pouches,
-                carton_image_base64=carton_image_data,
-                product_type=product_type,
-                market_type=original_market_type,
-                mode=mode,
-            )
+            carton_base64 = carton_image_data.split(",", 1)[1] if "," in carton_image_data else carton_image_data
 
             pouch_results = []
             for idx, pouch_item in enumerate(pouches, start=1):
                 line_code = pouch_item.get("line", "").strip().upper()
-                pouch_entry = batch_result.get("pouches", {}).get(idx, {})
-                pouch_lines_i = pouch_entry.get("lines", []) if isinstance(pouch_entry, dict) else []
+                pouch_img = pouch_item.get("image", "")
+                pouch_base64 = pouch_img.split(",", 1)[1] if "," in pouch_img else pouch_img
+                raw_pouch_ai = read_lot_with_ai(
+                    pouch_base64, "pouch", mode, product_type, market_type, expected_mfg, line_code,
+                    expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
+                )
+                pouch_json_i = json.loads(clean_json_text(raw_pouch_ai))
+                pouch_lines_i = pouch_json_i.get("lines", [])
                 if mode == "sachet":
                     pouch_overall_i, pouch_details_i = check_pouch_sachet(
                         pouch_lines_i, product_type, market_type, expected_mfg, line_code, expected_exp
                     )
-                elif mode == "auto":
-                    pouch_overall_i, pouch_details_i = check_pouch_auto(
-                        pouch_lines_i, product_type, market_type, expected_mfg, line_code, expected_exp, mix_code
-                    )
                 else:
-                    ai_time_i = ""
-                    raw_entry = pouch_entry.get("raw", {}) if isinstance(pouch_entry, dict) else {}
-                    if isinstance(raw_entry, dict):
-                        ai_time_i = raw_entry.get("time", "")
+                    ai_time_i = pouch_json_i.get("time", "")
                     pouch_overall_i, pouch_details_i = check_pouch_linapack(
-                        pouch_lines_i, product_type, market_type, expected_mfg, line_code, expected_exp, mix_code, ai_time_i, epc_laos_exp_months
+                        pouch_lines_i, product_type, market_type, expected_mfg, line_code, expected_exp, mix_code, ai_time_i
                     )
                 pouch_results.append({
                     "index": idx,
                     "line": line_code,
-                    "image": pouch_item.get("image", ""),
-                    "json": pouch_entry,
+                    "image": pouch_img,
+                    "json": pouch_json_i,
                     "lines": pouch_lines_i,
                     "overall": pouch_overall_i,
                     "details": pouch_details_i,
                 })
 
-            carton_json = batch_result.get("carton", {})
-            carton_lines = carton_json.get("lines", []) if isinstance(carton_json, dict) else []
+            carton_market_type = "EXPORT" if market_type == "LAOS" else market_type
+            carton_check_exp = original_market_type != "LAOS"
+            carton_expected_exp = expected_exp if carton_check_exp else ""
+            raw_carton_ai = read_lot_with_ai(
+                carton_base64, "carton", mode, product_type, original_market_type if original_market_type == "LAOS" else carton_market_type, expected_mfg, pouches[0].get("line", ""),
+                carton_expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
+            )
+            carton_json = json.loads(clean_json_text(raw_carton_ai))
+            carton_lines = carton_json.get("lines", [])
 
-            mode_name = "Sachet + Carton" if mode == "sachet" else ("Auto + Carton" if mode == "auto" else "Linapack + Carton")
+            mode_name = "Sachet + Carton" if mode == "sachet" else "Linapack + Carton"
 
             carton_overall, carton_details = check_carton(
                 carton_lines, carton_market_type, expected_mfg, carton_expected_exp, building_no, building_suffix,
@@ -2905,7 +2180,7 @@ def _check_sync_from_data(data):
             lines["carton"] = carton_lines
             image_data = pouches[0].get("image", "")
         else:
-            image_base64 = normalize_image_base64_for_ai(image_data)
+            image_base64 = image_data.split(",", 1)[1] if "," in image_data else image_data
             raw_ai = read_lot_with_ai(
                 image_base64, check_type, mode, product_type, original_market_type if (check_type == "carton" and original_market_type == "LAOS") else market_type, expected_mfg, expected_line,
                 expected_exp, mix_code, building_no, building_suffix, shipping_mark, carton_alpha_code
@@ -2940,18 +2215,6 @@ def _check_sync_from_data(data):
                 expected_exp
             )
             mode_name = "Sachet"
-            check_type_name = "POUCH"
-        elif check_type != "both" and mode == "auto":
-            overall, details = check_pouch_auto(
-                lines,
-                product_type,
-                market_type,
-                expected_mfg,
-                expected_line,
-                expected_exp,
-                mix_code
-            )
-            mode_name = "Auto"
             check_type_name = "POUCH"
         elif check_type != "both":
             ai_time = result_json.get("time", "")
@@ -2988,23 +2251,10 @@ def _check_sync_from_data(data):
         )
 
         def build_expected_pouch(line_code):
-            line_code = map_auto_machine(line_code) if mode == "auto" else str(line_code or "").strip().upper()
             if mode == "sachet":
                 return f"MFG {expected_mfg} {line_code} 1" + (f" EXP {expected_exp}" if expected_exp else "")
-            if mode == "auto":
-                lanes = auto_lane_numbers(line_code)
-                exp_for_line = calculate_expected_auto_exp(product_type, market_type, expected_mfg, line_code)
-                if lanes:
-                    rows = []
-                    for lane in lanes:
-                        if auto_requires_mix(product_type, line_code):
-                            rows.append(f"MFG {expected_mfg} {mix_code} {line_code} {lane}")
-                        else:
-                            rows.append(f"MFG {expected_mfg} {line_code} {lane}" + (f" EXP {exp_for_line}" if exp_for_line else ""))
-                    return " | ".join(rows)
-                return f"MFG {expected_mfg} {line_code}" + (f" EXP {exp_for_line}" if exp_for_line else "")
             line1 = f"MFG {expected_mfg}"
-            if linapack_requires_mix(product_type, market_type) and mix_code:
+            if mix_code:
                 line1 += f" {mix_code}"
             line1 += f" {line_code} เวลา"
             return line1 + (f" / EXP {expected_exp}" if expected_exp else "")
@@ -3019,10 +2269,7 @@ def _check_sync_from_data(data):
         if market_type == "TH":
             expected_carton_lot = f"00001 00 {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
         else:
-            if shipping_mark:
-                expected_carton_lot = f"{shipping_mark} 00001 {carton_alpha_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
-            else:
-                expected_carton_lot = f"00001 {carton_alpha_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
+            expected_carton_lot = f"{shipping_mark} 00001 {carton_alpha_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
 
         return jsonify({
             "summary": summary,
@@ -3041,56 +2288,7 @@ def _check_sync_from_data(data):
         })
 
     except Exception as e:
-        return jsonify({"error": friendly_error_message(e) or ("ตรวจสอบไม่สำเร็จ: " + e.__class__.__name__)}), 500
-
-
-def _run_check_job(job_id, data):
-    try:
-        with app.app_context():
-            resp = _check_sync_from_data(data)
-            status_code = 200
-            if isinstance(resp, tuple):
-                flask_resp, status_code = resp[0], resp[1]
-            else:
-                flask_resp = resp
-                status_code = getattr(resp, "status_code", 200)
-            try:
-                payload = flask_resp.get_json(silent=True) or {}
-            except Exception:
-                payload = {"error": "หลังบ้านไม่ได้ส่ง JSON กลับมา"}
-                status_code = 500
-        with JOBS_LOCK:
-            if status_code >= 400:
-                JOBS[job_id].update({"status": "error", "error": payload.get("error") or payload.get("message") or f"HTTP {status_code}", "updated": time.time()})
-                _save_job(job_id, JOBS[job_id])
-            else:
-                JOBS[job_id].update({"status": "done", "result": payload, "updated": time.time()})
-                _save_job(job_id, JOBS[job_id])
-    except Exception as e:
-        with JOBS_LOCK:
-            if job_id in JOBS:
-                JOBS[job_id].update({"status": "error", "error": friendly_error_message(e) or str(e), "updated": time.time()})
-                _save_job(job_id, JOBS[job_id])
-
-@app.route("/check", methods=["POST"])
-def check():
-    data = request.get_json(silent=True) or {}
-    _cleanup_jobs()
-    job_id = uuid.uuid4().hex
-    with JOBS_LOCK:
-        JOBS[job_id] = {"status": "queued", "created": time.time(), "updated": time.time()}
-        _save_job(job_id, JOBS[job_id])
-    OCR_EXECUTOR.submit(_run_check_job, job_id, data)
-    return jsonify({"status": "queued", "jobId": job_id, "message": "เริ่มตรวจสอบแล้ว ระบบจะประมวลผลต่อหลังบ้าน"}), 202
-
-@app.route("/check_status/<job_id>")
-def check_status(job_id):
-    _cleanup_jobs()
-    with JOBS_LOCK:
-        job = JOBS.get(job_id) or _load_job(job_id)
-        if not job:
-            return jsonify({"status": "error", "error": "ไม่พบงานตรวจสอบ อาจหมดอายุแล้ว กรุณากดตรวจใหม่"}), 404
-        return jsonify(dict(job))
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
