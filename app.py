@@ -2589,7 +2589,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
   <div id="loginCard" class="card login-card">
     <h2>เข้าสู่ระบบหัวหน้างาน</h2>
     <div class="grid">
-      <div class="field span-8"><label>รหัสผ่าน Admin</label><input id="adminPassword" type="password" placeholder="กรุณาใส่ Password" onkeydown="if(event.key==='Enter') loginAdmin()"></div>
+      <div class="field span-8"><label>รหัสผ่าน Admin</label><input id="adminPassword" type="password" placeholder="ค่าเริ่มต้น 1234" onkeydown="if(event.key==='Enter') loginAdmin()"></div>
       <div class="field span-4"><label>&nbsp;</label><button type="button" class="success" onclick="loginAdmin()">เข้าสู่หน้า Admin</button></div>
     </div>
     <div class="small">แนะนำให้ตั้ง Render Environment Variable: ADMIN_PASSWORD=รหัสที่ต้องการ</div>
@@ -2613,7 +2613,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
     <div class="card">
       <h2>เพิ่ม / แก้ไข Work Order</h2>
       <div class="grid">
-        <div class="field span-3"><label>Work Order</label><input id="wo" placeholder="1020000xxxxx" oninput="updatePreview()"></div>
+        <div class="field span-3"><label>Work Order</label><input id="wo" placeholder="WO25070001" oninput="updatePreview()"></div>
         <div class="field span-3"><label>ประเภทไลน์</label><select id="mode" onchange="refreshMachines()"><option value="">เลือกประเภทไลน์</option><option value="linapack">Linapack</option><option value="sachet">Sachet</option><option value="auto">Auto</option></select></div>
         <div class="field span-3"><label>เครื่องซองที่ 1</label><select id="line" onchange="updatePreview()"><option value="">เลือกประเภทไลน์ก่อน</option></select></div>
         <div class="field span-3"><label>สถานะ</label><select id="active" onchange="updatePreview()"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select></div>
@@ -2630,15 +2630,15 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
 
       <div class="section-title">ข้อมูลสินค้าและวันที่</div>
       <div class="grid">
-        <div class="field span-3"><label>ผลิตภัณฑ์</label><select id="productType" onchange="updateCalculated()"><option value="">เลือกผลิตภัณฑ์</option><option value="EPC">EPC</option><option value="EPW">EPW</option><option value="FS">FS</option><option value="IS">IS</option><option value="SS">SS</option></select></div>
+        <div class="field span-3"><label>ผลิตภัณฑ์</label><select id="productType" onchange="updateConditionalFields()"><option value="">เลือกผลิตภัณฑ์</option><option value="EPC">EPC</option><option value="EPW">EPW</option><option value="FS">FS</option><option value="IS">IS</option><option value="SS">SS</option></select></div>
         <div class="field span-3"><label>ประเภทงาน</label><select id="marketType" onchange="updateMarketUI()"><option value="">เลือกประเภทงาน</option><option value="TH">งานไทย</option><option value="EXPORT">งานต่างประเทศ</option><option value="LAOS">งานต่างประเทศ ลาว</option></select></div>
-        <div class="field span-3"><label>อายุ EPC งานลาว</label><select id="epcLaosShelfLifeMonths" onchange="updateCalculated()"><option value="24">2 ปี</option><option value="15">1 ปี 3 เดือน</option></select></div>
+        <div class="field span-3 hidden" id="epcLaosShelfLifeField"><label>อายุ EPC งานลาว</label><select id="epcLaosShelfLifeMonths" onchange="updateCalculated()"><option value="24">2 ปี</option><option value="15">1 ปี 3 เดือน</option></select></div>
         <div class="field span-3"><label>วันที่ผลิต</label><input id="mfgDate" type="date" onchange="updateCalculated()"></div>
 
         <div class="field span-3"><label>MFG</label><input id="mfg" readonly placeholder="ระบบคำนวณ"></div>
-        <div class="field span-3"><label>EXP</label><input id="exp" readonly placeholder="ระบบคำนวณ"></div>
-        <div class="field span-3"><label>วันที่ผสม</label><input id="mixDate" type="date" onchange="updateMixCode()"></div>
-        <div class="field span-3"><label>Mix Code</label><input id="mixCode" readonly placeholder="ระบบคำนวณ"></div>
+        <div class="field span-3" id="expField"><label>EXP</label><input id="exp" readonly placeholder="ระบบคำนวณ"></div>
+        <div class="field span-3 hidden" id="mixDateField"><label>วันที่ผสม</label><input id="mixDate" type="date" onchange="updateMixCode()"></div>
+        <div class="field span-3 hidden" id="mixCodeField"><label>Mix Code</label><input id="mixCode" readonly placeholder="ระบบคำนวณ"></div>
       </div>
 
       <div class="section-title">ข้อมูลกล่อง</div>
@@ -2761,6 +2761,28 @@ function addMonths(dateStr, months){
   dt.setMonth(dt.getMonth()+Number(months));
   return `${String(dt.getDate()).padStart(2,"0")}${String(dt.getMonth()+1).padStart(2,"0")}${String(dt.getFullYear()).slice(-2)}`;
 }
+function updateConditionalFields(){
+  const product = $("productType")?.value || "";
+  const market = $("marketType")?.value || "";
+
+  const showEpcLaosAge = product === "EPC" && market === "LAOS";
+  $("epcLaosShelfLifeField")?.classList.toggle("hidden", !showEpcLaosAge);
+
+  const showMix = product === "EPW";
+  $("mixDateField")?.classList.toggle("hidden", !showMix);
+  $("mixCodeField")?.classList.toggle("hidden", !showMix);
+  if(!showMix){
+    if($("mixDate")) $("mixDate").value = "";
+    if($("mixCode")) $("mixCode").value = "";
+  }
+
+  const hideExp = product === "EPW" && (market === "TH" || market === "EXPORT");
+  $("expField")?.classList.toggle("hidden", hideExp);
+  if(hideExp && $("exp")) $("exp").value = "";
+
+  updateCalculated();
+}
+
 function updateCalculated(){
   if($("mfg")) $("mfg").value = ddmmyyFromDate($("mfgDate")?.value || "");
   const p=$("productType")?.value || "", m=$("marketType")?.value || "", d=$("mfgDate")?.value || "";
@@ -2795,7 +2817,7 @@ function updateMarketUI(){
     prefix.appendChild(new Option("เลือกประเภทงานก่อน", ""));
   }
   updateShippingMark();
-  updateCalculated();
+  updateConditionalFields();
 }
 function updateShippingMark(){
   const market=$("marketType")?.value || "";
@@ -2822,11 +2844,11 @@ function getPayload(){
     pouches,
     productType:$("productType").value,
     marketType:$("marketType").value,
-    epcLaosShelfLifeMonths:$("epcLaosShelfLifeMonths").value,
+    epcLaosShelfLifeMonths:($("productType").value==="EPC" && $("marketType").value==="LAOS") ? $("epcLaosShelfLifeMonths").value : "24",
     mfg:$("mfg").value,
-    exp:$("exp").value,
-    mixDate:ddmmyyFromDate($("mixDate")?.value || ""),
-    mixCode:$("mixCode").value.trim().toUpperCase(),
+    exp:($("productType").value==="EPW" && ["TH","EXPORT"].includes($("marketType").value)) ? "" : $("exp").value,
+    mixDate:$("productType").value==="EPW" ? ddmmyyFromDate($("mixDate")?.value || "") : "",
+    mixCode:$("productType").value==="EPW" ? $("mixCode").value.trim().toUpperCase() : "",
     cartonAlphaCode:$("marketType").value==="TH" ? "00" : $("cartonPrefix").value,
     cartonPrefix:$("marketType").value==="TH" ? "00" : $("cartonPrefix").value,
     shippingMark:$("shippingMark").value==="ไม่ตรวจ" ? "" : $("shippingMark").value,
@@ -2906,7 +2928,7 @@ function editWO(w){
   $("buildingNo").value=w.buildingNo||"";
   $("buildingSuffix").value=w.buildingSuffix||"";
   $("active").value=w.active===false ? "false" : "true";
-  updateCalculated();
+  updateConditionalFields();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 async function deleteWO(){
@@ -2923,9 +2945,9 @@ function clearForm(){
   ["wo","mfgDate","mfg","exp","mixDate","mixCode","shippingMark","buildingSuffix"].forEach(id=>{ if($(id)) $(id).value=""; });
   ["mode","line","productType","marketType","cartonPrefix","buildingNo"].forEach(id=>{ if($(id)) $(id).value=""; });
   $("epcLaosShelfLifeMonths").value="24"; $("active").value="true";
-  clearExtraLines(); refreshMachines(); updateMarketUI(); updatePreview();
+  clearExtraLines(); refreshMachines(); updateMarketUI(); updateConditionalFields(); updatePreview();
 }
-window.addEventListener("DOMContentLoaded",()=>{refreshMachines();updateMarketUI();updateCalculated();hideAdminPanel();});
+window.addEventListener("DOMContentLoaded",()=>{refreshMachines();updateMarketUI();updateConditionalFields();hideAdminPanel();});
 </script>
 </body>
 </html>'''
