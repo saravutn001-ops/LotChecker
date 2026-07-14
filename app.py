@@ -2589,7 +2589,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
   <div id="loginCard" class="card login-card">
     <h2>เข้าสู่ระบบหัวหน้างาน</h2>
     <div class="grid">
-      <div class="field span-8"><label>รหัสผ่าน Admin</label><input id="adminPassword" type="password" placeholder="ค่าเริ่มต้น 1234" onkeydown="if(event.key==='Enter') loginAdmin()"></div>
+      <div class="field span-8"><label>รหัสผ่าน Admin</label><input id="adminPassword" type="password" placeholder="กรุณาใส่ Password" onkeydown="if(event.key==='Enter') loginAdmin()"></div>
       <div class="field span-4"><label>&nbsp;</label><button type="button" class="success" onclick="loginAdmin()">เข้าสู่หน้า Admin</button></div>
     </div>
     <div class="small">แนะนำให้ตั้ง Render Environment Variable: ADMIN_PASSWORD=รหัสที่ต้องการ</div>
@@ -2613,7 +2613,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
     <div class="card">
       <h2>เพิ่ม / แก้ไข Work Order</h2>
       <div class="grid">
-        <div class="field span-3"><label>Work Order</label><input id="wo" placeholder="WO25070001" oninput="updatePreview()"></div>
+        <div class="field span-3"><label>Work Order</label><input id="wo" placeholder="1020000xxxxx" oninput="updatePreview()"></div>
         <div class="field span-3"><label>ประเภทไลน์</label><select id="mode" onchange="refreshMachines()"><option value="">เลือกประเภทไลน์</option><option value="linapack">Linapack</option><option value="sachet">Sachet</option><option value="auto">Auto</option></select></div>
         <div class="field span-3"><label>เครื่องซองที่ 1</label><select id="line" onchange="updatePreview()"><option value="">เลือกประเภทไลน์ก่อน</option></select></div>
         <div class="field span-3"><label>สถานะ</label><select id="active" onchange="updatePreview()"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select></div>
