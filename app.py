@@ -37,7 +37,7 @@ GOOGLE_SHEETS_API_SECRET = os.getenv("GOOGLE_SHEETS_API_SECRET", "").strip()
 WORK_ORDER_LOCK = threading.Lock()
 
 def _safe_work_order_key(value):
-    return re.sub(r"[^A-Z0-9_-]", "", str(value or "").strip().upper())[:60]
+    return re.sub(r"[^0-9]", "", str(value or "").strip().upper())[:60]
 
 def _google_sheet_request(payload=None, method="GET"):
     if not GOOGLE_SHEETS_WEB_APP_URL:
