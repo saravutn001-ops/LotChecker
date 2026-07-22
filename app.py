@@ -696,16 +696,22 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
     - Single mode: stamp one image.
     - POUCH + CARTON mode: create one report image that contains pouch1, optional pouch2, and carton.
     """
-    if carton_image_base64:
+    extra_images = []
+    if pouch_extra_image_base64_list:
+        extra_images = [x for x in pouch_extra_image_base64_list if x]
+    elif pouch2_image_base64:
+        extra_images = [pouch2_image_base64]
+
+    # Build a combined evidence report for multiple pouch machines even when
+    # the carton has not been produced yet. Previously, pouch-only checks
+    # stamped only POUCH 1 and hid the other selected machines.
+    if carton_image_base64 or extra_images:
         images = [("POUCH 1", _open_base64_image(image_base64))]
-        extra_images = []
-        if pouch_extra_image_base64_list:
-            extra_images = [x for x in pouch_extra_image_base64_list if x]
-        elif pouch2_image_base64:
-            extra_images = [pouch2_image_base64]
         for idx, extra_img in enumerate(extra_images, start=2):
             images.append((f"POUCH {idx}", _open_base64_image(extra_img)))
-        images.append(("CARTON", _open_base64_image(carton_image_base64)))
+        if carton_image_base64:
+            images.append(("CARTON", _open_base64_image(carton_image_base64)))
+        report_label = "POUCH + CARTON" if carton_image_base64 else "POUCH"
 
         canvas_w = max(1800, min(3200, 700 * len(images)))
         header_h = 155
@@ -728,12 +734,12 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
 
         if str(summary).upper() == "PASS":
             title = "LOT CHECK PASS"
-            line2 = "POUCH + CARTON VERIFIED"
+            line2 = f"{report_label} VERIFIED"
             color = (255, 255, 255)
             stamp_bg = (22, 163, 74)
         else:
             title = "LOT CHECK NG"
-            line2 = "POUCH + CARTON VERIFICATION FAILED"
+            line2 = f"{report_label} VERIFICATION FAILED"
             color = (255, 255, 255)
             stamp_bg = (220, 38, 38)
 
@@ -756,7 +762,7 @@ def stamp_image(image_base64, summary, check_type, product_type, market_type, mo
         footer_y = header_h + image_area_h + 10
         draw.rectangle([0, footer_y, canvas_w, canvas_h], fill=stamp_bg)
         draw_text_with_shadow(draw, (margin, footer_y + 28), title, title_font, color)
-        draw_text_with_shadow(draw, (margin, footer_y + 96), f"POUCH + CARTON | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
+        draw_text_with_shadow(draw, (margin, footer_y + 96), f"{report_label} | {mode} | {product_type} | {market_type}", body_font, (255, 255, 255))
     else:
         image = _open_base64_image(image_base64)
 
@@ -3524,7 +3530,14 @@ def _check_sync_from_data(data):
             if building_suffix and not re.fullmatch(r"[A-Z0-9]{1,5}", building_suffix):
                 return jsonify({"error": "Suffix ต้องเป็นตัวอักษร/ตัวเลข 1-5 ตัว เช่น N หรือ QR"}), 400
 
+        # result_json is used only by the single-image OCR path.
+        # batch_result_handled prevents multi-pouch/both results from being
+        # validated a second time by the single-image code below.
+        result_json = {}
+        batch_result_handled = False
+
         if check_type == "pouch" and len(pouches) > 1:
+            batch_result_handled = True
             # ตรวจซองหลายเครื่องพร้อมกัน โดยยังไม่ต้องมีรูปกล่อง
             batch_result = read_both_batch_with_ai(
                 pouches=pouches,
@@ -3572,6 +3585,7 @@ def _check_sync_from_data(data):
             image_data = pouches[0].get("image", "")
 
         elif check_type == "both":
+            batch_result_handled = True
             # BATCH OCR TIMEOUT FIX:
             # 4 pouch images + 1 carton image are sent to the OCR provider in ONE request.
             # This avoids Render/Gunicorn timeout caused by many slow sequential/concurrent OCR calls.
@@ -3655,7 +3669,7 @@ def _check_sync_from_data(data):
             result_json = json.loads(clean_json_text(raw_ai))
             lines = result_json.get("lines", [])
 
-        if check_type != "both" and check_type == "carton":
+        if not batch_result_handled and check_type == "carton":
             carton_check_exp = original_market_type != "LAOS"
             carton_expected_exp = expected_exp if carton_check_exp else ""
             overall, details = check_carton(
@@ -3672,7 +3686,7 @@ def _check_sync_from_data(data):
             )
             mode_name = "Carton"
             check_type_name = "CARTON"
-        elif check_type != "both" and mode == "sachet":
+        elif not batch_result_handled and mode == "sachet":
             overall, details = check_pouch_sachet(
                 lines,
                 product_type,
@@ -3683,7 +3697,7 @@ def _check_sync_from_data(data):
             )
             mode_name = "Sachet"
             check_type_name = "POUCH"
-        elif check_type != "both" and mode == "auto":
+        elif not batch_result_handled and mode == "auto":
             overall, details = check_pouch_auto(
                 lines,
                 market_type,
@@ -3693,7 +3707,7 @@ def _check_sync_from_data(data):
             )
             mode_name = "Auto"
             check_type_name = "POUCH"
-        elif check_type != "both":
+        elif not batch_result_handled:
             ai_time = result_json.get("time", "")
             overall, details = check_pouch_linapack(
                 lines,
