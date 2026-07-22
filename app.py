@@ -3645,6 +3645,8 @@ def _check_sync_from_data(data):
             lines["carton"] = carton_lines
             image_data = pouches[0].get("image", "")
         else:
+            result_json = {}
+            lines = []
             image_base64 = normalize_image_base64_for_ai(image_data)
             raw_ai = read_lot_with_ai(
                 image_base64, check_type, mode, product_type, original_market_type if (check_type == "carton" and original_market_type == "LAOS") else market_type, expected_mfg, expected_line,
