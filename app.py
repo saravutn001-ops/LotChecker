@@ -1070,6 +1070,24 @@ DOT MATRIX CARTON OCR RULES:
 Return JSON only:
 {"lines":["carton lot exactly as seen"]}
 """
+        elif str(carton_alpha_code or "").strip().upper() in {"OL", "OD"}:
+            prompt = """
+You are an OCR transcriber for an Organic Line (OL) export CARTON lot code.
+Read ONLY the printed dot-matrix / inkjet lot line visible in the image.
+Do NOT verify correctness. Do NOT use any expected date. Do NOT correct digits or letters.
+
+Important OL carton structure:
+- OL has NO Running No.
+- The prefix OL and the 6-digit MFG date are printed as ONE attached token with no space.
+- Example structure only: IMPORTER:ORGANIC LINE CO., LTD OL240726 1
+- Transcribe the attached token as OL240726, not as OL 240726.
+- The number after OLDDMMYY is the Building No.; an optional suffix may follow.
+- Preserve the complete importer wording when it is readable.
+- If any character is unclear, return UNCLEAR instead of guessing.
+
+Return JSON only:
+{"lines":["complete OL carton lot line exactly as seen"]}
+"""
         else:
             prompt = """
 You are an OCR transcriber for an export carton lot/batch code.
@@ -2314,89 +2332,125 @@ def append_carton_field_check(details, item, actual, expected):
 
 
 def check_carton_ol_od(lines, expected_mfg, expected_exp, building_no, building_suffix, shipping_mark, carton_alpha_code, check_exp=True):
-    """Validate OL/OD carton from the complete OCR line.
+    """Validate Organic Line carton lot.
 
-    OL/OD does not have Running No. Spaces and punctuation in importer wording
-    are ignored, so CO., LTD / CO.,LTD / CO LTD are treated as equivalent.
+    Canonical OL format has no Running No. and combines prefix + MFG date into
+    one attached token, for example ``OL240726``. OCR engines sometimes insert
+    a visual space while transcribing dot-matrix text, so validation removes
+    punctuation/spacing before comparison but reports the canonical attached
+    form to the user.
     """
-    code = clean_lot_token(carton_alpha_code)
-    normalized_lines = [normalize(x) for x in (lines or []) if str(x or '').strip()]
-    all_text = ' '.join(normalized_lines).upper()
-    compact = re.sub(r'[^A-Z0-9]', '', all_text)
+    requested_code = clean_lot_token(carton_alpha_code)
+    # Legacy OD Work Orders use the same physical carton print prefix: OL.
+    code = "OL" if requested_code in {"OL", "OD"} else requested_code
 
-    expected_mfg = re.sub(r'\D', '', str(expected_mfg or ''))
+    normalized_lines = [normalize(x) for x in (lines or []) if str(x or "").strip()]
+    all_text = " ".join(normalized_lines).upper()
+    compact = re.sub(r"[^A-Z0-9]", "", all_text)
+    cleaned = re.sub(r"[^A-Z0-9]+", " ", all_text).strip()
+
+    expected_mfg = re.sub(r"\D", "", str(expected_mfg or ""))
     expected_building = clean_lot_token(building_no)
     expected_suffix = clean_lot_token(building_suffix)
-    expected_mark = re.sub(r'[^A-Z0-9]', '', str(shipping_mark or '').upper())
+    expected_mark = re.sub(r"[^A-Z0-9]", "", str(shipping_mark or "").upper())
+    expected_prefix_mfg = f"{code}{expected_mfg}"
 
     details = []
     overall = True
 
     if expected_mark:
         mark_ok = expected_mark in compact
-        if not mark_ok and 'ORGANICLINE' in expected_mark:
-            mark_ok = 'IMPORTER' in compact and 'ORGANICLINE' in compact and 'COLTD' in compact
+        if not mark_ok and "ORGANICLINE" in expected_mark:
+            mark_ok = "IMPORTER" in compact and "ORGANICLINE" in compact and "COLTD" in compact
         details.append({
-            'item': 'Importer / Shipping Mark',
-            'status': 'PASS' if mark_ok else 'NG',
-            'actual': all_text if mark_ok else 'NOT FOUND',
-            'expected': shipping_mark,
+            "item": "Importer / Shipping Mark",
+            "status": "PASS" if mark_ok else "NG",
+            "actual": all_text if mark_ok else "NOT FOUND",
+            "expected": shipping_mark,
         })
         overall = overall and mark_ok
     else:
-        details.append({'item': 'Importer / Shipping Mark', 'status': 'PASS', 'actual': 'ไม่ตรวจ', 'expected': 'ไม่ตรวจ'})
+        details.append({"item": "Importer / Shipping Mark", "status": "PASS", "actual": "ไม่ตรวจ", "expected": "ไม่ตรวจ"})
 
-    details.append({'item': 'Running No.', 'status': 'PASS', 'actual': 'OL/OD ไม่มี Running No.', 'expected': 'ไม่ตรวจ'})
+    details.append({"item": "Running No.", "status": "PASS", "actual": "OL ไม่มี Running No.", "expected": "ไม่ตรวจ"})
 
-    cleaned = re.sub(r'[^A-Z0-9]+', ' ', all_text).strip()
-    tail_match = re.search(rf'{re.escape(code)}\s*(\d{{6}})\s*(\d+)(?:\s+([A-Z0-9]+))?', cleaned)
+    # Capture the visible OL + six digits. ``\s*`` tolerates an OCR-added space,
+    # while the compact comparison below treats it as the single physical token.
+    prefix_date_match = re.search(rf"{re.escape(code)}\s*(\d{{6}})", cleaned)
+    if not prefix_date_match:
+        prefix_date_match = re.search(rf"{re.escape(code)}(\d{{6}})", compact)
+    actual_mfg = prefix_date_match.group(1) if prefix_date_match else ""
+    actual_prefix_mfg = f"{code}{actual_mfg}" if actual_mfg else ""
 
-    actual_prefix = code if re.search(rf'{re.escape(code)}\s*\d{{6}}', cleaned) else ''
-    actual_mfg = tail_match.group(1) if tail_match else ''
-    actual_building = tail_match.group(2) if tail_match else ''
-    actual_suffix = tail_match.group(3) if tail_match and tail_match.group(3) else ''
+    prefix_mfg_ok = actual_prefix_mfg == expected_prefix_mfg
+    details.append({
+        "item": "Prefix + MFG date (ต้องเป็นตัวติดกัน)",
+        "status": "PASS" if prefix_mfg_ok else "NG",
+        "actual": actual_prefix_mfg or "NOT FOUND",
+        "expected": expected_prefix_mfg,
+    })
+    overall = overall and prefix_mfg_ok
 
-    # Fallback when OCR joins the lot as OL2407261.
-    expected_tail = f'{code}{expected_mfg}{expected_building}{expected_suffix}'
+    # Parse Building No. and optional suffix after OLDDMMYY. This accepts either
+    # OL240726 1 or an OCR transcription OL 240726 1, but always validates the
+    # prefix/date as the single canonical token OL240726.
+    tail_match = re.search(
+        rf"{re.escape(code)}\s*\d{{6}}\s*(\d+)(?:\s+([A-Z0-9]+))?",
+        cleaned,
+    )
+    actual_building = tail_match.group(1) if tail_match else ""
+    actual_suffix = tail_match.group(2) if tail_match and tail_match.group(2) else ""
+
+    # Fallback for an OCR result that joins the whole tail, e.g. OL2407261.
+    expected_tail = f"{expected_prefix_mfg}{expected_building}{expected_suffix}"
     if expected_tail and expected_tail in compact:
-        actual_prefix = actual_prefix or code
-        actual_mfg = actual_mfg or expected_mfg
         actual_building = actual_building or expected_building
         actual_suffix = actual_suffix or expected_suffix
 
-    prefix_ok = actual_prefix == code
-    details.append({'item': 'Prefix before MFG date', 'status': 'PASS' if prefix_ok else 'NG', 'actual': actual_prefix or 'NOT FOUND', 'expected': code})
-    overall = overall and prefix_ok
-
-    mfg_ok = actual_mfg == expected_mfg
-    details.append({'item': 'MFG date', 'status': 'PASS' if mfg_ok else 'NG', 'actual': actual_mfg or 'NOT FOUND', 'expected': expected_mfg})
-    overall = overall and mfg_ok
-
     if expected_building:
         building_ok = actual_building == expected_building
-        details.append({'item': 'Building No.', 'status': 'PASS' if building_ok else 'NG', 'actual': actual_building or 'NOT FOUND', 'expected': expected_building})
+        details.append({
+            "item": "Building No.",
+            "status": "PASS" if building_ok else "NG",
+            "actual": actual_building or "NOT FOUND",
+            "expected": expected_building,
+        })
         overall = overall and building_ok
     else:
-        details.append({'item': 'Building No.', 'status': 'PASS', 'actual': 'ไม่ตรวจ', 'expected': 'ไม่ตรวจ'})
+        details.append({"item": "Building No.", "status": "PASS", "actual": "ไม่ตรวจ", "expected": "ไม่ตรวจ"})
 
     if expected_suffix:
         suffix_ok = actual_suffix == expected_suffix
-        details.append({'item': 'Building Suffix', 'status': 'PASS' if suffix_ok else 'NG', 'actual': actual_suffix or 'NOT FOUND', 'expected': expected_suffix})
+        details.append({
+            "item": "Building Suffix",
+            "status": "PASS" if suffix_ok else "NG",
+            "actual": actual_suffix or "NOT FOUND",
+            "expected": expected_suffix,
+        })
         overall = overall and suffix_ok
     else:
-        details.append({'item': 'Building Suffix', 'status': 'PASS', 'actual': 'ไม่มี', 'expected': 'ไม่มี Suffix'})
+        suffix_ok = not actual_suffix
+        details.append({
+            "item": "Building Suffix",
+            "status": "PASS" if suffix_ok else "NG",
+            "actual": actual_suffix or "ไม่มี",
+            "expected": "ไม่มี Suffix",
+        })
+        overall = overall and suffix_ok
 
-    exp_matches = re.findall(r'(?:EXP\s*)?(\d{6})', cleaned)
-    actual_exp = next((x for x in exp_matches if x != actual_mfg), '')
+    # Avoid treating the six digits inside OLDDMMYY as EXP.
+    exp_source = re.sub(rf"{re.escape(code)}\s*\d{{6}}", " ", cleaned, count=1)
+    exp_matches = re.findall(r"(?:EXP\s*)?(\d{6})", exp_source)
+    actual_exp = exp_matches[0] if exp_matches else ""
     if not check_exp:
-        details.append({'item': 'EXP', 'status': 'PASS', 'actual': actual_exp or 'ไม่ตรวจ', 'expected': 'ไม่ตรวจ'})
+        details.append({"item": "EXP", "status": "PASS", "actual": actual_exp or "ไม่ตรวจ", "expected": "ไม่ตรวจ"})
     elif expected_exp:
-        exp_ok = actual_exp == str(expected_exp or '').strip()
-        details.append({'item': 'EXP', 'status': 'PASS' if exp_ok else 'NG', 'actual': actual_exp or 'NOT FOUND', 'expected': expected_exp})
+        exp_ok = actual_exp == str(expected_exp or "").strip()
+        details.append({"item": "EXP", "status": "PASS" if exp_ok else "NG", "actual": actual_exp or "NOT FOUND", "expected": expected_exp})
         overall = overall and exp_ok
     else:
         exp_ok = not actual_exp
-        details.append({'item': 'EXP', 'status': 'PASS' if exp_ok else 'NG', 'actual': actual_exp or 'ไม่ต้องมี EXP', 'expected': 'ไม่ต้องมี EXP'})
+        details.append({"item": "EXP", "status": "PASS" if exp_ok else "NG", "actual": actual_exp or "ไม่ต้องมี EXP", "expected": "ไม่ต้องมี EXP"})
         overall = overall and exp_ok
 
     return bool(overall), details
@@ -3459,7 +3513,8 @@ def enrich_work_order(wo):
         wo["shippingMark"] = shipping_mark
         if carton_code in {"OL", "OD"}:
             # Organic Line has no Running No.; expected pattern starts with OL + date.
-            wo["expectedCartonLot"] = f"{shipping_mark + ' ' if shipping_mark else ''}{carton_code} {mfg} {building_no}{(' ' + suffix) if suffix else ''}".strip()
+            physical_code = "OL" if carton_code in {"OL", "OD"} else carton_code
+            wo["expectedCartonLot"] = f"{shipping_mark + ' ' if shipping_mark else ''}{physical_code}{mfg} {building_no}{(' ' + suffix) if suffix else ''}".strip()
         elif shipping_mark:
             wo["expectedCartonLot"] = f"{shipping_mark} 00001 {carton_code} {mfg} {building_no}{(' ' + suffix) if suffix else ''}".strip()
         else:
@@ -3872,7 +3927,8 @@ def _check_sync_from_data(data):
             expected_carton_lot = f"00001 {th_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
         else:
             if carton_alpha_code in {"OL", "OD"}:
-                expected_carton_lot = f"{shipping_mark + ' ' if shipping_mark else ''}{carton_alpha_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
+                physical_code = "OL" if carton_alpha_code in {"OL", "OD"} else carton_alpha_code
+                expected_carton_lot = f"{shipping_mark + ' ' if shipping_mark else ''}{physical_code}{expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
             elif shipping_mark:
                 expected_carton_lot = f"{shipping_mark} 00001 {carton_alpha_code} {expected_mfg} {building_no}{(' ' + building_suffix) if building_suffix else ''}".strip()
             else:
