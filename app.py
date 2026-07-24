@@ -2734,9 +2734,9 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
 .span-2{grid-column:span 2}.span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-5{grid-column:span 5}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:1/-1}
 .login-card{max-width:720px;margin:14px auto 0}.login-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.login-actions button,.login-actions a{width:100%}
 .extra-panel{border:1px dashed #c8d5e4;border-radius:14px;padding:10px;background:#f8fbff}.extra-line-row{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:8px;margin-top:8px;align-items:end}.extra-line-row:first-child{margin-top:0}.btn-small{padding:10px 12px;font-size:14px;border-radius:12px}.add-extra-btn{width:100%;background:#0f172a;margin-top:8px}
-.table-wrap{overflow-x:auto}.wo-table{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}.wo-table th,.wo-table td{border-bottom:1px solid #e2e8f0;padding:10px;text-align:left;vertical-align:top}.wo-table th{background:#f8fafc;color:#334155}.pill{display:inline-block;background:#e0f2fe;color:#075985;border-radius:999px;padding:3px 8px;font-weight:800;font-size:12px}.row-actions{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap}.row-actions .btn-small{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:0;white-space:nowrap;padding:8px 10px;margin:0}.wo-table th:last-child,.wo-table td:last-child{min-width:160px}
+.table-wrap{overflow-x:auto}.wo-table{width:100%;border-collapse:collapse;font-size:14px;min-width:880px}.wo-table th,.wo-table td{border-bottom:1px solid #e2e8f0;padding:10px;text-align:left;vertical-align:top}.wo-table th{background:#f8fafc;color:#334155}.pill{display:inline-block;background:#e0f2fe;color:#075985;border-radius:999px;padding:3px 8px;font-weight:800;font-size:12px}.row-actions{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap}.row-actions .btn-small{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:0;white-space:nowrap;padding:8px 10px;margin:0}.wo-table th:last-child,.wo-table td:last-child{min-width:160px}.wo-table th:first-child,.wo-table td:first-child{width:46px;min-width:46px;text-align:center}.wo-checkbox{width:20px;height:20px;accent-color:#0b63ce;cursor:pointer}.bulk-delete-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#f8fafc;border:1px solid #dbe4ef;border-radius:14px;padding:10px 12px;margin:0 0 12px}.bulk-select-all{display:inline-flex;align-items:center;gap:8px;font-weight:800;color:#334155;cursor:pointer}.bulk-select-all input{width:20px;height:20px;accent-color:#0b63ce}.bulk-count{font-weight:800;color:#475569;margin-right:auto}.bulk-delete-bar button{width:auto;padding:10px 14px;font-size:14px}.bulk-delete-bar button:disabled{opacity:.45;cursor:not-allowed}
 .preview-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:10px;margin-top:12px;font-size:14px;line-height:1.5}
-@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.span-2,.span-3,.span-4,.span-5,.span-6,.span-8{grid-column:span 1}.span-12{grid-column:1/-1}.actions{grid-template-columns:1fr}.top-actions{justify-content:stretch}.top-actions button,.top-actions a{width:100%}}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.span-2,.span-3,.span-4,.span-5,.span-6,.span-8{grid-column:span 1}.span-12{grid-column:1/-1}.actions{grid-template-columns:1fr}.top-actions{justify-content:stretch}.top-actions button,.top-actions a{width:100%}.bulk-delete-bar{align-items:stretch}.bulk-count{width:100%;margin-right:0}.bulk-delete-bar button{width:100%}}
 @media(max-width:640px){body{padding:8px}.header{border-radius:14px;padding:14px}.header h1{font-size:21px}.card{padding:12px;border-radius:14px}.grid{grid-template-columns:1fr}.span-2,.span-3,.span-4,.span-5,.span-6,.span-8,.span-12{grid-column:1/-1}.login-actions{grid-template-columns:1fr}.extra-line-row{grid-template-columns:1fr}.extra-line-row button{width:100%}}
 .admin-header{display:flex;align-items:center;gap:14px}.admin-logo{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;flex:0 0 auto}
 
@@ -2842,6 +2842,11 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
 
     <div class="card">
       <h2>รายการ Work Order</h2>
+      <div class="bulk-delete-bar">
+        <label class="bulk-select-all"><input id="selectAllWO" type="checkbox" onchange="toggleSelectAllWO(this.checked)"> เลือกทั้งหมด</label>
+        <span id="selectedWOCount" class="bulk-count">เลือก 0 รายการ</span>
+        <button id="deleteSelectedWOBtn" type="button" class="danger" onclick="deleteSelectedWOs()" disabled>ลบรายการที่เลือก</button>
+      </div>
       <div id="list"></div>
     </div>
   </div>
@@ -3121,12 +3126,82 @@ async function loadList(showPanelOnSuccess=false){
     setStatus(err.message || "โหลดรายการไม่สำเร็จ", true);
   }
 }
+const selectedWorkOrders = new Set();
+function updateBulkDeleteUI(){
+  const list = window.__adminWOList || [];
+  const available = new Set(list.map(w => String((w && w.workOrder) || "").trim().toUpperCase()).filter(Boolean));
+  Array.from(selectedWorkOrders).forEach(wo => { if(!available.has(wo)) selectedWorkOrders.delete(wo); });
+  const selectedCount = selectedWorkOrders.size;
+  const countEl = $("selectedWOCount");
+  const deleteBtn = $("deleteSelectedWOBtn");
+  const selectAll = $("selectAllWO");
+  if(countEl) countEl.textContent = `เลือก ${selectedCount} รายการ`;
+  if(deleteBtn) deleteBtn.disabled = selectedCount === 0;
+  if(selectAll){
+    selectAll.checked = list.length > 0 && selectedCount === list.length;
+    selectAll.indeterminate = selectedCount > 0 && selectedCount < list.length;
+    selectAll.disabled = list.length === 0;
+  }
+}
+function toggleWorkOrderSelection(wo, checked){
+  const key = String(wo || "").trim().toUpperCase();
+  if(!key) return;
+  if(checked) selectedWorkOrders.add(key);
+  else selectedWorkOrders.delete(key);
+  updateBulkDeleteUI();
+}
+function toggleSelectAllWO(checked){
+  selectedWorkOrders.clear();
+  if(checked){
+    (window.__adminWOList || []).forEach(w => {
+      const key = String((w && w.workOrder) || "").trim().toUpperCase();
+      if(key) selectedWorkOrders.add(key);
+    });
+  }
+  document.querySelectorAll(".wo-checkbox").forEach(cb => { cb.checked = checked; });
+  updateBulkDeleteUI();
+}
 function renderList(list){
   window.__adminWOList = list || [];
-  if(!list.length){$("list").innerHTML="<p>ยังไม่มี Work Order</p>";return;}
-  $("list").innerHTML = `<div class="table-wrap"><table class="wo-table"><thead><tr><th>WO</th><th>ตั้งค่า</th><th>Lot ที่ควรเป็น</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>`+
-    list.map((w,i)=>`<tr><td><b>${w.workOrder}</b></td><td>${w.mode} / ${(w.pouches||[]).map(x=>x.line).join(", ")}<br>SKU ${w.sku || "-"}<br>${w.productName || "-"}<br>${w.productType} / ${w.marketType}<br>MFG ${w.mfg}</td><td>ซอง: ${w.expectedPouchLot || "-"}<br>กล่อง: ${w.expectedCartonLot || "-"}</td><td><span class="pill">${w.active ? "ใช้งาน" : "ปิด"}</span></td><td><div class="row-actions"><button type="button" class="btn-small" onclick="editWOByIndex(${i})">โหลดแก้ไข</button><button type="button" class="btn-small danger" onclick="deleteWOByIndex(${i})">ลบ</button></div></td></tr>`).join("")+
+  selectedWorkOrders.clear();
+  if(!list.length){
+    $("list").innerHTML="<p>ยังไม่มี Work Order</p>";
+    updateBulkDeleteUI();
+    return;
+  }
+  $("list").innerHTML = `<div class="table-wrap"><table class="wo-table"><thead><tr><th>เลือก</th><th>WO</th><th>ตั้งค่า</th><th>Lot ที่ควรเป็น</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>`+
+    list.map((w,i)=>`<tr><td><input type="checkbox" class="wo-checkbox" data-wo="${w.workOrder}" aria-label="เลือก Work Order ${w.workOrder}" onchange="toggleWorkOrderSelection(this.dataset.wo,this.checked)"></td><td><b>${w.workOrder}</b></td><td>${w.mode} / ${(w.pouches||[]).map(x=>x.line).join(", ")}<br>SKU ${w.sku || "-"}<br>${w.productName || "-"}<br>${w.productType} / ${w.marketType}<br>MFG ${w.mfg}</td><td>ซอง: ${w.expectedPouchLot || "-"}<br>กล่อง: ${w.expectedCartonLot || "-"}</td><td><span class="pill">${w.active ? "ใช้งาน" : "ปิด"}</span></td><td><div class="row-actions"><button type="button" class="btn-small" onclick="editWOByIndex(${i})">โหลดแก้ไข</button><button type="button" class="btn-small danger" onclick="deleteWOByIndex(${i})">ลบ</button></div></td></tr>`).join("")+
     `</tbody></table></div>`;
+  updateBulkDeleteUI();
+}
+async function deleteSelectedWOs(){
+  const workOrders = Array.from(selectedWorkOrders);
+  const password = adminPassword();
+  if(!password) return setStatus("กรุณาใส่รหัสผ่าน Admin", true);
+  if(!workOrders.length) return setStatus("กรุณาเลือกรายการที่ต้องการลบ", true);
+  const preview = workOrders.slice(0, 5).join(", ") + (workOrders.length > 5 ? ` และอีก ${workOrders.length - 5} รายการ` : "");
+  if(!confirm(`ยืนยันลบ Work Order ที่เลือก ${workOrders.length} รายการ?\n\n${preview}\n\nข้อมูลที่ลบแล้วไม่สามารถเรียกคืนได้`)) return;
+  const btn = $("deleteSelectedWOBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "กำลังลบ..."; }
+  try{
+    const res = await fetch("/api/work_orders_bulk_delete", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Admin-Password":password},
+      body:JSON.stringify({adminPassword:password, workOrders})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || "ลบรายการไม่สำเร็จ");
+    const currentWO = $("wo").value.trim().toUpperCase();
+    if(currentWO && workOrders.includes(currentWO)) clearForm();
+    selectedWorkOrders.clear();
+    setStatus(`ลบ Work Order สำเร็จ ${data.deletedCount || 0} รายการ`, false);
+    await loadList(false);
+  }catch(err){
+    setStatus(err.message || "ลบรายการไม่สำเร็จ", true);
+    updateBulkDeleteUI();
+  }finally{
+    if(btn) btn.textContent = "ลบรายการที่เลือก";
+  }
 }
 function editWOByIndex(i){ editWO((window.__adminWOList || [])[i]); }
 async function deleteWOByIndex(i){
@@ -3367,6 +3442,51 @@ def api_work_orders_active():
         item["workOrder"] = key
         items.append(item)
     return jsonify({"workOrders": items})
+
+
+@app.route("/api/work_orders_bulk_delete", methods=["POST"])
+def api_work_orders_bulk_delete():
+    payload = request.get_json(silent=True) or {}
+    if not admin_password_ok(payload):
+        return jsonify({"error": "รหัสผ่าน Admin ไม่ถูกต้อง"}), 401
+
+    raw_work_orders = payload.get("workOrders")
+    if not isinstance(raw_work_orders, list):
+        return jsonify({"error": "รูปแบบรายการ Work Order ไม่ถูกต้อง"}), 400
+
+    keys = []
+    seen = set()
+    for value in raw_work_orders:
+        key = _safe_work_order_key(value)
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+
+    if not keys:
+        return jsonify({"error": "กรุณาเลือกรายการที่ต้องการลบ"}), 400
+    if len(keys) > 500:
+        return jsonify({"error": "ลบได้สูงสุดครั้งละ 500 รายการ"}), 400
+
+    with WORK_ORDER_LOCK:
+        data = load_work_orders()
+        deleted = []
+        not_found = []
+        for key in keys:
+            if key in data:
+                data.pop(key, None)
+                deleted.append(key)
+            else:
+                not_found.append(key)
+        if deleted:
+            save_work_orders(data)
+
+    return jsonify({
+        "ok": True,
+        "deleted": deleted,
+        "deletedCount": len(deleted),
+        "notFound": not_found,
+        "notFoundCount": len(not_found),
+    })
 
 
 @app.route("/api/work_order/<work_order>", methods=["GET", "DELETE"])
