@@ -2807,7 +2807,7 @@ async function loadMasterData(){
   const password=adminPassword();
   if(!password) return;
   const res=await fetch("/api/master_data?password="+encodeURIComponent(password));
-  const data=await res.json();
+  const data=await readAdminJsonResponse(res);
   if(!res.ok) throw new Error(data.error || "โหลด Master Data ไม่สำเร็จ");
   __skuMaster=Array.isArray(data.skuMaster)?data.skuMaster:[];
   __lineMaster=Array.isArray(data.lineMaster)?data.lineMaster:[];
@@ -2844,13 +2844,13 @@ async function saveSkuMaster(){
   const payload={adminPassword:adminPassword(),kind:"sku",operation:"upsert",sku:$("masterSku").value.trim().toUpperCase(),productName:$("masterProductName").value.trim(),productType:$("masterProductType").value,active:$("masterSkuActive").value==="true"};
   if(!payload.sku || !payload.productName || !payload.productType) return setStatus("กรุณากรอก SKU, ชื่อ Product และ Product Type", true);
   const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-  const data=await res.json(); if(!res.ok) return setStatus(data.error||"บันทึก SKU Master ไม่สำเร็จ",true);
+  const data=await readAdminJsonResponse(res); if(!res.ok) return setStatus(data.error||"บันทึก SKU Master ไม่สำเร็จ",true);
   setStatus(`บันทึก SKU Master ${payload.sku} แล้ว`,false); clearSkuMasterForm(); await loadMasterData();
 }
 async function deleteSkuMaster(sku){
   if(!confirm(`ยืนยันลบ SKU Master ${sku} ?`)) return;
   const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminPassword:adminPassword(),kind:"sku",operation:"delete",sku})});
-  const data=await res.json(); if(!res.ok) return setStatus(data.error||"ลบ SKU Master ไม่สำเร็จ",true);
+  const data=await readAdminJsonResponse(res); if(!res.ok) return setStatus(data.error||"ลบ SKU Master ไม่สำเร็จ",true);
   setStatus(`ลบ SKU Master ${sku} แล้ว`,false); await loadMasterData();
 }
 function refreshMasterLineOptions(preferred=""){
@@ -2875,13 +2875,13 @@ async function saveLineMaster(){
   const payload={adminPassword:adminPassword(),kind:"line",operation:"upsert",mode:$("masterMode").value,line:$("masterLine").value,buildingNo:$("masterBuildingNo").value,active:$("masterLineActive").value==="true"};
   if(!payload.mode || !payload.line || !payload.buildingNo) return setStatus("กรุณาเลือกประเภทไลน์, เครื่อง และเลขอาคาร", true);
   const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-  const data=await res.json(); if(!res.ok) return setStatus(data.error||"บันทึก Line Master ไม่สำเร็จ",true);
+  const data=await readAdminJsonResponse(res); if(!res.ok) return setStatus(data.error||"บันทึก Line Master ไม่สำเร็จ",true);
   setStatus(`บันทึก Line Master ${payload.line} → อาคาร ${payload.buildingNo} แล้ว`,false); clearLineMasterForm(); await loadMasterData(); applyLineMaster(false);
 }
 async function deleteLineMaster(mode,line){
   if(!confirm(`ยืนยันลบ Line Master ${line} ?`)) return;
   const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminPassword:adminPassword(),kind:"line",operation:"delete",mode,line})});
-  const data=await res.json(); if(!res.ok) return setStatus(data.error||"ลบ Line Master ไม่สำเร็จ",true);
+  const data=await readAdminJsonResponse(res); if(!res.ok) return setStatus(data.error||"ลบ Line Master ไม่สำเร็จ",true);
   setStatus(`ลบ Line Master ${line} แล้ว`,false); await loadMasterData(); applyLineMaster(false);
 }
 
@@ -2900,13 +2900,44 @@ window.__adminWOList = [];
 function adminPassword(){ return ($("adminPassword")?.value || sessionStorage.getItem("adminPassword") || ""); }
 function setLoginStatus(msg,isErr){ const el=$("loginStatus"); if(!el) return; el.textContent=msg; el.style.color=isErr?"#dc2626":"#166534"; }
 function setStatus(msg,isErr){ const el=$("status"); if(!el) return; el.textContent=msg; el.style.color=isErr?"#dc2626":"#166534"; }
+async function readAdminJsonResponse(res){
+  const text = await res.text();
+  if(!text) return {};
+  try{
+    return JSON.parse(text);
+  }catch(err){
+    const looksHtml = /^\s*</.test(text);
+    const detail = looksHtml
+      ? `ระบบหลังบ้านส่งหน้า HTML กลับมาแทน JSON (HTTP ${res.status})`
+      : `ระบบหลังบ้านตอบกลับไม่ใช่ JSON (HTTP ${res.status})`;
+    throw new Error(detail + " กรุณาตรวจ Render Logs");
+  }
+}
 function showAdminPanel(){ $("loginCard").classList.add("hidden"); $("adminPanel").classList.remove("hidden"); }
 function hideAdminPanel(){ $("adminPanel").classList.add("hidden"); $("loginCard").classList.remove("hidden"); }
 function clearLogin(){ sessionStorage.removeItem("adminPassword"); if($("adminPassword")) $("adminPassword").value=""; setLoginStatus("", false); }
 function logoutAdmin(){ clearLogin(); hideAdminPanel(); }
 async function loginAdmin(){
-  if(!adminPassword()) return setLoginStatus("กรุณาใส่รหัสผ่าน Admin", true);
-  await loadList(true);
+  const password = adminPassword();
+  if(!password) return setLoginStatus("กรุณาใส่รหัสผ่าน Admin", true);
+  setLoginStatus("กำลังเข้าสู่ระบบ...", false);
+  try{
+    const res = await fetch("/api/admin_login",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Accept":"application/json"},
+      body:JSON.stringify({adminPassword:password})
+    });
+    const data = await readAdminJsonResponse(res);
+    if(!res.ok) throw new Error(data.error || "เข้าสู่ระบบไม่สำเร็จ");
+    sessionStorage.setItem("adminPassword", password);
+    showAdminPanel();
+    setLoginStatus("", false);
+    await loadList(false);
+  }catch(err){
+    sessionStorage.removeItem("adminPassword");
+    hideAdminPanel();
+    setLoginStatus(err.message || "เข้าสู่ระบบไม่สำเร็จ", true);
+  }
 }
 
 function machineListForMode(mode){
@@ -3110,7 +3141,7 @@ async function saveWO(){
   if(!p.buildingNo) required.push("Line Master / เลขอาคาร");
   if(required.length){ applyLineMaster(true); return setStatus("กรุณากรอก/ตั้งค่า: " + required.join(", "), true); }
   const res=await fetch("/api/work_orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
-  const data=await res.json();
+  const data=await readAdminJsonResponse(res);
   if(!res.ok) return setStatus(data.error || "บันทึกไม่สำเร็จ", true);
   setStatus("บันทึก Work Order สำเร็จ: " + data.workOrder.workOrder, false);
   loadList(false);
@@ -3120,7 +3151,7 @@ async function loadList(showPanelOnSuccess=false){
   if(!password){ setLoginStatus("กรุณาใส่รหัสผ่าน Admin", true); return; }
   try{
     const res=await fetch("/api/work_orders?password="+encodeURIComponent(password));
-    const data=await res.json();
+    const data=await readAdminJsonResponse(res);
     if(!res.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
     sessionStorage.setItem("adminPassword", password);
     if(showPanelOnSuccess) showAdminPanel();
@@ -3129,9 +3160,9 @@ async function loadList(showPanelOnSuccess=false){
     setStatus("โหลดรายการแล้ว " + (data.workOrders||[]).length + " รายการ | SKU Master " + __skuMaster.length + " | Line Master " + __lineMaster.length, false);
     setLoginStatus("", false);
   }catch(err){
-    sessionStorage.removeItem("adminPassword");
-    setLoginStatus(err.message || "รหัสผ่านไม่ถูกต้อง", true);
-    setStatus(err.message || "โหลดรายการไม่สำเร็จ", true);
+    const msg = err.message || "โหลดรายการไม่สำเร็จ";
+    setStatus(msg, true);
+    setLoginStatus(msg, true);
   }
 }
 const selectedWorkOrders = new Set();
@@ -3197,7 +3228,7 @@ async function deleteSelectedWOs(){
       headers:{"Content-Type":"application/json","X-Admin-Password":password},
       body:JSON.stringify({adminPassword:password, workOrders})
     });
-    const data = await res.json();
+    const data = await readAdminJsonResponse(res);
     if(!res.ok) throw new Error(data.error || "ลบรายการไม่สำเร็จ");
     const currentWO = $("wo").value.trim().toUpperCase();
     if(currentWO && workOrders.includes(currentWO)) clearForm();
@@ -3223,7 +3254,7 @@ async function deleteWOByIndex(i){
       method:"DELETE",
       headers:{"Content-Type":"application/json","X-Admin-Password":password}
     });
-    const data=await res.json();
+    const data=await readAdminJsonResponse(res);
     if(!res.ok) throw new Error(data.error || "ลบไม่สำเร็จ");
     if($("wo").value.trim().toUpperCase()===wo) clearForm();
     setStatus("ลบ Work Order "+wo+" แล้ว", false);
@@ -3267,7 +3298,7 @@ async function deleteWO(){
   if(!wo) return setStatus("กรุณาใส่ Work Order ที่ต้องการลบ", true);
   if(!confirm("ยืนยันลบ Work Order "+wo+" ?")) return;
   const res=await fetch(`/api/work_order/${encodeURIComponent(wo)}`,{method:"DELETE",headers:{"Content-Type":"application/json","X-Admin-Password":password}});
-  const data=await res.json();
+  const data=await readAdminJsonResponse(res);
   if(!res.ok) return setStatus(data.error || "ลบไม่สำเร็จ", true);
   setStatus("ลบ Work Order แล้ว", false);
   clearForm(); loadList(false);
@@ -3308,6 +3339,8 @@ def handle_gateway_timeout(e):
 def handle_internal_error(e):
     if request.path == "/check":
         return jsonify({"error": "ระบบหลังบ้านประมวลผลไม่สำเร็จ กรุณาลองใหม่ โดยถ่ายรูปเฉพาะบริเวณล็อตให้ใกล้ขึ้น"}), 500
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "ระบบหลังบ้านเกิดข้อผิดพลาด (HTTP 500) กรุณาตรวจ Render Logs"}), 500
     return e
 
 
@@ -3335,13 +3368,25 @@ def admin_page():
     return ADMIN_HTML
 
 
+@app.route("/api/admin_login", methods=["POST"])
+def api_admin_login():
+    payload = request.get_json(silent=True) or {}
+    if not admin_password_ok(payload):
+        return jsonify({"ok": False, "error": "รหัสผ่าน Admin ไม่ถูกต้อง"}), 401
+    return jsonify({"ok": True})
+
+
 @app.route("/api/master_data", methods=["GET", "POST"])
 def api_master_data():
     if request.method == "GET":
         if not admin_password_ok():
             return jsonify({"error": "รหัสผ่าน Admin ไม่ถูกต้อง"}), 401
-        with WORK_ORDER_LOCK:
-            master = load_master_data()
+        try:
+            with WORK_ORDER_LOCK:
+                master = load_master_data()
+        except Exception as exc:
+            app.logger.exception("Load master data failed")
+            return jsonify({"error": "โหลด Master Data ไม่สำเร็จ: " + str(exc)}), 500
         sku_items = []
         for sku, item in (master.get("skuMaster") or {}).items():
             if not isinstance(item, dict):
@@ -3432,11 +3477,24 @@ def api_work_orders():
     if request.method == "GET":
         if not admin_password_ok():
             return jsonify({"error": "รหัสผ่าน Admin ไม่ถูกต้อง"}), 401
-        with WORK_ORDER_LOCK:
-            data = load_work_orders()
+        try:
+            with WORK_ORDER_LOCK:
+                data = load_work_orders()
+        except Exception as exc:
+            app.logger.exception("Load work orders failed")
+            return jsonify({"error": "โหลด Work Order จาก Google Sheets ไม่สำเร็จ: " + str(exc)}), 500
         items = []
+        skipped = []
         for key, wo in data.items():
-            item = enrich_work_order(wo)
+            if not isinstance(wo, dict):
+                skipped.append(str(key))
+                continue
+            try:
+                item = enrich_work_order(wo)
+            except Exception:
+                app.logger.exception("Invalid work order record: %s", key)
+                skipped.append(str(key))
+                continue
             item["workOrder"] = key
             items.append(item)
         # Newly created Work Orders stay at the top. Editing an existing WO does not
@@ -3448,7 +3506,7 @@ def api_work_orders():
             ),
             reverse=True,
         )
-        return jsonify({"workOrders": items})
+        return jsonify({"workOrders": items, "skippedInvalidRecords": skipped})
 
     payload = request.get_json(silent=True) or {}
     if not admin_password_ok(payload):
