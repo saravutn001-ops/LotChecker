@@ -2665,7 +2665,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
         <button type="button" onclick="saveSkuMaster()">บันทึก SKU Master</button>
         <button type="button" class="secondary" onclick="clearSkuMasterForm()">ล้าง</button>
       </div>
-      <div id="skuMasterList" style="margin-top:12px"></div>
+      <div id="skuMasterList" class="hidden" style="margin-top:12px"></div>
 
       <div class="section-title" style="margin-top:18px">Line → Building Master</div>
       <div class="grid">
@@ -2678,7 +2678,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
         <button type="button" onclick="saveLineMaster()">บันทึก Line Master</button>
         <button type="button" class="secondary" onclick="clearLineMasterForm()">ล้าง</button>
       </div>
-      <div id="lineMasterList" style="margin-top:12px"></div>
+      <div id="lineMasterList" class="hidden" style="margin-top:12px"></div>
     </div>
 
     <div class="card">
