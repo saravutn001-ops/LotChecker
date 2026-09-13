@@ -78,14 +78,61 @@ def _google_sheet_request(payload=None, method="GET"):
         raise RuntimeError(str(result.get("error") or "Google Sheet ทำงานไม่สำเร็จ"))
     return result
 
-def load_work_orders():
+MASTER_DATA_STORAGE_KEY = "__IPONE_MASTER_DATA__"
+
+
+def _load_work_order_store():
     result = _google_sheet_request(method="GET")
     data = result.get("workOrders", {})
     return data if isinstance(data, dict) else {}
 
+
+def _normalize_master_data(value=None):
+    value = value if isinstance(value, dict) else {}
+    sku_master = value.get("skuMaster") if isinstance(value.get("skuMaster"), dict) else {}
+    line_master = value.get("lineMaster") if isinstance(value.get("lineMaster"), dict) else {}
+    return {
+        "_system": "master_data",
+        "skuMaster": sku_master,
+        "lineMaster": line_master,
+        "updatedAt": str(value.get("updatedAt", "") or ""),
+    }
+
+
+def load_work_orders():
+    data = _load_work_order_store()
+    result = {}
+    for key, value in data.items():
+        if str(key).upper() == MASTER_DATA_STORAGE_KEY:
+            continue
+        if isinstance(value, dict) and value.get("_system") == "master_data":
+            continue
+        result[key] = value
+    return result
+
+
 def save_work_orders(data):
     clean = data if isinstance(data, dict) else {}
-    _google_sheet_request({"action": "replace_all", "workOrders": clean}, method="POST")
+    current = _load_work_order_store()
+    master_record = current.get(MASTER_DATA_STORAGE_KEY)
+    merged = dict(clean)
+    if isinstance(master_record, dict):
+        merged[MASTER_DATA_STORAGE_KEY] = master_record
+    _google_sheet_request({"action": "replace_all", "workOrders": merged}, method="POST")
+
+
+def load_master_data():
+    current = _load_work_order_store()
+    return _normalize_master_data(current.get(MASTER_DATA_STORAGE_KEY))
+
+
+def save_master_data(master_data):
+    current = _load_work_order_store()
+    record = _normalize_master_data(master_data)
+    record["updatedAt"] = now_thai().strftime("%Y-%m-%d %H:%M:%S")
+    current[MASTER_DATA_STORAGE_KEY] = record
+    _google_sheet_request({"action": "replace_all", "workOrders": current}, method="POST")
+    return record
 
 def admin_password_ok(payload=None):
     expected = os.getenv("ADMIN_PASSWORD", "1234")
@@ -2558,7 +2605,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
       <div class="grid">
         <div class="field span-3"><label>Work Order</label><input id="wo" placeholder="1020000xxxxx" oninput="updatePreview()"></div>
         <div class="field span-3"><label>ประเภทไลน์</label><select id="mode" onchange="refreshMachines()"><option value="">เลือกประเภทไลน์</option><option value="linapack">Linapack</option><option value="sachet">Sachet</option><option value="auto">Auto</option></select></div>
-        <div class="field span-3"><label>เครื่องซองที่ 1</label><select id="line" onchange="updatePreview()"><option value="">เลือกประเภทไลน์ก่อน</option></select></div>
+        <div class="field span-3"><label>เครื่องซองที่ 1</label><select id="line" onchange="applyLineMaster(); updatePreview()"><option value="">เลือกประเภทไลน์ก่อน</option></select></div>
         <div class="field span-3"><label>สถานะ</label><select id="active" onchange="updatePreview()"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select></div>
 
         <div class="field span-12">
@@ -2573,9 +2620,9 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
 
       <div class="section-title">ข้อมูลสินค้าและวันที่</div>
       <div class="grid">
-        <div class="field span-3"><label>เลข SKU</label><input id="sku" placeholder="กรอกเลข SKU" oninput="updatePreview()"></div>
-        <div class="field span-6"><label>ชื่อผลิตภัณฑ์</label><input id="productName" placeholder="กรอกชื่อผลิตภัณฑ์" oninput="updatePreview()"></div>
-        <div class="field span-3"><label>ผลิตภัณฑ์</label><select id="productType" onchange="updateConditionalFields()"><option value="">เลือกผลิตภัณฑ์</option><option value="EPC">EPC</option><option value="EPW">EPW</option><option value="FS">FS</option><option value="IS">IS</option><option value="SS">SS</option></select></div>
+        <div class="field span-3"><label>เลข SKU</label><select id="sku" onchange="applySkuMaster(); updatePreview()"><option value="">เลือก SKU จาก Master</option></select></div>
+        <div class="field span-6"><label>ชื่อผลิตภัณฑ์</label><input id="productName" readonly placeholder="เลือก SKU แล้วระบบจะใส่ให้อัตโนมัติ"></div>
+        <div class="field span-3"><label>ผลิตภัณฑ์</label><select id="productType" disabled><option value="">เลือกจาก SKU Master</option><option value="EPC">EPC</option><option value="EPW">EPW</option><option value="FS">FS</option><option value="IS">IS</option><option value="SS">SS</option></select></div>
         <div class="field span-3"><label>ประเภทงาน</label><select id="marketType" onchange="updateMarketUI()"><option value="">เลือกประเภทงาน</option><option value="TH">งานไทย</option><option value="EXPORT">งานต่างประเทศ</option><option value="LAOS">งานต่างประเทศ ลาว</option></select></div>
         <div class="field span-3 hidden" id="epcLaosShelfLifeField"><label>อายุ EPC งานลาว</label><select id="epcLaosShelfLifeMonths" onchange="updateCalculated()"><option value="24">2 ปี</option><option value="15">1 ปี 3 เดือน</option></select></div>
         <div class="field span-3"><label>วันที่ผลิต</label><input id="mfgDate" type="date" onchange="updateCalculated()"></div>
@@ -2590,7 +2637,7 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
       <div class="grid">
         <div class="field span-3"><label>Prefix กล่อง</label><select id="cartonPrefix" onchange="updateShippingMark()"><option value="">เลือกประเภทงานก่อน</option></select></div>
         <div class="field span-3"><label>Shipping Mark</label><input id="shippingMark" readonly placeholder="ไม่ตรวจ"></div>
-        <div class="field span-3"><label>เลขอาคาร</label><select id="buildingNo" onchange="updatePreview()"><option value="">เลือกเลขอาคาร</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+        <div class="field span-3"><label>เลขอาคาร</label><select id="buildingNo" disabled><option value="">เลือกไลน์แล้วระบบจะใส่ให้อัตโนมัติ</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
         <div class="field span-3"><label>Suffix</label><input id="buildingSuffix" placeholder="เช่น QR / N" oninput="updatePreview()"></div>
       </div>
 
@@ -2600,6 +2647,38 @@ button.secondary,a.btn.secondary{background:#475569}button.danger{background:#dc
         <button type="button" class="danger" onclick="deleteWO()">ลบ Work Order</button>
       </div>
       <div id="preview" class="preview-box">ตัวอย่าง: -</div>
+    </div>
+
+
+    <div class="card">
+      <h2>Master Data</h2>
+      <div class="small">ตั้งค่าครั้งเดียว แล้วตอนสร้าง Work Order ระบบจะเติมชื่อสินค้า/ประเภทสินค้า และเลขอาคารให้อัตโนมัติ</div>
+
+      <div class="section-title">SKU Master</div>
+      <div class="grid">
+        <div class="field span-3"><label>SKU</label><input id="masterSku" placeholder="เช่น 1317033027"></div>
+        <div class="field span-5"><label>ชื่อ Product</label><input id="masterProductName" placeholder="ชื่อผลิตภัณฑ์"></div>
+        <div class="field span-2"><label>Product Type</label><select id="masterProductType"><option value="">เลือก</option><option>EPC</option><option>EPW</option><option>FS</option><option>IS</option><option>SS</option></select></div>
+        <div class="field span-2"><label>สถานะ</label><select id="masterSkuActive"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select></div>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button type="button" onclick="saveSkuMaster()">บันทึก SKU Master</button>
+        <button type="button" class="secondary" onclick="clearSkuMasterForm()">ล้าง</button>
+      </div>
+      <div id="skuMasterList" style="margin-top:12px"></div>
+
+      <div class="section-title" style="margin-top:18px">Line → Building Master</div>
+      <div class="grid">
+        <div class="field span-3"><label>ประเภทไลน์</label><select id="masterMode" onchange="refreshMasterLineOptions()"><option value="">เลือกประเภทไลน์</option><option value="linapack">Linapack</option><option value="sachet">Sachet</option><option value="auto">Auto</option></select></div>
+        <div class="field span-3"><label>เครื่อง</label><select id="masterLine"><option value="">เลือกประเภทไลน์ก่อน</option></select></div>
+        <div class="field span-3"><label>เลขอาคาร</label><select id="masterBuildingNo"><option value="">เลือกอาคาร</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+        <div class="field span-3"><label>สถานะ</label><select id="masterLineActive"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select></div>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button type="button" onclick="saveLineMaster()">บันทึก Line Master</button>
+        <button type="button" class="secondary" onclick="clearLineMasterForm()">ล้าง</button>
+      </div>
+      <div id="lineMasterList" style="margin-top:12px"></div>
     </div>
 
     <div class="card">
@@ -2649,6 +2728,163 @@ function hideLoadingOverlay(force=false){
 })();
 
 const $ = id => document.getElementById(id);
+let __skuMaster = [];
+let __lineMaster = [];
+
+function masterLineKey(mode,line){
+  return `${String(mode||"").toLowerCase()}|${String(line||"").toUpperCase()}`;
+}
+function escapeMasterHtml(v){
+  return String(v ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+}
+function activeSkuMaster(){ return (__skuMaster||[]).filter(x=>x && x.active!==false); }
+function activeLineMaster(){ return (__lineMaster||[]).filter(x=>x && x.active!==false); }
+function findSkuMaster(sku){
+  const key=String(sku||"").trim().toUpperCase();
+  return (__skuMaster||[]).find(x=>String(x.sku||"").trim().toUpperCase()===key) || null;
+}
+function findLineMaster(mode,line){
+  const key=masterLineKey(mode,line);
+  return (__lineMaster||[]).find(x=>masterLineKey(x.mode,x.line)===key) || null;
+}
+function populateSkuSelect(preferred=""){
+  const sel=$("sku"); if(!sel) return;
+  const keep=String(preferred || sel.value || "").trim().toUpperCase();
+  sel.innerHTML="";
+  sel.appendChild(new Option("เลือก SKU จาก Master", ""));
+  activeSkuMaster().sort((a,b)=>String(a.sku).localeCompare(String(b.sku),undefined,{numeric:true})).forEach(item=>{
+    sel.appendChild(new Option(`${item.sku} — ${item.productName}`, item.sku));
+  });
+  if(keep && !Array.from(sel.options).some(o=>o.value===keep)){
+    const legacy=findSkuMaster(keep);
+    sel.appendChild(new Option(legacy ? `${keep} — ${legacy.productName} (ปิดใช้งาน)` : `${keep} — ไม่มีใน Master`, keep));
+  }
+  if(keep) sel.value=keep;
+}
+function applySkuMaster(){
+  const item=findSkuMaster($("sku")?.value || "");
+  if(item){
+    if($("productName")) $("productName").value=item.productName || "";
+    if($("productType")) $("productType").value=item.productType || "";
+  }else{
+    if($("productName")) $("productName").value="";
+    if($("productType")) $("productType").value="";
+  }
+  updateConditionalFields();
+  updatePreview();
+}
+function selectedAdminLines(){
+  const lines=[];
+  const primary=String($("line")?.value || "").trim().toUpperCase();
+  if(primary) lines.push(primary);
+  extraLineControls.forEach(item=>{
+    const value=String($(item.selectId)?.value || "").trim().toUpperCase();
+    if(value && !lines.includes(value)) lines.push(value);
+  });
+  return lines;
+}
+function applyLineMaster(showMessage=false){
+  const mode=String($("mode")?.value || "").toLowerCase();
+  const lines=selectedAdminLines();
+  const buildingEl=$("buildingNo");
+  if(!buildingEl) return;
+  if(!mode || !lines.length){ buildingEl.value=""; updatePreview(); return; }
+  const records=lines.map(line=>({line, rec:findLineMaster(mode,line)}));
+  const missing=records.filter(x=>!x.rec || x.rec.active===false);
+  const buildings=[...new Set(records.filter(x=>x.rec && x.rec.active!==false).map(x=>String(x.rec.buildingNo||"")))].filter(Boolean);
+  if(missing.length || buildings.length!==1){
+    buildingEl.value="";
+    if(showMessage){
+      if(missing.length) setStatus(`ยังไม่ได้ตั้ง Line Master สำหรับ ${missing.map(x=>x.line).join(", ")}`, true);
+      else if(buildings.length>1) setStatus(`เครื่องที่เลือกถูกกำหนดคนละอาคาร (${buildings.join(", ")}) กรุณาตรวจ Line Master`, true);
+    }
+  }else{
+    buildingEl.value=buildings[0];
+  }
+  updatePreview();
+}
+async function loadMasterData(){
+  const password=adminPassword();
+  if(!password) return;
+  const res=await fetch("/api/master_data?password="+encodeURIComponent(password));
+  const data=await res.json();
+  if(!res.ok) throw new Error(data.error || "โหลด Master Data ไม่สำเร็จ");
+  __skuMaster=Array.isArray(data.skuMaster)?data.skuMaster:[];
+  __lineMaster=Array.isArray(data.lineMaster)?data.lineMaster:[];
+  populateSkuSelect();
+  renderMasterData();
+  applyLineMaster(false);
+}
+function renderMasterData(){
+  const skuEl=$("skuMasterList");
+  if(skuEl){
+    if(!__skuMaster.length){ skuEl.innerHTML='<div class="small">ยังไม่มี SKU Master</div>'; }
+    else skuEl.innerHTML=`<div class="table-wrap"><table class="wo-table"><thead><tr><th>SKU</th><th>Product</th><th>Type</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${__skuMaster.slice().sort((a,b)=>String(a.sku).localeCompare(String(b.sku),undefined,{numeric:true})).map(x=>`<tr><td><b>${escapeMasterHtml(x.sku)}</b></td><td>${escapeMasterHtml(x.productName)}</td><td>${escapeMasterHtml(x.productType)}</td><td>${x.active===false?'ปิด':'ใช้งาน'}</td><td><div class="row-actions"><button type="button" class="btn-small" onclick="editSkuMaster('${escapeMasterHtml(x.sku)}')">แก้ไข</button><button type="button" class="btn-small danger" onclick="deleteSkuMaster('${escapeMasterHtml(x.sku)}')">ลบ</button></div></td></tr>`).join('')}</tbody></table></div>`;
+  }
+  const lineEl=$("lineMasterList");
+  if(lineEl){
+    if(!__lineMaster.length){ lineEl.innerHTML='<div class="small">ยังไม่มี Line Master</div>'; }
+    else lineEl.innerHTML=`<div class="table-wrap"><table class="wo-table"><thead><tr><th>ประเภทไลน์</th><th>เครื่อง</th><th>อาคาร</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${__lineMaster.slice().sort((a,b)=>masterLineKey(a.mode,a.line).localeCompare(masterLineKey(b.mode,b.line),undefined,{numeric:true})).map(x=>`<tr><td>${escapeMasterHtml(x.mode)}</td><td><b>${escapeMasterHtml(x.line)}</b></td><td>${escapeMasterHtml(x.buildingNo)}</td><td>${x.active===false?'ปิด':'ใช้งาน'}</td><td><div class="row-actions"><button type="button" class="btn-small" onclick="editLineMaster('${escapeMasterHtml(x.mode)}','${escapeMasterHtml(x.line)}')">แก้ไข</button><button type="button" class="btn-small danger" onclick="deleteLineMaster('${escapeMasterHtml(x.mode)}','${escapeMasterHtml(x.line)}')">ลบ</button></div></td></tr>`).join('')}</tbody></table></div>`;
+  }
+}
+function clearSkuMasterForm(){
+  ["masterSku","masterProductName"].forEach(id=>{if($(id)) $(id).value="";});
+  if($("masterProductType")) $("masterProductType").value="";
+  if($("masterSkuActive")) $("masterSkuActive").value="true";
+}
+function editSkuMaster(sku){
+  const x=findSkuMaster(sku); if(!x) return;
+  $("masterSku").value=x.sku||"";
+  $("masterProductName").value=x.productName||"";
+  $("masterProductType").value=x.productType||"";
+  $("masterSkuActive").value=x.active===false?"false":"true";
+  $("masterSku").scrollIntoView({behavior:"smooth",block:"center"});
+}
+async function saveSkuMaster(){
+  const payload={adminPassword:adminPassword(),kind:"sku",operation:"upsert",sku:$("masterSku").value.trim().toUpperCase(),productName:$("masterProductName").value.trim(),productType:$("masterProductType").value,active:$("masterSkuActive").value==="true"};
+  if(!payload.sku || !payload.productName || !payload.productType) return setStatus("กรุณากรอก SKU, ชื่อ Product และ Product Type", true);
+  const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  const data=await res.json(); if(!res.ok) return setStatus(data.error||"บันทึก SKU Master ไม่สำเร็จ",true);
+  setStatus(`บันทึก SKU Master ${payload.sku} แล้ว`,false); clearSkuMasterForm(); await loadMasterData();
+}
+async function deleteSkuMaster(sku){
+  if(!confirm(`ยืนยันลบ SKU Master ${sku} ?`)) return;
+  const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminPassword:adminPassword(),kind:"sku",operation:"delete",sku})});
+  const data=await res.json(); if(!res.ok) return setStatus(data.error||"ลบ SKU Master ไม่สำเร็จ",true);
+  setStatus(`ลบ SKU Master ${sku} แล้ว`,false); await loadMasterData();
+}
+function refreshMasterLineOptions(preferred=""){
+  const mode=$("masterMode")?.value || "", sel=$("masterLine"); if(!sel) return;
+  const old=preferred || sel.value || ""; const list=machineListForMode(mode);
+  sel.innerHTML=""; sel.appendChild(new Option(list.length?"เลือกเครื่อง":"เลือกประเภทไลน์ก่อน",""));
+  list.forEach(x=>sel.appendChild(new Option(x,x))); if(list.includes(old)) sel.value=old;
+}
+function clearLineMasterForm(){
+  if($("masterMode")) $("masterMode").value="";
+  refreshMasterLineOptions();
+  if($("masterBuildingNo")) $("masterBuildingNo").value="";
+  if($("masterLineActive")) $("masterLineActive").value="true";
+}
+function editLineMaster(mode,line){
+  const x=findLineMaster(mode,line); if(!x) return;
+  $("masterMode").value=x.mode||""; refreshMasterLineOptions(x.line||""); $("masterLine").value=x.line||"";
+  $("masterBuildingNo").value=String(x.buildingNo||""); $("masterLineActive").value=x.active===false?"false":"true";
+  $("masterMode").scrollIntoView({behavior:"smooth",block:"center"});
+}
+async function saveLineMaster(){
+  const payload={adminPassword:adminPassword(),kind:"line",operation:"upsert",mode:$("masterMode").value,line:$("masterLine").value,buildingNo:$("masterBuildingNo").value,active:$("masterLineActive").value==="true"};
+  if(!payload.mode || !payload.line || !payload.buildingNo) return setStatus("กรุณาเลือกประเภทไลน์, เครื่อง และเลขอาคาร", true);
+  const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  const data=await res.json(); if(!res.ok) return setStatus(data.error||"บันทึก Line Master ไม่สำเร็จ",true);
+  setStatus(`บันทึก Line Master ${payload.line} → อาคาร ${payload.buildingNo} แล้ว`,false); clearLineMasterForm(); await loadMasterData(); applyLineMaster(false);
+}
+async function deleteLineMaster(mode,line){
+  if(!confirm(`ยืนยันลบ Line Master ${line} ?`)) return;
+  const res=await fetch("/api/master_data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminPassword:adminPassword(),kind:"line",operation:"delete",mode,line})});
+  const data=await res.json(); if(!res.ok) return setStatus(data.error||"ลบ Line Master ไม่สำเร็จ",true);
+  setStatus(`ลบ Line Master ${line} แล้ว`,false); await loadMasterData(); applyLineMaster(false);
+}
+
 const PREFIX_SHIPPING_MAP = {
   KC:"", VN:"IPO VN", VT:"VN-MT", KK:"AKK", CT:"CDT", TS:"TS", AC:"AKC", SM:"SOMCHAICHALUEN", AX:"AKX", MM:"I.P. ONE-MYANMAR",
   ML:"ML", KT:"KT", MW:"MWD", MK:"MK", MY:"MDY", TG:"TG", MN:"MNJM", MA:"MLA", LM:"MT/LM+VY", DK:"DKSH", NT:"NTPL",
@@ -2691,6 +2927,7 @@ function fillMachineSelect(sel, value){
 function refreshMachines(){
   fillMachineSelect($("line"));
   extraLineControls.forEach(item => fillMachineSelect($(item.selectId)));
+  applyLineMaster(false);
   updateCalculated();
 }
 function addExtraLine(value=""){
@@ -2703,15 +2940,17 @@ function addExtraLine(value=""){
   const wrap = document.createElement("div");
   wrap.className = "extra-line-row";
   wrap.id = rowId;
-  wrap.innerHTML = `<select id="${selectId}" onchange="updatePreview()"></select><button type="button" class="danger btn-small" onclick="removeExtraLine('${rowId}')">ลบ</button>`;
+  wrap.innerHTML = `<select id="${selectId}" onchange="applyLineMaster(true); updatePreview()"></select><button type="button" class="danger btn-small" onclick="removeExtraLine('${rowId}')">ลบ</button>`;
   $("extraLineRows").appendChild(wrap);
   fillMachineSelect($(selectId), value);
   if(value && list.includes(value)) $(selectId).value = value;
+  applyLineMaster(false);
   updatePreview();
 }
 function removeExtraLine(rowId){
   const row = $(rowId); if(row) row.remove();
   extraLineControls = extraLineControls.filter(x => x.rowId !== rowId);
+  applyLineMaster(false);
   updatePreview();
 }
 function clearExtraLines(){
@@ -2868,8 +3107,8 @@ async function saveWO(){
   const mixRequired = p.mode === "linapack" && ((p.productType === "EPW" && ["TH","LAOS"].includes(p.marketType)) || (p.marketType === "EXPORT" && p.cartonAlphaCode === "VT"));
   if(mixRequired && !p.mixDate) required.push("วันที่ผสม");
   if(mixRequired && !p.mixCode) required.push("Mix Code");
-  if(!p.buildingNo) required.push("เลขอาคาร");
-  if(required.length) return setStatus("กรุณากรอก: " + required.join(", "), true);
+  if(!p.buildingNo) required.push("Line Master / เลขอาคาร");
+  if(required.length){ applyLineMaster(true); return setStatus("กรุณากรอก/ตั้งค่า: " + required.join(", "), true); }
   const res=await fetch("/api/work_orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
   const data=await res.json();
   if(!res.ok) return setStatus(data.error || "บันทึกไม่สำเร็จ", true);
@@ -2886,7 +3125,8 @@ async function loadList(showPanelOnSuccess=false){
     sessionStorage.setItem("adminPassword", password);
     if(showPanelOnSuccess) showAdminPanel();
     renderList(data.workOrders || []);
-    setStatus("โหลดรายการแล้ว " + (data.workOrders||[]).length + " รายการ", false);
+    await loadMasterData();
+    setStatus("โหลดรายการแล้ว " + (data.workOrders||[]).length + " รายการ | SKU Master " + __skuMaster.length + " | Line Master " + __lineMaster.length, false);
     setLoginStatus("", false);
   }catch(err){
     sessionStorage.removeItem("adminPassword");
@@ -3001,9 +3241,11 @@ function editWO(w){
   $("line").value=(pouches[0] && pouches[0].line) || w.line || "";
   clearExtraLines();
   pouches.slice(1).forEach(x => addExtraLine(x.line || ""));
+  populateSkuSelect(w.sku||"");
   $("sku").value=w.sku||"";
-  $("productName").value=w.productName||"";
-  $("productType").value=w.productType||"";
+  const skuMasterItem=findSkuMaster(w.sku||"");
+  $("productName").value=skuMasterItem ? (skuMasterItem.productName||"") : (w.productName||"");
+  $("productType").value=skuMasterItem ? (skuMasterItem.productType||"") : (w.productType||"");
   $("marketType").value=w.marketType||"";
   updateMarketUI();
   $("epcLaosShelfLifeMonths").value=String(w.epcLaosShelfLifeMonths||"24");
@@ -3013,7 +3255,8 @@ function editWO(w){
   $("cartonPrefix").value=w.cartonAlphaCode||w.cartonPrefix||"";
   updateShippingMark();
   updateConditionalFields();
-  $("buildingNo").value=w.buildingNo||"";
+  applyLineMaster(false);
+  if(!$("buildingNo").value) $("buildingNo").value=w.buildingNo||"";
   $("buildingSuffix").value=w.buildingSuffix||"";
   $("active").value=w.active===false ? "false" : "true";
   updateConditionalFields();
@@ -3030,12 +3273,14 @@ async function deleteWO(){
   clearForm(); loadList(false);
 }
 function clearForm(){
-  ["wo","sku","productName","mfgDate","mfg","exp","mixDate","mixCode","shippingMark","buildingSuffix"].forEach(id=>{ if($(id)) $(id).value=""; });
+  ["wo","productName","mfgDate","mfg","exp","mixDate","mixCode","shippingMark","buildingSuffix"].forEach(id=>{ if($(id)) $(id).value=""; });
   ["mode","line","productType","marketType","cartonPrefix","buildingNo"].forEach(id=>{ if($(id)) $(id).value=""; });
+  populateSkuSelect("");
+  if($("sku")) $("sku").value="";
   $("epcLaosShelfLifeMonths").value="24"; $("active").value="true";
   clearExtraLines(); refreshMachines(); updateMarketUI(); updateConditionalFields(); updatePreview();
 }
-window.addEventListener("DOMContentLoaded",()=>{refreshMachines();updateMarketUI();updateConditionalFields();hideAdminPanel();});
+window.addEventListener("DOMContentLoaded",()=>{refreshMachines();refreshMasterLineOptions();updateMarketUI();updateConditionalFields();hideAdminPanel();});
 </script>
 </body>
 </html>'''
@@ -3090,6 +3335,98 @@ def admin_page():
     return ADMIN_HTML
 
 
+@app.route("/api/master_data", methods=["GET", "POST"])
+def api_master_data():
+    if request.method == "GET":
+        if not admin_password_ok():
+            return jsonify({"error": "รหัสผ่าน Admin ไม่ถูกต้อง"}), 401
+        with WORK_ORDER_LOCK:
+            master = load_master_data()
+        sku_items = []
+        for sku, item in (master.get("skuMaster") or {}).items():
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            row["sku"] = sku
+            sku_items.append(row)
+        sku_items.sort(key=lambda x: str(x.get("sku", "")))
+        line_items = []
+        for key, item in (master.get("lineMaster") or {}).items():
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            if not row.get("mode") or not row.get("line"):
+                parts = str(key).split("|", 1)
+                if len(parts) == 2:
+                    row.setdefault("mode", parts[0])
+                    row.setdefault("line", parts[1])
+            line_items.append(row)
+        line_items.sort(key=lambda x: (str(x.get("mode", "")), str(x.get("line", ""))))
+        return jsonify({"ok": True, "skuMaster": sku_items, "lineMaster": line_items})
+
+    payload = request.get_json(silent=True) or {}
+    if not admin_password_ok(payload):
+        return jsonify({"error": "รหัสผ่าน Admin ไม่ถูกต้อง"}), 401
+    kind = str(payload.get("kind", "") or "").strip().lower()
+    operation = str(payload.get("operation", "upsert") or "upsert").strip().lower()
+    if kind not in {"sku", "line"} or operation not in {"upsert", "delete"}:
+        return jsonify({"error": "รูปแบบคำสั่ง Master Data ไม่ถูกต้อง"}), 400
+
+    with WORK_ORDER_LOCK:
+        master = load_master_data()
+        sku_master = master.setdefault("skuMaster", {})
+        line_master = master.setdefault("lineMaster", {})
+
+        if kind == "sku":
+            sku = re.sub(r"[^A-Z0-9._-]", "", str(payload.get("sku", "") or "").strip().upper())[:80]
+            if not sku:
+                return jsonify({"error": "กรุณากรอก SKU"}), 400
+            if operation == "delete":
+                sku_master.pop(sku, None)
+            else:
+                product_name = str(payload.get("productName", "") or "").strip()[:200]
+                product_type = str(payload.get("productType", "") or "").strip().upper()
+                if not product_name:
+                    return jsonify({"error": "กรุณากรอกชื่อ Product"}), 400
+                if product_type not in {"EPC", "EPW", "FS", "IS", "SS"}:
+                    return jsonify({"error": "Product Type ไม่ถูกต้อง"}), 400
+                sku_master[sku] = {
+                    "productName": product_name,
+                    "productType": product_type,
+                    "active": bool(payload.get("active", True)),
+                    "updatedAt": now_thai().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+        else:
+            mode = str(payload.get("mode", "") or "").strip().lower()
+            line = str(payload.get("line", "") or "").strip().upper()
+            if mode not in {"linapack", "sachet", "auto"}:
+                return jsonify({"error": "ประเภทไลน์ไม่ถูกต้อง"}), 400
+            valid_lines = {
+                "linapack": {f"LP{i}" for i in range(1, 10)},
+                "sachet": {*(f"MS{i}" for i in range(1, 13)), "AS1", "AS2"},
+                "auto": {"V1", "V3", "MESPACK1", "MESPACK2", "MESPACK3"},
+            }
+            if line not in valid_lines.get(mode, set()):
+                return jsonify({"error": "เลขเครื่องไม่ตรงกับประเภทไลน์"}), 400
+            key = f"{mode}|{line}"
+            if operation == "delete":
+                line_master.pop(key, None)
+            else:
+                building_no = str(payload.get("buildingNo", "") or "").strip()
+                if building_no not in {"1", "2", "3", "4", "5", "6"}:
+                    return jsonify({"error": "เลขอาคารต้องเป็น 1-6"}), 400
+                line_master[key] = {
+                    "mode": mode,
+                    "line": line,
+                    "buildingNo": building_no,
+                    "active": bool(payload.get("active", True)),
+                    "updatedAt": now_thai().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+        saved = save_master_data(master)
+
+    return jsonify({"ok": True, "masterUpdatedAt": saved.get("updatedAt", "")})
+
+
 @app.route("/api/work_orders", methods=["GET", "POST"])
 def api_work_orders():
     if request.method == "GET":
@@ -3123,11 +3460,10 @@ def api_work_orders():
 
     mode = str(payload.get("mode", "") or "").strip().lower()
     sku = str(payload.get("sku", "") or "").strip().upper()[:80]
-    product_name = str(payload.get("productName", "") or "").strip()[:200]
-    product_type = str(payload.get("productType", "") or "").strip().upper()
     market_type = str(payload.get("marketType", "") or "").strip().upper()
     mfg = str(payload.get("mfg", "") or "").strip()
-    line = str(payload.get("line", "") or "").strip()
+    line = str(payload.get("line", "") or "").strip().upper()
+    carton_code_input = str(payload.get("cartonAlphaCode", payload.get("cartonPrefix", "")) or "").strip().upper()
 
     missing = []
     if mode not in ["linapack", "sachet", "auto"]:
@@ -3136,42 +3472,68 @@ def api_work_orders():
         missing.append("เครื่องซองที่ 1")
     if not sku:
         missing.append("เลข SKU")
-    if not product_name:
-        missing.append("ชื่อผลิตภัณฑ์")
-    if product_type not in ["EPC", "EPW", "FS", "IS", "SS"]:
-        missing.append("ผลิตภัณฑ์")
     if market_type not in ["TH", "EXPORT", "LAOS"]:
         missing.append("ประเภทงาน")
     if not re.fullmatch(r"\d{6}", mfg):
         missing.append("MFG DDMMYY")
-    if not str(payload.get("buildingNo", "") or "").strip():
-        missing.append("เลขอาคาร")
-    carton_code_input = str(payload.get("cartonAlphaCode", payload.get("cartonPrefix", "")) or "").strip().upper()
     if market_type == "TH" and carton_code_input not in ["00", "DY"]:
         missing.append("Prefix กล่อง (00 หรือ DY)")
     elif market_type in ["EXPORT", "LAOS"] and not carton_code_input:
         missing.append("Prefix กล่อง")
+    if missing:
+        return jsonify({"error": "กรุณากรอก/เลือก: " + ", ".join(missing)}), 400
+
+    # Product Name / Product Type come only from SKU Master.
+    # Building No. comes only from Line Master.
+    with WORK_ORDER_LOCK:
+        master_data = load_master_data()
+    sku_record = (master_data.get("skuMaster") or {}).get(sku)
+    if not isinstance(sku_record, dict):
+        return jsonify({"error": f"SKU {sku} ยังไม่มีใน SKU Master กรุณาเพิ่ม Master ก่อน"}), 400
+    if sku_record.get("active", True) is False:
+        return jsonify({"error": f"SKU {sku} ถูกปิดใช้งานใน SKU Master"}), 400
+    product_name = str(sku_record.get("productName", "") or "").strip()[:200]
+    product_type = str(sku_record.get("productType", "") or "").strip().upper()
+    if not product_name or product_type not in ["EPC", "EPW", "FS", "IS", "SS"]:
+        return jsonify({"error": f"ข้อมูล SKU Master ของ {sku} ไม่ครบ กรุณาตรวจ Master Data"}), 400
+
+    pouches = payload.get("pouches") if isinstance(payload.get("pouches"), list) else []
+    clean_pouches = []
+    for item in pouches:
+        if isinstance(item, dict) and str(item.get("line", "") or "").strip():
+            clean_pouches.append({"line": str(item.get("line", "") or "").strip().upper()})
+    if not clean_pouches:
+        clean_pouches = [{"line": line}]
+
+    line_master = master_data.get("lineMaster") or {}
+    mapped_buildings = []
+    for item in clean_pouches:
+        line_code = str(item.get("line", "") or "").strip().upper()
+        line_record = line_master.get(f"{mode}|{line_code}")
+        if not isinstance(line_record, dict):
+            return jsonify({"error": f"{line_code} ยังไม่มีใน Line Master กรุณากำหนดเลขอาคารก่อน"}), 400
+        if line_record.get("active", True) is False:
+            return jsonify({"error": f"{line_code} ถูกปิดใช้งานใน Line Master"}), 400
+        building_value = str(line_record.get("buildingNo", "") or "").strip()
+        if building_value not in {"1", "2", "3", "4", "5", "6"}:
+            return jsonify({"error": f"Line Master ของ {line_code} ยังไม่ได้กำหนดเลขอาคารที่ถูกต้อง"}), 400
+        mapped_buildings.append(building_value)
+    if len(set(mapped_buildings)) != 1:
+        return jsonify({"error": "เครื่องซองที่เลือกถูกกำหนดอยู่คนละอาคาร กรุณาตรวจ Line Master"}), 400
+    building_no = mapped_buildings[0]
 
     # Linapack mix-date validation. VT export is a special case and must
     # contain a mix code such as 07H between MFG date and machine code.
     if mode == "linapack" and linapack_requires_mix(product_type, market_type, carton_code_input):
         mix_date_input = str(payload.get("mixDate", "") or "").strip()
         mix_code_input = str(payload.get("mixCode", "") or "").strip().upper()
+        mix_missing = []
         if not re.fullmatch(r"\d{6}", mix_date_input):
-            missing.append("วันที่ผสม")
+            mix_missing.append("วันที่ผสม")
         if not re.fullmatch(r"\d{2}[A-L]", mix_code_input):
-            missing.append("Mix Code (เช่น 07H)")
-
-    if missing:
-        return jsonify({"error": "กรุณากรอก/เลือก: " + ", ".join(missing)}), 400
-
-    pouches = payload.get("pouches") if isinstance(payload.get("pouches"), list) else []
-    clean_pouches = []
-    for item in pouches:
-        if isinstance(item, dict) and str(item.get("line", "") or "").strip():
-            clean_pouches.append({"line": str(item.get("line", "") or "").strip()})
-    if not clean_pouches:
-        clean_pouches = [{"line": line}]
+            mix_missing.append("Mix Code (เช่น 07H)")
+        if mix_missing:
+            return jsonify({"error": "กรุณากรอก/เลือก: " + ", ".join(mix_missing)}), 400
 
     wo = {
         "workOrder": key,
@@ -3190,7 +3552,7 @@ def api_work_orders():
         "cartonAlphaCode": str(payload.get("cartonAlphaCode", payload.get("cartonPrefix", "")) or "").strip().upper(),
         "cartonPrefix": str(payload.get("cartonPrefix", payload.get("cartonAlphaCode", "")) or "").strip().upper(),
         "shippingMark": str(payload.get("shippingMark", "") or "").strip().upper(),
-        "buildingNo": str(payload.get("buildingNo", "") or "").strip(),
+        "buildingNo": building_no,
         "buildingSuffix": str(payload.get("buildingSuffix", "") or "").strip().upper(),
         "active": bool(payload.get("active", True)),
         "updatedAt": now_thai().strftime("%Y-%m-%d %H:%M:%S"),
